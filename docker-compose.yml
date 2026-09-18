@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: kmplus-people-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: kmplus
+      POSTGRES_PASSWORD: kmplus
+      POSTGRES_DB: kmplus_people
+    volumes:
+      - kmplus_people_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kmplus -d kmplus_people"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kmplus_people_pg:

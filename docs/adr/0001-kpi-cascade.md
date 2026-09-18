@@ -1,0 +1,3 @@
+# KPI cascade is a parent pointer, not an org copy and not Impact/Output types
+
+KMPlus People needed a cascade without becoming Portaverse. A child KpiItem names one parent KpiItem on any Assignment; a parent may have many children. Direct adds matching unit and CheckInCadence as a raw sum; Indirect is alignment only. Roots are KpiItems on RootPositions (no reports-to), and there may be several such seats — not a TenantObjective and not a fake company Position. DirectMix (children-only vs own-plus-children) lives on the parent. We rejected automatic reports-to copy, weighted % across units, and stored KPI Impact / Output types because those are the BUMN clone the product is not.

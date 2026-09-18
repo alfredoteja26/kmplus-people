@@ -1,0 +1,93 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { addCheckIn, setCycleCadence, upsertKpiItem } from "./commands";
+import { effectiveCadence, windowFor } from "./cadence";
+import { createInitialState } from "./fixtures";
+import type { KpiCycle, KpiItem } from "./types";
+
+const cycle: KpiCycle = {
+  id: "cycle-test",
+  tenantId: "kmplus",
+  name: "Test",
+  year: 2026,
+  status: "open",
+  checkInCadence: "quarterly",
+  checkInWindows: [
+    { quarter: 1, open: false },
+    { quarter: 2, open: false },
+    { quarter: 3, open: true },
+    { quarter: 4, open: false },
+  ],
+};
+
+const item: KpiItem = {
+  id: "ki-test",
+  tenantId: "kmplus",
+  kpiSetId: "set-test",
+  name: "Utilization",
+  definition: "",
+  target: 80,
+  unit: "%",
+  weight: 100,
+  polarity: "higher-better",
+};
+
+describe("cadence helpers", () => {
+  it("uses cycle default when item has no override", () => {
+    expect(effectiveCadence(cycle, item)).toBe("quarterly");
+  });
+
+  it("uses item override when set", () => {
+    expect(effectiveCadence(cycle, { ...item, checkInCadence: "monthly" })).toBe("monthly");
+  });
+
+  it("maps dates to month or quarter window ids", () => {
+    expect(windowFor("2026-09-14", "monthly")).toBe("2026-09");
+    expect(windowFor("2026-09-14", "quarterly")).toBe("2026-Q3");
+    expect(windowFor("2026-01-02", "quarterly")).toBe("2026-Q1");
+    expect(windowFor("2026-12-31", "quarterly")).toBe("2026-Q4");
+  });
+});
+
+describe("addCheckIn window identity", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stores quarterly window from cycle default", () => {
+    const started = createInitialState();
+    const { state } = addCheckIn(started, "ki-digit-1", 5, "note");
+    const created = state.checkIns.find((row) => row.kpiItemId === "ki-digit-1" && row.actual === 5);
+    expect(created?.window).toBe("2026-Q3");
+  });
+
+  it("stores monthly window when cycle default is monthly", () => {
+    let started = createInitialState();
+    started = setCycleCadence(started, "cycle-2026", "monthly").state;
+    const { state } = addCheckIn(started, "ki-digit-1", 5, "note");
+    const created = state.checkIns.find((row) => row.kpiItemId === "ki-digit-1" && row.actual === 5);
+    expect(created?.window).toBe("2026-09");
+  });
+
+  it("stores monthly window when item overrides quarterly cycle", () => {
+    let started = createInitialState();
+    const existing = started.kpiItems.find((row) => row.id === "ki-digit-1");
+    if (!existing) throw new Error("missing ki-digit-1");
+    started = upsertKpiItem(started, { ...existing, checkInCadence: "monthly" }).state;
+    const { state } = addCheckIn(started, "ki-digit-1", 7, "monthly rhythm");
+    const created = state.checkIns.find((row) => row.kpiItemId === "ki-digit-1" && row.actual === 7);
+    expect(created?.window).toBe("2026-09");
+  });
+});
+
+describe("setCycleCadence", () => {
+  it("updates the cycle default CheckInCadence", () => {
+    const started = createInitialState();
+    const { state } = setCycleCadence(started, "cycle-2026", "monthly");
+    expect(state.cycles.find((row) => row.id === "cycle-2026")?.checkInCadence).toBe("monthly");
+  });
+});

@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id              String   @id
+  currentRole     String
+  currentPersonId String
+  updatedAt       DateTime @updatedAt
+}
+
+model Person {
+  id                    String   @id
+  tenantId              String
+  legalName             String
+  preferredName         String
+  email                 String
+  phone                 String
+  emergencyContactName  String
+  emergencyContactPhone String
+  linkedIn              String?
+  skills                String[]
+  educationNotes        String   @default("")
+  experienceNotes       String   @default("")
+  certifications        String   @default("")
+  educations            Json
+  experiences           Json
+  certificationRows     Json
+  skillRows             Json
+
+  employments  Employment[]
+  assignments  Assignment[]
+  cvs          CurriculumVitae[]
+  corrections  CorrectionRequest[]
+  auditEntries AuditEntry[]
+  users        User[]
+
+  @@index([tenantId])
+}
+
+model User {
+  id              String   @id
+  tenantId        String
+  personId        String
+  email           String
+  passwordHash    String
+  role            String
+  mustSetPassword Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  person          Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, personId])
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Employment {
+  id           String  @id
+  tenantId     String
+  personId     String
+  joinDate     String
+  endDate      String?
+  status       String
+  contractType String
+  person       Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([personId])
+}
+
+model OrgUnit {
+  id       String    @id
+  tenantId String
+  name     String
+  parentId String?
+  parent   OrgUnit?  @relation("OrgUnitTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children OrgUnit[] @relation("OrgUnitTree")
+  positions Position[]
+
+  @@index([tenantId])
+}
+
+model Grade {
+  id         String     @id
+  tenantId   String
+  code       String
+  name       String
+  positions  Position[]
+
+  @@index([tenantId])
+}
+
+model Position {
+  id                  String      @id
+  tenantId            String
+  title               String
+  gradeId             String
+  orgUnitId           String
+  reportsToPositionId String?
+  grade               Grade       @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  orgUnit             OrgUnit     @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  reportsTo           Position?   @relation("PositionTree", fields: [reportsToPositionId], references: [id], onDelete: SetNull)
+  reports             Position[]  @relation("PositionTree")
+  assignments         Assignment[]
+
+  @@index([tenantId])
+}
+
+model Assignment {
+  id         String   @id
+  tenantId   String
+  personId   String
+  positionId String
+  startDate  String
+  endDate    String?
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  kpiSets    KpiSet[]
+
+  @@index([tenantId])
+  @@index([personId])
+  @@index([positionId])
+}
+
+model CurriculumVitae {
+  id            String  @id
+  tenantId      String
+  personId      String?
+  fileName      String
+  uploadedAt    String
+  state         String
+  extractedText String
+  fields        Json
+  person        Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+model CorrectionRequest {
+  id            String @id
+  tenantId      String
+  personId      String
+  field         String
+  currentValue  String
+  proposedValue String
+  status        String
+  person        Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model KpiCycle {
+  id              String   @id
+  tenantId        String
+  name            String
+  year            Int
+  status          String
+  checkInCadence  String
+  checkInWindows  Json
+  kpiSets         KpiSet[]
+
+  @@index([tenantId])
+}
+
+model KpiSet {
+  id                 String     @id
+  tenantId           String
+  assignmentId       String
+  cycleId            String
+  status             String
+  readyForAgreement  Boolean    @default(false)
+  returnComment      String?
+  score              Float?
+  assignment         Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  cycle              KpiCycle   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  items              KpiItem[]
+
+  @@index([tenantId])
+  @@index([assignmentId])
+  @@index([cycleId])
+}
+
+model KpiItem {
+  id               String      @id
+  tenantId         String
+  kpiSetId         String
+  name             String
+  definition       String
+  target           Float
+  unit             String
+  weight           Float
+  polarity         String
+  checkInCadence   String?
+  parentKpiItemId  String?
+  cascadeMode      String?
+  directMix        String?
+  kpiSet           KpiSet      @relation(fields: [kpiSetId], references: [id], onDelete: Cascade)
+  parent           KpiItem?    @relation("KpiCascade", fields: [parentKpiItemId], references: [id], onDelete: SetNull)
+  children         KpiItem[]   @relation("KpiCascade")
+  checkIns         CheckIn[]
+
+  @@index([tenantId])
+  @@index([kpiSetId])
+}
+
+model CheckIn {
+  id        String  @id
+  tenantId  String
+  kpiItemId String
+  date      String
+  window    String
+  actual    Float
+  note      String
+  kpiItem   KpiItem @relation(fields: [kpiItemId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([kpiItemId])
+}
+
+model AuditEntry {
+  id            String @id
+  tenantId      String
+  at            String
+  actorRole     String
+  actorPersonId String
+  action        String
+  entity        String
+  entityId      String
+  detail        String
+  actor         Person @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+}
