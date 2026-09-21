@@ -152,7 +152,7 @@ export function KpiForest({ forest }: { forest: KpiForestData }) {
   if (forest.nodes.length === 0) {
     return (
       <p className="rounded-[16px] border-[1.5px] border-line bg-bg px-4 py-8 text-sm text-muted">
-        No KpiItems in this scope for the open cycle. Try Whole tenant if you are HR, or confirm your team has KpiSets for this cycle.
+        No KpiItems in this scope for the current KpiYear. Try Whole tenant if you are HR, or confirm your team has KPI Portfolios for this year.
       </p>
     );
   }

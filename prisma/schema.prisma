@@ -50,6 +50,7 @@ model User {
   email           String
   passwordHash    String
   role            String
+  adminGrant      Boolean  @default(false)
   mustSetPassword Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -161,6 +162,8 @@ model KpiCycle {
   name            String
   year            Int
   status          String
+  phase           String?
+  adjustmentOpen  Boolean  @default(false)
   checkInCadence  String
   checkInWindows  Json
   kpiSets         KpiSet[]
@@ -169,14 +172,16 @@ model KpiCycle {
 }
 
 model KpiSet {
-  id                 String     @id
-  tenantId           String
-  assignmentId       String
-  cycleId            String
-  status             String
-  readyForAgreement  Boolean    @default(false)
-  returnComment      String?
-  score              Float?
+  id                     String     @id
+  tenantId               String
+  assignmentId           String
+  cycleId                String
+  status                 String
+  readyForAgreement      Boolean    @default(false)
+  lineManagerApprovedBy  String?
+  adminApprovedBy        String?
+  returnComment          String?
+  score                  Float?
   assignment         Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   cycle              KpiCycle   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   items              KpiItem[]
@@ -210,14 +215,18 @@ model KpiItem {
 }
 
 model CheckIn {
-  id        String  @id
-  tenantId  String
-  kpiItemId String
-  date      String
-  window    String
-  actual    Float
-  note      String
-  kpiItem   KpiItem @relation(fields: [kpiItemId], references: [id], onDelete: Cascade)
+  id                    String  @id
+  tenantId              String
+  kpiItemId             String
+  date                  String
+  window                String
+  actual                Float
+  note                  String
+  status                String  @default("approved")
+  lineManagerApprovedBy String?
+  adminApprovedBy       String?
+  returnComment         String?
+  kpiItem               KpiItem @relation(fields: [kpiItemId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([kpiItemId])

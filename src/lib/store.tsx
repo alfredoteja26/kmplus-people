@@ -22,16 +22,23 @@ type Store = {
   decideCvField: (cvId: string, key: string, decision: FieldDecision, editedValue?: string) => void;
   applyCv: (cvId: string, mode: ApplyCvMode) => string | null;
   rejectCv: (cvId: string) => void;
-  openCycle: (cycleId: string) => void;
-  setCycleCadence: (cycleId: string, cadence: import("./types").CheckInCadence) => void;
-  closeCycle: (cycleId: string) => void;
+  startKpiPlanning: (cycleId: string) => string | null;
+  startKpiMonitoring: (cycleId: string) => string | null;
+  setKpiYearCheckInFrequency: (cycleId: string, cadence: import("./types").CheckInFrequency) => string | null;
+  closeKpiYear: (cycleId: string) => string | null;
+  openKpiAdjustmentWindow: (cycleId: string) => string | null;
+  closeKpiAdjustmentWindow: (cycleId: string) => string | null;
   createMissingKpiSets: (cycleId: string) => number;
   upsertKpiItem: (item: Omit<KpiItem, "tenantId" | "id"> & { id?: string }) => string | null;
   removeKpiItem: (id: string) => void;
   submitKpiSet: (kpiSetId: string) => string | null;
   agreeKpiSet: (kpiSetId: string) => string | null;
   returnKpiSet: (kpiSetId: string, comment: string) => void;
-  addCheckIn: (kpiItemId: string, actual: number, note: string) => void;
+  addCheckIn: (kpiItemId: string, actual: number, note: string) => string | null;
+  agreeCheckIn: (checkInId: string) => string | null;
+  returnCheckIn: (checkInId: string, comment: string) => void;
+  grantAdmin: (personId: string) => string | null;
+  revokeAdmin: (personId: string) => string | null;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -134,14 +141,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       rejectCv(cvId) {
         commit((prev) => commands.rejectCv(prev, cvId));
       },
-      openCycle(cycleId) {
-        commit((prev) => commands.openKpiCycle(prev, cycleId));
+      startKpiPlanning(cycleId) {
+        return commit((prev) => commands.startKpiPlanning(prev, cycleId)).error;
       },
-      setCycleCadence(cycleId, cadence) {
-        commit((prev) => commands.setCycleCadence(prev, cycleId, cadence));
+      startKpiMonitoring(cycleId) {
+        return commit((prev) => commands.startKpiMonitoring(prev, cycleId)).error;
       },
-      closeCycle(cycleId) {
-        commit((prev) => commands.closeCycle(prev, cycleId));
+      setKpiYearCheckInFrequency(cycleId, cadence) {
+        return commit((prev) => commands.setKpiYearCheckInFrequency(prev, cycleId, cadence)).error;
+      },
+      closeKpiYear(cycleId) {
+        return commit((prev) => commands.closeKpiYear(prev, cycleId)).error;
+      },
+      openKpiAdjustmentWindow(cycleId) {
+        return commit((prev) => commands.openKpiAdjustmentWindow(prev, cycleId)).error;
+      },
+      closeKpiAdjustmentWindow(cycleId) {
+        return commit((prev) => commands.closeKpiAdjustmentWindow(prev, cycleId)).error;
       },
       createMissingKpiSets(cycleId) {
         return commit((prev) => commands.createMissingKpiSets(prev, cycleId)).created;
@@ -161,8 +177,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       returnKpiSet(kpiSetId, comment) {
         commit((prev) => commands.returnKpiSet(prev, kpiSetId, comment));
       },
+      grantAdmin(personId) {
+        return commit((prev) => commands.grantAdmin(prev, personId)).error;
+      },
+      revokeAdmin(personId) {
+        return commit((prev) => commands.revokeAdmin(prev, personId)).error;
+      },
       addCheckIn(kpiItemId, actual, note) {
-        commit((prev) => commands.addCheckIn(prev, kpiItemId, actual, note));
+        return commit((prev) => commands.addCheckIn(prev, kpiItemId, actual, note)).error;
+      },
+      agreeCheckIn(checkInId) {
+        return commit((prev) => commands.agreeCheckIn(prev, checkInId)).error;
+      },
+      returnCheckIn(checkInId, comment) {
+        commit((prev) => commands.returnCheckIn(prev, checkInId, comment));
       },
     };
   }, [state, persisted]);

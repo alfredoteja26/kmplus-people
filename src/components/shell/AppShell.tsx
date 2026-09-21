@@ -1,5 +1,6 @@
 "use client";
 
+import { canAccessKpiAdmin } from "@/lib/domain-query";
 import { roleLabel, useStore } from "@/lib/store";
 import Image from "next/image";
 import { Button } from "@/components/ui/Button";
@@ -40,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar role={role} />
+        <Sidebar role={role} kpiAdmin={canAccessKpiAdmin(state)} />
         <main className="min-w-0 flex-1 overflow-y-auto bg-bg px-4 py-8 sm:px-6">{children}</main>
       </div>
     </div>

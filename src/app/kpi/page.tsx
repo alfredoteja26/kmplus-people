@@ -14,37 +14,50 @@ import { isRootAssignment } from "@/lib/cascade";
 import { effectiveCadence, windowFor } from "@/lib/cadence";
 import { blocksOwnCheckIn } from "@/lib/direct";
 import {
-  currentAssignment,
+  currentAssignments,
   isHrLike,
   itemHealth,
+  isPortfolioDualApproved,
   itemsForSet,
   kpiSetForAssignment,
-  openCycle,
+  readableKpiYear,
+  checkInApprovalWaitingCopy,
+  portfolioApprovalWaitingCopy,
+  pendingCheckInsForOwner,
+  positionById,
   todayIso,
   weightSum,
 } from "@/lib/domain";
+import { effectiveCheckInStatus, kpiYearPhase } from "@/lib/domain-query";
 import { useStore } from "@/lib/store";
 import type { CascadeMode, KpiCycle, KpiItem, Polarity } from "@/lib/types";
 import { useState } from "react";
 
 export default function MyKpiPage() {
   const { state, upsertKpiItem, removeKpiItem, submitKpiSet, addCheckIn } = useStore();
-  const cycle = openCycle(state);
-  const assignment = currentAssignment(state, state.currentPersonId);
+  const myPendingCheckIns = pendingCheckInsForOwner(state, state.currentPersonId);
+  const cycle = readableKpiYear(state);
+  const yearClosed = Boolean(cycle && kpiYearPhase(cycle) === "closed");
+  const assignments = currentAssignments(state, state.currentPersonId);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const assignment =
+    assignments.find((row) => row.id === selectedAssignmentId) ??
+    assignments.find((row) => (cycle ? kpiSetForAssignment(state, row.id, cycle.id) : undefined)) ??
+    assignments[0];
   const kpiSet = cycle && assignment ? kpiSetForAssignment(state, assignment.id, cycle.id) : undefined;
   const items = kpiSet ? itemsForSet(state, kpiSet.id) : [];
   const sum = weightSum(items);
-  const canEdit = kpiSet && (kpiSet.status === "draft" || kpiSet.status === "returned");
-  const canCheckIn = kpiSet && (kpiSet.status === "active" || kpiSet.status === "agreed");
+  const canEdit = Boolean(!yearClosed && kpiSet && (kpiSet.status === "draft" || kpiSet.status === "returned"));
+  const canCheckIn = Boolean(!yearClosed && kpiSet && isPortfolioDualApproved(state, kpiSet.id));
   const rootAssignment = assignment ? isRootAssignment(state, assignment.id) : false;
   const hr = isHrLike(state.currentRole);
   const canChangeParent =
     Boolean(canEdit) ||
-    Boolean(kpiSet && (kpiSet.status === "active" || kpiSet.status === "agreed") && hr);
+    Boolean(!yearClosed && kpiSet && kpiSet.status === "approved" && hr);
   const canChangeCascadeMode = canChangeParent;
   const canEditDirectMix =
     Boolean(canEdit) ||
-    Boolean(kpiSet && (kpiSet.status === "active" || kpiSet.status === "agreed") && hr);
+    Boolean(!yearClosed && kpiSet && kpiSet.status === "approved" && hr);
 
   function saveItem(patch: Omit<KpiItem, "tenantId">) {
     const message = upsertKpiItem(patch);
@@ -64,8 +77,8 @@ export default function MyKpiPage() {
   if (!cycle) {
     return (
       <div>
-        <PageHeader title="My KPI" description="Weighted KpiItems and CheckIns for the open cycle." />
-        <Callout tone="warning">No open KpiCycle. HR opens the cycle first.</Callout>
+        <PageHeader title="My KPI" description="Weighted KpiItems and KPI Check-Ins for the current KpiYear." />
+        <Callout tone="warning">No KpiYear to show. An Admin starts KpiPlanning on KPI Admin first.</Callout>
       </div>
     );
   }
@@ -75,14 +88,14 @@ export default function MyKpiPage() {
       <div>
         <PageHeader kicker={cycle.name} title="My KPI" />
         <Callout tone="warning">
-          No KpiSet on your current Assignment for {cycle.name}. HR can draft missing sets from KPI cycle.
+          No KPI Portfolio on your current Assignment for {cycle.name}. Admin can draft missing packs from KPI Admin.
         </Callout>
       </div>
     );
   }
 
-  const statusBadge =
-    kpiSet.readyForAgreement && kpiSet.status === "draft" ? "in-review" : kpiSet.status;
+  const statusBadge = kpiSet.status;
+  const approvalWaiting = portfolioApprovalWaitingCopy(state, kpiSet.id);
 
   return (
     <div className="space-y-4">
@@ -92,11 +105,33 @@ export default function MyKpiPage() {
         description="Draft weighted KpiItems to 100%, then your manager agrees. CheckIn is actual versus target."
         actions={<StatusBadge status={statusBadge} />}
       />
+      {assignments.length > 1 ? (
+        <Field label="KPI Portfolio seat">
+          <Select
+            value={assignment.id}
+            onChange={(event) => setSelectedAssignmentId(event.target.value)}
+          >
+            {assignments.map((row) => (
+              <option key={row.id} value={row.id}>
+                {positionById(state, row.positionId)?.title ?? row.positionId}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
 
       {kpiSet.returnComment ? (
         <Callout tone="warning">
           <span className="font-medium">Returned for revision.</span> {kpiSet.returnComment}
         </Callout>
+      ) : null}
+      {approvalWaiting ? (
+        <Callout tone="accent">
+          <span className="font-medium">KPI Portfolio in review.</span> {approvalWaiting}
+        </Callout>
+      ) : null}
+      {yearClosed ? (
+        <Callout>This KpiYear is closed. KPI Portfolios are read-only. Stored KpiScore stays visible.</Callout>
       ) : null}
       {error ? <Callout tone="danger">{error}</Callout> : null}
       {kpiSet.score !== undefined ? (
@@ -199,7 +234,26 @@ export default function MyKpiPage() {
                   onCascadeModeChange={(cascadeMode) => saveItem({ ...item, cascadeMode })}
                 />
               </Td>
-              <Td className="tabular-nums">{latestActualText(state, item)}</Td>
+              <Td className="tabular-nums">
+                <div>{latestActualText(state, item)}</div>
+                {myPendingCheckIns
+                  .filter((row) => row.kpiItemId === item.id)
+                  .map((row) => {
+                    const waiting = checkInApprovalWaitingCopy(state, row.id);
+                    return waiting ? (
+                      <p key={row.id} className="m-0 mt-1 text-xs text-muted">
+                        KPI Check-In {row.window}: {waiting}
+                      </p>
+                    ) : null;
+                  })}
+                {state.checkIns
+                  .filter((row) => row.kpiItemId === item.id && effectiveCheckInStatus(row) === "returned")
+                  .map((row) => (
+                    <p key={row.id} className="m-0 mt-1 text-xs text-warning">
+                      Returned: {row.returnComment ?? "Please revise this Check-In"}
+                    </p>
+                  ))}
+              </Td>
               <Td>
                 <HealthBadge health={itemHealth(state, item)} />
               </Td>
@@ -339,7 +393,7 @@ function CheckInForm({
   state: import("@/lib/types").AppState;
   cycle: KpiCycle;
   item: KpiItem;
-  onSave: (kpiItemId: string, actual: number, note: string) => void;
+  onSave: (kpiItemId: string, actual: number, note: string) => string | null;
 }) {
   const [actual, setActual] = useState("");
   const [note, setNote] = useState("");
@@ -353,7 +407,8 @@ function CheckInForm({
       className="flex min-w-[12rem] flex-col gap-2"
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(item.id, Number(actual), note);
+        const message = onSave(item.id, Number(actual), note);
+        if (message) return;
         setActual("");
         setNote("");
       }}
@@ -379,7 +434,7 @@ function CheckInForm({
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
-        <Button type="submit">CheckIn</Button>
+        <Button type="submit">Submit KPI Check-In</Button>
       </div>
     </form>
   );

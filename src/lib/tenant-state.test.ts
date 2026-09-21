@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./fixtures";
 import {
-  addCheckIn,
+  agreeCheckIn,
+  updateCheckIn,
   agreeKpiSet,
   applyCv,
   assignPosition,
@@ -106,11 +107,13 @@ describe("tenant-state commands", () => {
   it("agrees a KpiSet and leaves the open cycle unchanged", () => {
     const started = createInitialState();
     expect(openCycle(started)?.id).toBe("cycle-2026");
-    expect(started.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("draft");
+    expect(started.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("pending");
 
-    const { state } = agreeKpiSet(started, "set-alfredo");
+    const asRayhan = { ...started, currentPersonId: "person-rayhan", currentRole: "manager" as const };
+    const { state } = agreeKpiSet(asRayhan, "set-alfredo");
 
-    expect(state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("active");
+    expect(state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("pending");
+    expect(state.kpiSets.find((row) => row.id === "set-alfredo")?.lineManagerApprovedBy).toBe("person-rayhan");
     expect(openCycle(state)?.id).toBe("cycle-2026");
   });
 
@@ -120,7 +123,10 @@ describe("tenant-state commands", () => {
     if (!kpiSet) throw new Error("Missing KpiSet set-digit");
     expect(latestCheckIn(started, "ki-digit-1")?.actual).toBe(4);
 
-    const { state } = addCheckIn(started, "ki-digit-1", 6, "Caught up on shipped slices");
+    const asDigit = { ...started, currentPersonId: "person-digit", currentRole: "employee" as const };
+    const edited = updateCheckIn(asDigit, "ci-digit-1", { actual: 6, note: "Caught up on shipped slices" });
+    let state = agreeCheckIn({ ...edited.state, currentPersonId: "person-marcelino", currentRole: "manager" }, "ci-digit-1").state;
+    state = agreeCheckIn({ ...state, currentPersonId: "person-alfredo", currentRole: "employee" }, "ci-digit-1").state;
 
     expect(latestCheckIn(state, "ki-digit-1")?.actual).toBe(6);
     expect(setHealth(state, kpiSet)).toBe("at-risk");

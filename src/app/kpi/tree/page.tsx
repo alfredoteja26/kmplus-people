@@ -24,7 +24,7 @@ export default function KpiTreePage() {
     return (
       <div>
         <PageHeader title="KPI tree" />
-        <Callout tone="warning">No open KpiCycle. HR opens the cycle first.</Callout>
+        <Callout tone="warning">No KpiYear in KpiMonitoring. An Admin starts the year on KPI Admin first.</Callout>
       </div>
     );
   }
@@ -34,7 +34,7 @@ export default function KpiTreePage() {
       <PageHeader
         kicker={cycle.name}
         title="KPI tree"
-        description="Cascade forest for the open cycle. Roots are KpiItems on RootPositions. Click a node to open that Assignment’s KpiSet."
+        description="Cascade forest for the current KpiYear. Roots are KpiItems on RootPositions. Click a node to open that Assignment’s KPI Portfolio."
       />
       <div className="mb-4 flex flex-wrap items-end gap-4">
         <Field label="Scope">

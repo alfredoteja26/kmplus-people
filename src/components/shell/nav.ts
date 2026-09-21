@@ -28,23 +28,23 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/kpi", label: "My KPI", icon: "kpi" },
       { href: "/kpi/team", label: "Team", icon: "team" },
-      { href: "/kpi/cycle", label: "Cycle", icon: "cycle" },
+      { href: "/kpi/cycle", label: "KPI Admin", icon: "cycle" },
       { href: "/kpi/tree", label: "KPI tree", icon: "tree" },
     ],
   },
 ];
 
-function canSeeNavItem(href: string, role: Role): boolean {
+function canSeeNavItem(href: string, role: Role, kpiAdmin: boolean): boolean {
   if (href === "/cv") return isHrLike(role) || role === "employee";
   if (href === "/kpi/team") return role === "manager" || isHrLike(role);
-  if (href === "/kpi/cycle") return isHrLike(role);
+  if (href === "/kpi/cycle") return kpiAdmin;
   return true;
 }
 
-export function navGroupsForRole(role: Role): NavGroup[] {
+export function navGroupsForRole(role: Role, kpiAdmin: boolean): NavGroup[] {
   return NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => canSeeNavItem(item.href, role)),
+    items: group.items.filter((item) => canSeeNavItem(item.href, role, kpiAdmin)),
   })).filter((group) => group.items.length > 0);
 }
 

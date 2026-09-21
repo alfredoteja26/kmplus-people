@@ -19,12 +19,46 @@ import type {
   TenantUser,
 } from "@/lib/types";
 import { TENANT_ID } from "@/lib/types";
+import { normalizeKpiYearPhase } from "@/lib/domain-query";
 import { DEMO_PASSWORD, DEMO_USERS, createInitialState } from "@/lib/fixtures";
 import { hashPassword } from "./password";
 import { getPrisma } from "./prisma";
 
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function hydrateKpiSet(row: {
+  id: string;
+  tenantId: string;
+  assignmentId: string;
+  cycleId: string;
+  status: string;
+  readyForAgreement: boolean;
+  lineManagerApprovedBy?: string | null;
+  adminApprovedBy?: string | null;
+  returnComment?: string | null;
+  score?: number | null;
+}): KpiSet {
+  const rawStatus = row.status;
+  let status: KpiSet["status"] =
+    rawStatus === "draft" || rawStatus === "pending" || rawStatus === "returned" || rawStatus === "approved" || rawStatus === "scored"
+      ? rawStatus
+      : "draft";
+  if (rawStatus === "active" || rawStatus === "agreed") status = "approved";
+  if (status === "draft" && row.readyForAgreement) status = "pending";
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    assignmentId: row.assignmentId,
+    cycleId: row.cycleId,
+    status,
+    readyForAgreement: row.readyForAgreement || undefined,
+    lineManagerApprovedBy: row.lineManagerApprovedBy ?? undefined,
+    adminApprovedBy: row.adminApprovedBy ?? undefined,
+    returnComment: row.returnComment ?? undefined,
+    score: row.score ?? undefined,
+  };
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -64,6 +98,7 @@ function toTenantUser(row: {
   personId: string;
   email: string;
   role: string;
+  adminGrant?: boolean;
   mustSetPassword: boolean;
 }): TenantUser {
   return {
@@ -72,8 +107,34 @@ function toTenantUser(row: {
     personId: row.personId,
     email: row.email,
     role: row.role as Role,
+    adminGrant: row.adminGrant ?? false,
     mustSetPassword: row.mustSetPassword,
   };
+}
+
+function hydrateKpiCycle(row: {
+  id: string;
+  tenantId: string;
+  name: string;
+  year: number;
+  status: string;
+  phase?: string | null;
+  adjustmentOpen?: boolean;
+  checkInCadence: string;
+  checkInWindows: unknown;
+}): KpiCycle {
+  const base: KpiCycle = {
+    id: row.id,
+    tenantId: row.tenantId,
+    name: row.name,
+    year: row.year,
+    status: row.status as KpiCycle["status"],
+    phase: (row.phase as KpiCycle["phase"]) ?? null,
+    adjustmentOpen: row.adjustmentOpen ?? false,
+    checkInCadence: row.checkInCadence as CheckInCadence,
+    checkInWindows: asArray(row.checkInWindows),
+  };
+  return { ...base, phase: normalizeKpiYearPhase(base) };
 }
 
 export async function seedDemoUserPasswords(): Promise<void> {
@@ -86,6 +147,7 @@ export async function seedDemoUserPasswords(): Promise<void> {
         passwordHash,
         mustSetPassword: false,
         role: demo.role,
+        adminGrant: Boolean(demo.adminGrant),
       },
     });
   }
@@ -229,29 +291,8 @@ export async function loadTenantState(): Promise<AppState> {
         status: row.status as CorrectionRequest["status"],
       }),
     ),
-    cycles: cycles.map(
-      (row): KpiCycle => ({
-        id: row.id,
-        tenantId: row.tenantId,
-        name: row.name,
-        year: row.year,
-        status: row.status as KpiCycle["status"],
-        checkInCadence: row.checkInCadence as CheckInCadence,
-        checkInWindows: asArray(row.checkInWindows),
-      }),
-    ),
-    kpiSets: kpiSets.map(
-      (row): KpiSet => ({
-        id: row.id,
-        tenantId: row.tenantId,
-        assignmentId: row.assignmentId,
-        cycleId: row.cycleId,
-        status: row.status as KpiSet["status"],
-        readyForAgreement: row.readyForAgreement || undefined,
-        returnComment: row.returnComment ?? undefined,
-        score: row.score ?? undefined,
-      }),
-    ),
+    cycles: cycles.map((row) => hydrateKpiCycle(row)),
+    kpiSets: kpiSets.map((row) => hydrateKpiSet(row)),
     kpiItems: kpiItems.map(
       (row): KpiItem => ({
         id: row.id,
@@ -371,13 +412,18 @@ export async function saveTenantState(state: AppState): Promise<void> {
             email: row.email,
             passwordHash: "",
             role: row.role,
+            adminGrant: Boolean(row.adminGrant),
             mustSetPassword: row.mustSetPassword,
           },
         });
       } else {
         await tx.user.update({
           where: { id: existing.id },
-          data: { email: row.email },
+          data: {
+            email: row.email,
+            role: row.role,
+            adminGrant: Boolean(row.adminGrant),
+          },
         });
       }
     }
@@ -486,6 +532,11 @@ export async function saveTenantState(state: AppState): Promise<void> {
     }
 
     for (const row of state.cycles) {
+      const phase = normalizeKpiYearPhase(row);
+      let status = row.status;
+      if (phase === "closed") status = "closed";
+      else if (phase === "planning" || phase === "monitoring") status = "open";
+      else status = "draft";
       await tx.kpiCycle.upsert({
         where: { id: row.id },
         create: {
@@ -493,14 +544,18 @@ export async function saveTenantState(state: AppState): Promise<void> {
           tenantId,
           name: row.name,
           year: row.year,
-          status: row.status,
+          status,
+          phase,
+          adjustmentOpen: row.adjustmentOpen ?? false,
           checkInCadence: row.checkInCadence,
           checkInWindows: json(row.checkInWindows),
         },
         update: {
           name: row.name,
           year: row.year,
-          status: row.status,
+          status,
+          phase,
+          adjustmentOpen: row.adjustmentOpen ?? false,
           checkInCadence: row.checkInCadence,
           checkInWindows: json(row.checkInWindows),
         },
@@ -516,7 +571,9 @@ export async function saveTenantState(state: AppState): Promise<void> {
           assignmentId: row.assignmentId,
           cycleId: row.cycleId,
           status: row.status,
-          readyForAgreement: Boolean(row.readyForAgreement),
+          readyForAgreement: row.status === "pending" || Boolean(row.readyForAgreement),
+          lineManagerApprovedBy: row.lineManagerApprovedBy ?? null,
+          adminApprovedBy: row.adminApprovedBy ?? null,
           returnComment: row.returnComment ?? null,
           score: row.score ?? null,
         },
@@ -524,7 +581,9 @@ export async function saveTenantState(state: AppState): Promise<void> {
           assignmentId: row.assignmentId,
           cycleId: row.cycleId,
           status: row.status,
-          readyForAgreement: Boolean(row.readyForAgreement),
+          readyForAgreement: row.status === "pending" || Boolean(row.readyForAgreement),
+          lineManagerApprovedBy: row.lineManagerApprovedBy ?? null,
+          adminApprovedBy: row.adminApprovedBy ?? null,
           returnComment: row.returnComment ?? null,
           score: row.score ?? null,
         },
@@ -574,7 +633,15 @@ export async function saveTenantState(state: AppState): Promise<void> {
     for (const row of state.checkIns) {
       await tx.checkIn.upsert({
         where: { id: row.id },
-        create: { ...row, tenantId },
+        create: {
+          id: row.id,
+          tenantId,
+          kpiItemId: row.kpiItemId,
+          date: row.date,
+          window: row.window,
+          actual: row.actual,
+          note: row.note,
+        },
         update: {
           kpiItemId: row.kpiItemId,
           date: row.date,

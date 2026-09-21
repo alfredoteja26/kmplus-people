@@ -11,9 +11,8 @@ type CadenceFieldProps = {
 };
 
 export function CadenceField({ item, cycleCadence, onChange, compact }: CadenceFieldProps) {
-  const label = compact ? "Cadence" : "Check-in cadence";
   return (
-    <Field label={label}>
+    <Field label="KPI Check-in Frequency">
       <Select
         className={compact ? "min-w-[11rem]" : undefined}
         value={item.checkInCadence ?? ""}
@@ -22,7 +21,7 @@ export function CadenceField({ item, cycleCadence, onChange, compact }: CadenceF
           onChange(value === "" ? undefined : (value as CheckInCadence));
         }}
       >
-        <option value="">Cycle default ({cycleCadence})</option>
+        <option value="">KPI year default ({cycleCadence})</option>
         <option value="monthly">Monthly</option>
         <option value="quarterly">Quarterly</option>
       </Select>

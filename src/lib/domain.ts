@@ -1,4 +1,5 @@
 import { displayedActual } from "./direct";
+import { lineManagerReportPersonIds, openCycle } from "./domain-query";
 import type { AppState, Assignment, Health, KpiItem, KpiSet, Person, Position, Role } from "./types";
 
 export function nid(prefix: string) {
@@ -9,8 +10,12 @@ export function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function currentAssignments(state: AppState, personId: string): Assignment[] {
+  return state.assignments.filter((row) => row.personId === personId && row.endDate === null);
+}
+
 export function currentAssignment(state: AppState, personId: string): Assignment | undefined {
-  return state.assignments.find((row) => row.personId === personId && row.endDate === null);
+  return currentAssignments(state, personId)[0];
 }
 
 export function assignmentForPosition(state: AppState, positionId: string): Assignment | undefined {
@@ -25,6 +30,8 @@ export function userForPerson(state: AppState, personId: string) {
   return state.users.find((row) => row.personId === personId);
 }
 
+export { canAccessKpiAdmin as isKpiAdmin } from "./domain-query";
+
 export function positionById(state: AppState, id: string) {
   return state.positions.find((row) => row.id === id);
 }
@@ -33,9 +40,19 @@ export function employmentFor(state: AppState, personId: string) {
   return state.employments.find((row) => row.personId === personId);
 }
 
-export function openCycle(state: AppState) {
-  return state.cycles.find((row) => row.status === "open");
-}
+export {
+  checkInApprovalWaitingCopy,
+  isPortfolioDualApproved,
+  lineManagerPersonId,
+  lineManagerPersonIdForAssignment,
+  lineManagerReportAssignments,
+  lineManagerReportPersonIds,
+  openCycle,
+  readableKpiYear,
+  pendingCheckInsForLineManager,
+  pendingCheckInsForOwner,
+  portfolioApprovalWaitingCopy,
+} from "./domain-query";
 
 export function kpiSetForAssignment(state: AppState, assignmentId: string, cycleId: string) {
   return state.kpiSets.find((row) => row.assignmentId === assignmentId && row.cycleId === cycleId);
@@ -66,7 +83,7 @@ export function itemHealth(state: AppState, item: KpiItem): Health {
 }
 
 export function setHealth(state: AppState, kpiSet: KpiSet): Health {
-  if (kpiSet.status === "draft" || kpiSet.status === "returned") return "none";
+  if (kpiSet.status === "draft" || kpiSet.status === "returned" || kpiSet.status === "pending") return "none";
   const items = itemsForSet(state, kpiSet.id);
   if (items.length === 0) return "none";
   const ranks = { off: 0, "at-risk": 1, "on-track": 2, none: 1 };
@@ -92,7 +109,7 @@ export function descendantPositionIds(state: AppState, rootPositionId: string): 
   return ids;
 }
 
-export function teamPersonIds(state: AppState, managerPersonId: string): string[] {
+export function descendantReportPersonIds(state: AppState, managerPersonId: string): string[] {
   const seat = currentAssignment(state, managerPersonId);
   if (!seat) return [];
   const positionIds = descendantPositionIds(state, seat.positionId);
@@ -101,11 +118,16 @@ export function teamPersonIds(state: AppState, managerPersonId: string): string[
     .map((row) => row.personId);
 }
 
+/** Team KPI roster: reports whose LineManager is this Person (skip-level when seats are vacant). */
+export function teamPersonIds(state: AppState, managerPersonId: string): string[] {
+  return lineManagerReportPersonIds(state, managerPersonId);
+}
+
 export function canReadPerson(state: AppState, personId: string) {
   const { currentRole, currentPersonId } = state;
   if (currentRole === "hr" || currentRole === "admin") return true;
   if (personId === currentPersonId) return true;
-  if (currentRole === "manager") return teamPersonIds(state, currentPersonId).includes(personId);
+  if (currentRole === "manager") return descendantReportPersonIds(state, currentPersonId).includes(personId);
   return false;
 }
 

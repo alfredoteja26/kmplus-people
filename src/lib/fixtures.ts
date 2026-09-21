@@ -48,7 +48,7 @@ function person(
 export const DEMO_PASSWORD = "kmplus-demo";
 
 export const DEMO_USERS: DemoUser[] = [
-  { role: "employee", personId: "person-alfredo", label: "Alfredo Teja · Employee" },
+  { role: "employee", personId: "person-alfredo", label: "Alfredo Teja · Employee", adminGrant: true },
   { role: "manager", personId: "person-rayhan", label: "Rayhan Alvin · Manager" },
   { role: "hr", personId: "person-denny", label: "Denny G · HR" },
   { role: "admin", personId: "person-alvin", label: "Alvin Soleh · Tenant admin" },
@@ -167,14 +167,24 @@ const employments: Employment[] = people.map((row) => ({
   contractType: row.id.includes("intern") ? "intern" : "permanent",
 }));
 
-const assignments: Assignment[] = people.map((row) => ({
-  id: `asg-${row.id.replace("person-", "")}`,
-  tenantId: t,
-  personId: row.id,
-  positionId: seat[row.id],
-  startDate: "2024-01-01",
-  endDate: null,
-}));
+const assignments: Assignment[] = [
+  ...people.map((row) => ({
+    id: `asg-${row.id.replace("person-", "")}`,
+    tenantId: t,
+    personId: row.id,
+    positionId: seat[row.id],
+    startDate: "2024-01-01",
+    endDate: null,
+  })),
+  {
+    id: "asg-alfredo-assoc",
+    tenantId: t,
+    personId: "person-alfredo",
+    positionId: "pos-assoc-cons",
+    startDate: "2026-07-01",
+    endDate: null,
+  },
+];
 
 const cycles: KpiCycle[] = [
   {
@@ -183,6 +193,8 @@ const cycles: KpiCycle[] = [
     name: "2025 annual",
     year: 2025,
     status: "closed",
+    phase: "closed",
+    adjustmentOpen: false,
     checkInCadence: "quarterly",
     checkInWindows: [
       { quarter: 1, open: false },
@@ -197,6 +209,8 @@ const cycles: KpiCycle[] = [
     name: "2026 annual",
     year: 2026,
     status: "open",
+    phase: "monitoring",
+    adjustmentOpen: false,
     checkInCadence: "quarterly",
     checkInWindows: [
       { quarter: 1, open: false },
@@ -211,6 +225,8 @@ const cycles: KpiCycle[] = [
     name: "2027 annual",
     year: 2027,
     status: "draft",
+    phase: null,
+    adjustmentOpen: false,
     checkInCadence: "quarterly",
     checkInWindows: [
       { quarter: 1, open: false },
@@ -222,11 +238,48 @@ const cycles: KpiCycle[] = [
 ];
 
 const kpiSets: KpiSet[] = [
-  { id: "set-alfredo", tenantId: t, assignmentId: "asg-alfredo", cycleId: "cycle-2026", status: "draft", readyForAgreement: true },
-  { id: "set-rayhan", tenantId: t, assignmentId: "asg-rayhan", cycleId: "cycle-2026", status: "agreed" },
-  { id: "set-digit", tenantId: t, assignmentId: "asg-digit", cycleId: "cycle-2026", status: "active" },
-  { id: "set-alvin", tenantId: t, assignmentId: "asg-alvin", cycleId: "cycle-2026", status: "active" },
-  { id: "set-denny", tenantId: t, assignmentId: "asg-denny", cycleId: "cycle-2026", status: "active" },
+  { id: "set-alfredo", tenantId: t, assignmentId: "asg-alfredo", cycleId: "cycle-2026", status: "pending" },
+  {
+    id: "set-rayhan",
+    tenantId: t,
+    assignmentId: "asg-rayhan",
+    cycleId: "cycle-2026",
+    status: "pending",
+    lineManagerApprovedBy: "person-alvin",
+  },
+  {
+    id: "set-digit",
+    tenantId: t,
+    assignmentId: "asg-digit",
+    cycleId: "cycle-2026",
+    status: "approved",
+    lineManagerApprovedBy: "person-marcelino",
+    adminApprovedBy: "person-alfredo",
+  },
+  {
+    id: "set-alvin",
+    tenantId: t,
+    assignmentId: "asg-alvin",
+    cycleId: "cycle-2026",
+    status: "approved",
+    adminApprovedBy: "person-alfredo",
+  },
+  {
+    id: "set-denny",
+    tenantId: t,
+    assignmentId: "asg-denny",
+    cycleId: "cycle-2026",
+    status: "approved",
+    lineManagerApprovedBy: "person-alvin",
+    adminApprovedBy: "person-alfredo",
+  },
+  {
+    id: "set-alfredo-assoc",
+    tenantId: t,
+    assignmentId: "asg-alfredo-assoc",
+    cycleId: "cycle-2026",
+    status: "draft",
+  },
 ];
 
 function items(
@@ -274,14 +327,96 @@ const kpiItems: KpiItem[] = [
   ]),
 ];
 
+function seededCheckIn(
+  row: Omit<CheckInRecord, "status" | "lineManagerApprovedBy" | "adminApprovedBy"> & {
+    lineManagerApprovedBy?: string;
+    adminApprovedBy?: string;
+  },
+): CheckInRecord {
+  return {
+    ...row,
+    status: "approved",
+    lineManagerApprovedBy: row.lineManagerApprovedBy,
+    adminApprovedBy: row.adminApprovedBy,
+  };
+}
+
 const checkIns: CheckInRecord[] = [
-  { id: "ci-digit-1", tenantId: t, kpiItemId: "ki-digit-1", date: "2026-07-15", window: "2026-Q3", actual: 4, note: "Four slices in H1" },
-  { id: "ci-digit-2", tenantId: t, kpiItemId: "ki-digit-2", date: "2026-07-15", window: "2026-Q3", actual: 1, note: "One escaped defect" },
-  { id: "ci-digit-3", tenantId: t, kpiItemId: "ki-digit-3", date: "2026-07-15", window: "2026-Q3", actual: 2, note: "Two notes" },
-  { id: "ci-alvin-1", tenantId: t, kpiItemId: "ki-alvin-1", date: "2026-07-20", window: "2026-Q3", actual: 68, note: "Close to plan" },
-  { id: "ci-alvin-2", tenantId: t, kpiItemId: "ki-alvin-2", date: "2026-07-20", window: "2026-Q3", actual: 48, note: "Q2 survey" },
-  { id: "ci-denny-1", tenantId: t, kpiItemId: "ki-denny-1", date: "2026-07-20", window: "2026-Q3", actual: 85, note: "Empty Head and trainee seats remain" },
-  { id: "ci-denny-2", tenantId: t, kpiItemId: "ki-denny-2", date: "2026-07-20", window: "2026-Q3", actual: 92, note: "Two CVs over SLA" },
+  seededCheckIn({
+    id: "ci-digit-1",
+    tenantId: t,
+    kpiItemId: "ki-digit-1",
+    date: "2026-07-15",
+    window: "2026-Q3",
+    actual: 4,
+    note: "Four slices in H1",
+    lineManagerApprovedBy: "person-marcelino",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-digit-2",
+    tenantId: t,
+    kpiItemId: "ki-digit-2",
+    date: "2026-07-15",
+    window: "2026-Q3",
+    actual: 1,
+    note: "One escaped defect",
+    lineManagerApprovedBy: "person-marcelino",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-digit-3",
+    tenantId: t,
+    kpiItemId: "ki-digit-3",
+    date: "2026-07-15",
+    window: "2026-Q3",
+    actual: 2,
+    note: "Two notes",
+    lineManagerApprovedBy: "person-marcelino",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-alvin-1",
+    tenantId: t,
+    kpiItemId: "ki-alvin-1",
+    date: "2026-07-20",
+    window: "2026-Q3",
+    actual: 68,
+    note: "Close to plan",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-alvin-2",
+    tenantId: t,
+    kpiItemId: "ki-alvin-2",
+    date: "2026-07-20",
+    window: "2026-Q3",
+    actual: 48,
+    note: "Q2 survey",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-denny-1",
+    tenantId: t,
+    kpiItemId: "ki-denny-1",
+    date: "2026-07-20",
+    window: "2026-Q3",
+    actual: 85,
+    note: "Empty Head and trainee seats remain",
+    lineManagerApprovedBy: "person-alvin",
+    adminApprovedBy: "person-alfredo",
+  }),
+  seededCheckIn({
+    id: "ci-denny-2",
+    tenantId: t,
+    kpiItemId: "ki-denny-2",
+    date: "2026-07-20",
+    window: "2026-Q3",
+    actual: 92,
+    note: "Two CVs over SLA",
+    lineManagerApprovedBy: "person-alvin",
+    adminApprovedBy: "person-alfredo",
+  }),
 ];
 
 const cvs: CurriculumVitae[] = [
@@ -414,6 +549,7 @@ export function seedTenantUsers(): TenantUser[] {
       personId: demo.personId,
       email: row.email,
       role: demo.role,
+      adminGrant: demo.personId === "person-alfredo",
       mustSetPassword: false,
     };
   });

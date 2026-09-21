@@ -47,7 +47,7 @@ export function NeedsAttention({ state }: { state: AppState }) {
       if (kpiSet.status === "draft" || kpiSet.status === "returned") {
         draftOrReturned += 1;
       }
-      if (kpiSet.status === "agreed" || kpiSet.status === "active") {
+      if (kpiSet.status === "approved") {
         agreedActive += 1;
         const health = setHealth(state, kpiSet);
         if (health === "off" || health === "at-risk") offTrack += 1;
@@ -83,8 +83,8 @@ export function NeedsAttention({ state }: { state: AppState }) {
         <Callout>
           Every Position has a current Assignment and the Curriculum Vitae queue is clear.
           {cycle
-            ? " Agreed and active KpiSets in the open KpiCycle look healthy."
-            : " Open a KpiCycle when you are ready to plan KpiSets and CheckIns."}{" "}
+            ? " Agreed and active KPI Portfolios in the active KpiYear look healthy."
+            : " Start KpiPlanning on KPI Admin when you are ready to plan KPI Portfolios."}{" "}
           Use roster glance below or jump to People, Organization, or Performance when something new arrives.
         </Callout>
       ) : null}
@@ -180,21 +180,21 @@ export function NeedsAttention({ state }: { state: AppState }) {
       <section aria-labelledby="home-kpi-cycle">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 id="home-kpi-cycle" className="m-0 text-[16px] font-medium">
-            KpiCycle and KpiSets
+            KpiYear and KPI Portfolios
           </h3>
           {cycle ? (
             <Badge tone={kpiHasGaps ? "warning" : "success"}>{cycle.name}</Badge>
           ) : (
-            <Badge tone="neutral">No open cycle</Badge>
+            <Badge tone="neutral">No active KpiYear</Badge>
           )}
         </div>
         {!cycle ? (
           <p className="m-0 text-sm text-muted">
-            No open KpiCycle, so on-track CheckIns are not counted.{" "}
+            No KpiYear in KpiPlanning or KpiMonitoring, so on-track KPI Check-Ins are not counted.{" "}
             <Link href="/kpi/cycle" className="font-medium text-accent no-underline hover:underline">
-              Open KPI cycle admin
+              Open KPI Admin
             </Link>{" "}
-            when planning or scoring starts.
+            when planning or monitoring starts.
           </p>
         ) : (
           <div className="space-y-3 text-sm">
@@ -214,7 +214,7 @@ export function NeedsAttention({ state }: { state: AppState }) {
                 <span className="font-medium text-ink">{draftOrReturned}</span>
                 {draftOrReturned === 1 ? " KpiSet needs" : " KpiSets need"} agreement or return resolution.{" "}
                 <Link href="/kpi/cycle" className="font-medium text-accent no-underline hover:underline">
-                  Review in KPI cycle admin
+                  Review in KPI Admin
                 </Link>
               </p>
             ) : null}
@@ -235,7 +235,7 @@ export function NeedsAttention({ state }: { state: AppState }) {
             {offTrack > 0 ? (
               <p className="m-0 text-muted">
                 {offTrack} KpiSet{offTrack === 1 ? " has" : "s have"} at-risk or off CheckIns — follow up in Team or
-                cycle admin.
+                KPI Admin.
               </p>
             ) : agreedActive > 0 && missingKpiSets === 0 && draftOrReturned === 0 ? (
               <p className="m-0 text-muted">CheckIns for agreed and active KpiSets look healthy.</p>

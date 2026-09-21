@@ -8,7 +8,7 @@ import {
   openCycle,
   personById,
   positionById,
-  teamPersonIds,
+  descendantReportPersonIds,
 } from "./domain";
 import type { AppState, CascadeMode, KpiItem } from "./types";
 
@@ -60,7 +60,7 @@ export function kpiTreeScopePersonIds(state: AppState, scope: KpiTreeScope): str
     return state.people.map((row) => row.id);
   }
   if (state.currentRole === "manager") {
-    return [state.currentPersonId, ...teamPersonIds(state, state.currentPersonId)];
+    return [state.currentPersonId, ...descendantReportPersonIds(state, state.currentPersonId)];
   }
   return [state.currentPersonId];
 }

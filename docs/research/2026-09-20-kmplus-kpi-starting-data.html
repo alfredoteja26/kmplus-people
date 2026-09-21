@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en" data-brand="kmplus">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMPlus 2027 KPI starting data — research briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fafafa;
+  --paper: #fff;
+  --ink: #222;
+  --muted: #3d3d3d;
+  --faint: #4a4a4a;
+  --line: #dedede;
+  --accent: #14665f;
+  --accent-2: #1e857c;
+  --tint: #edfffe;
+  --chip: #12a864;
+  --print: #0673c0;
+  --success: #146c3a;
+  --warning: #8a5a0e;
+  --danger: #8f2428;
+  --info: #0673c0;
+  --sans: 'Inter', system-ui, sans-serif;
+  --serif: 'Inter', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 10px 28px -14px rgba(0,0,0,.16);
+  --border: 1.5px solid var(--line);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); }
+code, .mono { font-family: var(--mono); }
+.page { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+.topbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  justify-content: space-between; margin-bottom: 28px;
+}
+.brand-switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.brand-switch button {
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  border: var(--border); background: var(--paper); color: var(--ink);
+  border-radius: 999px; padding: 10px 14px; cursor: pointer; min-height: 44px;
+}
+.brand-switch button[aria-pressed="true"] {
+  background: var(--tint); color: var(--accent); border-color: var(--accent);
+}
+h1 { font-weight: 600; font-size: 36px; letter-spacing: -0.02em; margin: 0 0 12px; line-height: 1.15; }
+.sub { color: var(--muted); margin: 0 0 28px; max-width: 68ch; }
+h2 { font-weight: 600; font-size: 24px; margin: 0 0 8px; }
+h3 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 24px; }
+section { margin-bottom: 56px; }
+.t-caption { font-size: 13px; font-weight: 600; color: var(--faint); }
+.btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: var(--radius); border: 1.5px solid transparent; font: 500 14px var(--sans); cursor: pointer; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--paper); color: var(--ink); border-color: var(--line); }
+.badge { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge-neutral { background: var(--tint); color: var(--ink); }
+.badge-accent { background: var(--tint); color: var(--accent); border: 1.5px solid var(--accent); }
+.badge-warning { background: #fff8ea; color: #6a4708; }
+.badge-danger { background: #fff1f1; color: var(--danger); }
+.callout {
+  border: var(--border);
+  background: var(--tint);
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  margin: 0 0 18px;
+}
+.callout.warn { background: #fff8ea; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin: 16px 0 8px; }
+.stat {
+  background: var(--paper); border: var(--border); border-radius: var(--radius-lg);
+  padding: 16px 18px;
+}
+.stat b { display: block; font-size: 28px; letter-spacing: -0.03em; line-height: 1.1; }
+.stat span { color: var(--muted); font-size: 13px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.chip {
+  display: inline-flex; align-items: center; padding: 10px 12px;
+  border-radius: 8px; border: var(--border); background: var(--paper);
+  font-size: 13px; color: var(--ink);
+}
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.tabs button {
+  font: 500 13px var(--sans); border: var(--border); background: var(--paper);
+  color: var(--ink); border-radius: 999px; padding: 10px 14px; cursor: pointer; min-height: 44px;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--tint); color: var(--accent); border-color: var(--accent);
+}
+.panel { display: none; }
+.panel.active { display: block; }
+table.plain { width: 100%; border-collapse: collapse; background: var(--paper); border: var(--border); border-radius: var(--radius); overflow: hidden; }
+table.plain th, table.plain td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+table.plain th { font-size: 13px; color: var(--faint); font-weight: 600; }
+table.plain tr:last-child td { border-bottom: none; }
+.tree { font-size: 14px; line-height: 1.7; }
+.tree ul { list-style: none; margin: 0; padding-left: 18px; }
+.tree > ul { padding-left: 0; }
+.tree li { margin: 4px 0; }
+.option {
+  background: var(--paper); border: var(--border); border-radius: var(--radius-lg);
+  padding: 18px 20px; margin: 0 0 12px;
+}
+.option.rec { background: var(--tint); }
+.option h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toc { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 28px; }
+.toc a { font-size: 13px; text-decoration: none; }
+.toast {
+  position: fixed; bottom: 20px; right: 20px; background: var(--ink); color: #fff;
+  padding: 12px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.source { font-size: 13px; color: var(--muted); }
+.source a { word-break: break-word; }
+@media (max-width: 640px) {
+  h1 { font-size: 28px; }
+  .page { padding: 28px 16px 72px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div class="t-caption">KMPlus internal · research briefing · 21 Sep 2026</div>
+    <div class="brand-switch" role="group" aria-label="Account design system">
+      <button type="button" data-brand="pelindo">Pelindo</button>
+      <button type="button" data-brand="injourney">InJourney</button>
+      <button type="button" data-brand="kmplus">KMPlus</button>
+    </div>
+  </div>
+
+  <h1>Starting data for the KMPlus 2027 KPI list</h1>
+  <p class="sub">Decision locked: Option A, position-first slim cascade, five KpiItems per filled seat, with a dedicated Sales cascade. The product glossary now uses KpiYear, KpiPortfolio, LineManager skip-up, and dual Admin approval. This briefing records those rules so the 2027 item list can be designed against the real process, not last week’s Cycle language.</p>
+
+  <div class="toc">
+    <a href="#verdict">Verdict</a>
+    <a href="#process">Product process</a>
+    <a href="#five">Five plus Sales</a>
+    <a href="#org">Org in the app</a>
+    <a href="#workbook">CEO workbook</a>
+    <a href="#gaps">Gaps</a>
+    <a href="#skills">Skills</a>
+    <a href="#research">Peer research</a>
+    <a href="#options">Design options</a>
+    <a href="#decide">Locked decisions</a>
+    <a href="2026-09-21-kpi-structure.html">KPI structure</a>
+  </div>
+
+  <div class="callout" id="verdict">
+    <strong>Locked path.</strong> Position-first slim cascade. Five KpiItems on each filled Assignment’s KpiPortfolio. The company five include two Sales outcomes (qualified pipeline and win rate / booked value), not a delivery-only SPI list. Corporate Affairs and Operational Director get different packs. Empty Product, Finance, HR, PM, and Head of Delivery seats get no KpiPortfolio until someone holds them. SMART Values stay one 10% manager-scored item. Cascade is a parent pointer, Indirect unless unit and CheckInFrequency match.
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><b>35</b><span>Positions in the app</span></div>
+    <div class="stat"><b>17</b><span>Filled seats today</span></div>
+    <div class="stat"><b>18</b><span>Empty seats</span></div>
+    <div class="stat"><b>25</b><span>Corporate KPIs in the draft</span></div>
+    <div class="stat"><b>108</b><span>Role-family KPI rows</span></div>
+    <div class="stat"><b>9–10</b><span>Items per role in the draft</span></div>
+  </div>
+  <p class="source">Sources: KMPlus People seed catalog; <span class="mono">KMPlus_2027_KPI_Dictionary_PMS_Template.xlsx</span>.</p>
+
+  <section id="process">
+    <h2>Product process the scorecard must fit</h2>
+    <hr class="rule">
+    <p>These rules were added so KMPlus People can run performance management without becoming Portaverse. The 2027 item list has to obey them. Deduced from CONTEXT.md and ADRs 0001–0004.</p>
+    <table class="plain">
+      <tr><th>Rule</th><th>What it means for the KPI list</th></tr>
+      <tr>
+        <td>KpiYear, not Cycle</td>
+        <td>One annual container. Admin starts KpiPlanning, then KpiMonitoring, may open a tenant-wide KpiAdjustmentWindow (typical rhythm once a quarter, not automatic), then closes and scores the year. Only one year may be in planning or monitoring.</td>
+      </tr>
+      <tr>
+        <td>KpiPortfolio hangs off Assignment</td>
+        <td>Five KpiItems live on the filled seat, not on the Person and not on a vacant Position. Dual-hat means two portfolios. Mid-year mutation leaves the old portfolio on the old Assignment and starts a new one.</td>
+      </tr>
+      <tr>
+        <td>Dual approval</td>
+        <td>LineManager and Admin both approve the portfolio, in either order, before any KpiCheckIn. Any edit or Return clears both stamps. Check-Ins use the same dual stamp. Pending Check-Ins do not count at year close.</td>
+      </tr>
+      <tr>
+        <td>LineManager skips vacant seats</td>
+        <td>Sales Associates today skip empty Sales Manager and report to Head of Sales (Puti). Consultants skip empty Project Manager and Head of Delivery and report to Operational Director (Rayhan). If no filled ancestor exists, Admin is the remaining approver (CEO’s own portfolio).</td>
+      </tr>
+      <tr>
+        <td>Admin is a User grant</td>
+        <td>Not implied by HR. May stack with Employee or Manager so that Person still holds a KpiPortfolio. LineManager must be a different Person. Seed: Alfredo has the grant as Employee; Denny as HR does not.</td>
+      </tr>
+      <tr>
+        <td>Cascade is a parent pointer</td>
+        <td>Every non-root KpiItem names one parent KpiItem. Direct is a raw sum and needs the same unit and CheckInFrequency (monthly or quarterly only). Indirect is alignment. Composite CEO workbook items must be split or marked Indirect.</td>
+      </tr>
+    </table>
+    <p class="source">CONTEXT.md Performance section; ADR 0001 cascade; ADR 0002 KpiYear and KpiAdmin; ADR 0003 LineManager skip-up; ADR 0004 Admin grant.</p>
+  </section>
+
+  <section id="five">
+    <h2>Five company KPIs, plus a Sales cascade</h2>
+    <hr class="rule">
+    <p>SPI’s five predictors are a delivery-and-margin spine. KMPlus 2027 is a hybrid with a Rp40B revenue target, of which Rp23B is project and Rp17B is recurring. Sales is a filled practice (Head of Sales plus three ICs). The company five therefore include two commercial outcomes. Sales seats then carry a full commercial five, not a copy of consultant utilization.</p>
+    <table class="plain">
+      <tr><th>#</th><th>Company KPI</th><th>2027 working target</th><th>Who owns it on the cascade</th><th>Direct or Indirect</th></tr>
+      <tr>
+        <td>1</td>
+        <td>Revenue achievement</td>
+        <td>Rp40B recognized</td>
+        <td>CEO. Operational Director and Head of Sales contribute slices.</td>
+        <td>Indirect at CEO (mix of project and recurring). Booked IDR on Sales seats may Direct-sum into Head of Sales booked revenue if frequency matches.</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Qualified pipeline coverage</td>
+        <td>3× annual new-sales target (CEO workbook)</td>
+        <td>Head of Sales, then Sales Specialist and Associates.</td>
+        <td>Indirect. Coverage ratio cannot be raw-summed.</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Win rate / booked contract value</td>
+        <td>30% qualified win rate; booked value supports Rp40B</td>
+        <td>Same Sales chain. Split into two KpiItems if both numbers are needed; do not composite them.</td>
+        <td>Win rate Indirect. Booked IDR Direct if unit and frequency match.</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Productive utilization</td>
+        <td>70–75% committed (SPI healthy). 80% is stretch, not the rating floor.</td>
+        <td>Operational Director, then consultants, BAs, engineers.</td>
+        <td>Direct among hours/% items that share monthly or quarterly frequency.</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Delivery reliability</td>
+        <td>On-time 95% is stretch versus SPI 73.4% (2024). Use first-time acceptance or on-time, not both, on one person’s five.</td>
+        <td>Operational Director, Engineering Manager, consultants, QA.</td>
+        <td>Indirect unless every child uses the same unit.</td>
+      </tr>
+    </table>
+    <h3>Sales portfolio (five items, filled seats only)</h3>
+    <p>Filled today: Head of Sales (Puti Cut), Sales Specialist (Imanuella), Sales Associate (Sakinah, Wisnu). Empty: Sales Manager, Senior Account Manager, Account Manager, Sales Trainee — no portfolios until filled. LineManager for the three ICs is Puti (skip vacant Sales Manager). Puti’s LineManager is Rayhan (Operational Director).</p>
+    <table class="plain">
+      <tr><th>Item</th><th>Head of Sales</th><th>Specialist / Associate</th></tr>
+      <tr><td>1 Booked / contract value</td><td>Team booked vs slice of Rp40B</td><td>Personal booked vs agreed quota</td></tr>
+      <tr><td>2 Qualified pipeline</td><td>Team coverage vs 3×</td><td>Personal qualified pipeline vs quota</td></tr>
+      <tr><td>3 Win rate</td><td>Team decided-proposal win rate</td><td>Personal decided-proposal win rate</td></tr>
+      <tr><td>4 Expansion or retention</td><td>Existing-client expansion 20% / retention 90% (workbook)</td><td>Named-account expansion or collection support, not a second win-rate</td></tr>
+      <tr><td>5 SMART Values</td><td>10% manager-scored</td><td>10% manager-scored</td></tr>
+    </table>
+    <p>Forecast accuracy and account-plan coverage stay off the scored five. They can sit in the note or in CRM. Do not add a sixth scored item to keep the cap.</p>
+  </section>
+
+  <section id="org">
+    <h2>Organization already used in the app</h2>
+    <hr class="rule">
+    <p>KMPlus People stores seats, not departments-as-strings. A Person holds a Position through an Assignment. Reporting line lives on the Position. LineManager is the Person on the nearest filled ancestor Position; vacant seats are skipped. The current tenant catalog is 9 OrgUnits, 7 Grades, 35 Positions, 17 people. KpiYear 2027 is available for KpiPlanning; live KPI examples in the seed are toy items for 2026 (utilization and NPS), not this workbook. A vacant Position has no KpiPortfolio.</p>
+    <div class="chip-row">
+      <span class="chip">G1 Director</span>
+      <span class="chip">G2 Head</span>
+      <span class="chip">G3 Manager</span>
+      <span class="chip">G4 Senior</span>
+      <span class="chip">G5 Professional</span>
+      <span class="chip">G6 Associate</span>
+      <span class="chip">G7 Trainee</span>
+    </div>
+    <div class="tree" aria-label="Position tree">
+      <ul>
+        <li><strong>CEO</strong> — Alvin Soleh · HQ
+          <ul>
+            <li><strong>Operational Director</strong> — Rayhan Alvin
+              <ul>
+                <li>Head of Engineering — <span class="badge badge-warning">empty</span>
+                  <ul>
+                    <li>Engineering Manager — Marcelino
+                      <ul>
+                        <li>Senior Software Engineer — <span class="badge badge-warning">empty</span>
+                          <ul>
+                            <li>Software Engineer — Akhmad Eka</li>
+                            <li>Software Engineer — Digit Prakitka</li>
+                          </ul>
+                        </li>
+                        <li>QA / DevOps Specialist — Setyo</li>
+                        <li>Junior Software Engineer — <span class="badge badge-warning">empty</span></li>
+                        <li>Engineer Intern / Trainee — <span class="badge badge-warning">empty</span></li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+                <li>Head of Delivery — <span class="badge badge-warning">empty</span>
+                  <ul>
+                    <li>Project Manager — <span class="badge badge-warning">empty</span>
+                      <ul>
+                        <li>Senior Consultant — Alfredo Teja, Irfan Alfieri</li>
+                        <li>Consultant — Pinkan, Nabila</li>
+                        <li>Business Analyst — Ahmad Raafi, Fadhylah</li>
+                        <li>Associate Consultant — <span class="badge badge-warning">empty</span></li>
+                        <li>Delivery Trainee ×3 — <span class="badge badge-warning">empty</span></li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+                <li><strong>Head of Sales</strong> — Puti Cut
+                  <ul>
+                    <li>Sales Manager — <span class="badge badge-warning">empty</span>
+                      <ul>
+                        <li>Senior Account Manager — <span class="badge badge-warning">empty</span></li>
+                        <li>Account Manager — <span class="badge badge-warning">empty</span></li>
+                        <li>Sales Specialist — Imanuella</li>
+                        <li>Sales Associate — Sakinah, Wisnu</li>
+                        <li>Sales Trainee — <span class="badge badge-warning">empty</span></li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+            <li><strong>Corp. Affairs Director</strong> — Denny G
+              <ul>
+                <li>Head of Finance — <span class="badge badge-warning">empty</span></li>
+                <li>Head of Accounting — <span class="badge badge-warning">empty</span></li>
+                <li>Head of HR — <span class="badge badge-warning">empty</span></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <p class="source">Catalog: OrgUnits HQ → Operational (Engineering, Delivery, Sales) and Corporate Affairs (Finance, Accounting, People). There is no Product OrgUnit and no Product Position.</p>
+  </section>
+
+  <section id="workbook">
+    <h2>What the CEO workbook already contains</h2>
+    <hr class="rule">
+    <p>File: <span class="mono">KMPlus_2027_KPI_Dictionary_PMS_Template.xlsx</span>. Nine sheets. Purpose stated in README: cascade 2027 corporate targets into role scorecards. North star: revenue Rp40B (recurring Rp17B, project Rp23B); total cost ≤ Rp16B; opex ≤ Rp1.3B / month.</p>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-tab="corp">Corporate targets</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="roles">Role dictionary</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="pms">Scoring rules</button>
+    </div>
+    <div class="panel active" id="tab-corp">
+      <p>25 corporate KPIs, weights sum to 100, four Kaplan–Norton-style perspectives. This is a company scorecard, not an employee scorecard.</p>
+      <table class="plain">
+        <tr><th>Perspective</th><th>Count</th><th>Weight</th><th>Examples</th></tr>
+        <tr><td>Financial</td><td>6</td><td>35%</td><td>Revenue Rp40B, recurring Rp17B, project Rp23B, cost, opex, collection 95%</td></tr>
+        <tr><td>Customer and Growth</td><td>6</td><td>25%</td><td>Pipeline 3×, win rate 30%, retention 90%, CSAT 8.5/10</td></tr>
+        <tr><td>Operational and Product</td><td>7</td><td>25%</td><td>On-time 95%, first-time acceptance 95%, utilization 80%, defect under 2%</td></tr>
+        <tr><td>People and Culture</td><td>6</td><td>15%</td><td>Critical seats 90%, learning 40 hours, SMART index 4/5</td></tr>
+      </table>
+    </div>
+    <div class="panel" id="tab-roles">
+      <p>108 role-family rows. Eleven families, each 9–10 items, weights totalling 100. Every family carries a 10% SMART Values item. Cascade is Corporate → Directorate → Manager → Individual.</p>
+      <table class="plain">
+        <tr><th>Role family</th><th>Items</th><th>Match in the app</th></tr>
+        <tr><td>CEO</td><td>9</td><td>Filled (Alvin)</td></tr>
+        <tr><td>Director / Head</td><td>10</td><td>One generic pack for OD, CAD, and every Head. OD and CAD do different work.</td></tr>
+        <tr><td>Manager</td><td>10</td><td>Only Engineering Manager is filled. Sales Manager and PM are empty.</td></tr>
+        <tr><td>Sales</td><td>10</td><td>Head of Sales + Specialist + two Associates. No Account Manager seats filled.</td></tr>
+        <tr><td>Consultant</td><td>9</td><td>Four consultants plus two Business Analysts (BA has no family of its own).</td></tr>
+        <tr><td>Project Manager</td><td>10</td><td>Position exists, seat empty.</td></tr>
+        <tr><td>Software Engineer</td><td>10</td><td>Two engineers filled. Senior / Junior / Intern empty.</td></tr>
+        <tr><td>QA</td><td>10</td><td>One filled (QA / DevOps).</td></tr>
+        <tr><td>Product</td><td>10</td><td>No Product seat in the org.</td></tr>
+        <tr><td>Finance</td><td>10</td><td>Heads of Finance and Accounting empty. CAD currently covers the function.</td></tr>
+        <tr><td>HR</td><td>10</td><td>Head of HR empty. CAD currently covers People.</td></tr>
+      </table>
+    </div>
+    <div class="panel" id="tab-pms">
+      <p>Scoring is a full PMS: 120% cap, rating 1–5 bands (Outstanding 115 and above through Below under 80), integrity gate, calibration, optional corporate × individual bonus factor. Frequencies include monthly, quarterly, semiannual, sprint, release, and project close.</p>
+      <div class="callout warn">
+        KMPlus People Phase 1 can store a KpiItem with monthly or quarterly check-in, higher-better or lower-better, and a parent pointer. It does not store Impact/Output types, sprint cadence, 360 review, calibration committees, or a bonus formula. Those are named as later-phase in the product requirements.
+      </div>
+    </div>
+  </section>
+
+  <section id="gaps">
+    <h2>Where the two sources disagree</h2>
+    <hr class="rule">
+    <table class="plain">
+      <tr><th>Topic</th><th>CEO workbook</th><th>App / product rules</th><th>Why it matters</th></tr>
+      <tr>
+        <td>Unit of design</td>
+        <td>Role family (Sales, Consultant, Director/Head)</td>
+        <td>Position + Assignment</td>
+        <td>A generic Director pack would give Corporate Affairs a delivery SLA KPI and Operational Director an HR-shaped pack.</td>
+      </tr>
+      <tr>
+        <td>How many items</td>
+        <td>9–10 per person, every year</td>
+        <td>Five per filled KpiPortfolio (locked). Seed examples still show 2–3 toy items.</td>
+        <td>Google’s public OKR guide tells teams to pick 3–5 objectives. The CEO workbook’s 9–10 plus SMART is a job description, not a scorecard.</td>
+      </tr>
+      <tr>
+        <td>Cascade</td>
+        <td>Copy down four org layers; some parents are composites of several corporate KPIs</td>
+        <td>Child names one parent KpiItem. Direct is a raw sum and needs the same unit and CheckInFrequency</td>
+        <td>CEO-04 (pipeline 40% + win rate 35% + account plan 25%) cannot be a Direct parent. Use Indirect, or split into three items.</td>
+      </tr>
+      <tr>
+        <td>CheckInFrequency</td>
+        <td>Sprint, release, weekly, project close, semiannual</td>
+        <td>Monthly or quarterly only</td>
+        <td>Engineer sprint reliability has to become a monthly or quarterly actual, or it cannot check in.</td>
+      </tr>
+      <tr>
+        <td>Behavior</td>
+        <td>SMART Values 10% on every role, 360 suggested</td>
+        <td>360 and calibration are out of Phase 1. Product branding also avoids SMART as a product name; the company values can still exist as copy.</td>
+        <td>Keep the five values. Score them as one manager-rated item, or hold them until a later behavior module.</td>
+      </tr>
+      <tr>
+        <td>Empty seats</td>
+        <td>Packs for Product, Finance, HR, PM, Head of Delivery</td>
+        <td>Those Positions are empty (or missing)</td>
+        <td>Writing scorecards for seats with no holder creates KpiPortfolios the product forbids. Vacant Positions have no portfolio.</td>
+      </tr>
+      <tr>
+        <td>Utilization target</td>
+        <td>80% (75–85% on the cascade map)</td>
+        <td>Seed uses 70% firm / 72% team / 70% individual</td>
+        <td>SPI 2025 industry average is 66.4%; SPI’s healthy band is about 70–75%. 80% is Level-5 stretch, easy to burn people out at 17 staff.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section id="skills">
+    <h2>Skills and plugins that already exist</h2>
+    <hr class="rule">
+    <p>Two families. Do not mix them.</p>
+    <h3>Use for KMPlus People (this company)</h3>
+    <p>The product already encodes the model: Person, Position, Assignment, KpiYear, KpiPortfolio, KpiItem, Direct/Indirect cascade, LineManager skip-up, dual Admin approval. Domain notes live in CONTEXT.md and ADRs 0001–0004. There is no installable “design KMPlus’s own KPI dictionary” skill yet. Closest public skills on skills.sh are OKR writers and North Star helpers, not company scorecard design:</p>
+    <ul>
+      <li><a href="https://www.skills.sh/product-on-purpose/pm-skills/foundation-okr-writer">foundation-okr-writer</a> — drafts OKRs; warns against using OKRs as the performance review.</li>
+      <li><a href="https://www.skills.sh/product-on-purpose/pm-skills/measure-okr-grader">measure-okr-grader</a> — grades a finished OKR cycle.</li>
+      <li><a href="https://www.skills.sh/phuryn/pm-skills/north-star-metric">north-star-metric</a> — one customer-centric North Star plus 3–5 input metrics.</li>
+      <li><a href="https://www.skills.sh/yonatangross/orchestkit/product-frameworks">product-frameworks</a> — KPI trees, leading vs lagging.</li>
+    </ul>
+    <h3>Do not use for this design (Pelindo / Portaverse client work)</h3>
+    <p>These skills convert a BUMN Kamus KPI into upload workbooks (PMID/PNID, IMPACT → OUTPUT → KAI). They are the complexity KMPlus People explicitly rejected.</p>
+    <p class="mono">kpi-upload-router · discover-kamus-worksheet-config · position-mapping-review · generate-position-upload · convert-kpi-upload-batch · validate-upload-package · generate-position-first-tracker · update-org-kpi-audit-report</p>
+    <p>Notion also holds the KMPlus People task <a href="https://app.notion.com/p/3d01ac694aa980b18e06c82447510a56">KMPlus Performance Management</a>. Product language has moved on: dual-approved KpiPortfolio, not a single manager agree; KpiAdmin, not Cycle.</p>
+  </section>
+
+  <section id="research">
+    <h2>What similar firms measure</h2>
+    <hr class="rule">
+    <p>KMPlus is a hybrid: human-capital software plus IT / consulting implementation. The closest published operating metrics come from professional-services research, not from BUMN kamus templates.</p>
+    <h3>1. Balanced Scorecard is a strategy map, not a 108-row dictionary</h3>
+    <p>Kaplan and Norton introduced the Balanced Scorecard so firms would measure more than last year’s finance numbers, then later added strategy maps: pick objectives first, metrics second. Cascading is supposed to localize measures, not copy the corporate list onto every role. Using the scorecard as a KPI warehouse is a named failure mode.</p>
+    <p class="source">Kaplan, R. S. (2010). <a href="references/kaplan-norton-2010-conceptual-foundations-bsc.pdf">Local PDF</a>. Original: <a href="https://www.hbs.edu/ris/Publication%20Files/10-074_0bf3c151-f82b-4592-b885-cdde7f5d97a6.pdf">Harvard Business School Working Paper 10-074</a>. See also <a href="https://balancedscorecard.org/bsc-basics-overview/">Balanced Scorecard Institute, cascading overview</a>.</p>
+    <h3>2. Professional-services firms run a short operating dashboard</h3>
+    <p>Kantata’s professional-services scorecard (the PSA category KMPlus resembles on the delivery side) tracks forecast vs target, sold vs delivered margin, pipeline vs bookings, utilization, joiners/leavers, backlog, and book-to-bill. Those are company and practice measures. They are not ten personal KPIs for every consultant.</p>
+    <p class="source">Kantata. <a href="references/kantata-balanced-scorecard-professional-services.pdf">Local PDF</a>. Original: <a href="https://kantata.marketing/wp-content/uploads/2022/10/2025.01.27_BalancedScoreCard-Whitepaper-PDF.pdf">A Balanced Scorecard for Running a Professional Services Organization</a>.</p>
+    <h3>3. SPI Research: five KPIs that actually predict profit</h3>
+    <p>The 2026 Professional Services Maturity Benchmark (509 firms, about 245,000 consultants) repeatedly names five predictors. 2025 industry averages vs Level-5 stretch:</p>
+    <table class="plain">
+      <tr><th>KPI</th><th>2025 average</th><th>Healthy / Level-5</th><th>CEO draft</th></tr>
+      <tr><td>Billable utilization</td><td>66.4%</td><td>70–75% healthy; 80%+ Level 5</td><td>80%</td></tr>
+      <tr><td>Project overrun</td><td>—</td><td>Keep under 10%</td><td>On-time 95% (related)</td></tr>
+      <tr><td>Project margin</td><td>37.7%</td><td>35%+ floor; 50%+ Level 5</td><td>Not on the corporate list</td></tr>
+      <tr><td>Revenue per consultant</td><td>US$210k</td><td>US$200k+</td><td>Not listed (Rp40B / ~17 people is a different mix)</td></tr>
+      <tr><td>Revenue leakage</td><td>~4.5%</td><td>Under 5%; leaders under 3%</td><td>Collection 95% is the nearest cousin</td></tr>
+    </table>
+    <p>Other SPI figures useful for the commercial pack: pipeline coverage about 175% of quarterly bookings in 2025 (high performers 224%); on-time delivery 73.4% in 2024 (so a 95% on-time target is ambitious); high-performing firms win 56.5% of bids vs 45.1% for the rest. The CEO’s 30% win-rate target is therefore conservative if the denominator is qualified proposals, aggressive if it includes every RFP.</p>
+    <p class="source"><a href="https://www.deltek.com/resources/articles/5-kpis-from-the-spi-professional-services-maturity-benchmark-report-every-pso-must-track-for-sustainable-growth/">Deltek summary of SPI 2026</a>; <a href="https://www.deltek.com/resources/articles/professional-services-benchmarks/">2026 PSO benchmarks</a>; <a href="references/spi-2025-professional-services-maturity-benchmark.pdf">Local SPI 2025 PDF (268 pages)</a>; original <a href="https://forms.workday.com/content/dam/web/en-us/documents/reports/SPI_2025_Benchmark_Report.pdf">Workday-hosted copy</a>; <a href="https://spiresearch.com/reports/2026-ps-maturity-benchmark/">SPI Research 2026 report page</a>.</p>
+    <h3>4. Software consultancies warn against utilization-as-success</h3>
+    <p>Thoughtworks publishes the opposite of a utilization cult: govern by outcomes, assign one owner per objective, keep a handful of metrics, and treat DORA / velocity / utilization as diagnostics when outcomes lag. Google’s re:Work OKR guide: 3–5 objectives per level, about three key results each; OKRs are public; 60–70% attainment is the sweet spot; OKRs are not the performance evaluation.</p>
+    <p class="source"><a href="https://www.thoughtworks.com/insights/blog/digital-transformation/north-star-before-map-putting-objectives-before-structural-changes-in-digital-transformation">Thoughtworks, North Star before the map</a>; <a href="https://www.thoughtworks.com/en-us/insights/articles/5-dysfunctions-of-an-operating-model">Five dysfunctions of an operating model</a>; <a href="https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs">Google re:Work, Set goals with OKRs</a>.</p>
+    <div class="callout">
+      <strong>Implication for KMPlus.</strong> Use BSC perspectives to balance the company list. Take SPI’s five as the delivery-and-margin spine, then add Sales as two of the company five (pipeline and win rate / booked value) because KMPlus has a filled commercial practice. Use Thoughtworks / Google as the brake: five items, outcomes over activity. The CEO workbook’s 25 corporate rows stay Board context; they are not 25 employee KPIs.
+    </div>
+  </section>
+
+  <section id="options">
+    <h2>Design options</h2>
+    <hr class="rule">
+    <article class="option rec">
+      <h3><span class="badge badge-accent">Locked</span> A. Position-first slim cascade</h3>
+      <p>Five KpiItems per filled Assignment. Company five include Sales (pipeline and win rate / booked value) plus revenue, utilization, and delivery reliability. Parent pointer to one CEO or Director item. Indirect unless unit and CheckInFrequency match. SMART Values as one 10% manager-scored item. Vacant Positions have no KpiPortfolio.</p>
+      <p><strong>Fits:</strong> KpiYear process, dual approval, LineManager skip-up, a 17-person firm, SPI plus a real Sales team.<br>
+      <strong>Costs:</strong> the CEO dictionary is a source, not the uploaded list. Director/Head must be split into Operational vs Corporate Affairs packs.</p>
+    </article>
+    <article class="option">
+      <h3><span class="badge badge-neutral">2</span> B. Load the workbook as-is, then map families onto Positions</h3>
+      <p>Preserve all 108 rows. Assign Sales pack to every sales seat, Consultant pack to consultants and BAs, generic Director pack to OD, CAD, and Head of Sales.</p>
+      <p><strong>Fits:</strong> maximum fidelity to the CEO draft.<br>
+      <strong>Costs:</strong> 9–10 items each, composite parents the app cannot Direct-sum, sprint cadences the app cannot store, scorecards for Product/Finance/HR/PM with no holder, CAD scored on delivery SLAs.</p>
+    </article>
+    <article class="option">
+      <h3><span class="badge badge-neutral">3</span> C. Company OKRs, personal KPIs stay tiny</h3>
+      <p>Five to seven company OKRs for 2027 (revenue mix, pipeline, delivery reliability, product roadmap, capability). Individuals hold 3–4 committed KPIs used for the rating. Stretch work lives in OKRs and is not the bonus math.</p>
+      <p><strong>Fits:</strong> Google re:Work; Thoughtworks outcome governance; product Phase 1.<br>
+      <strong>Costs:</strong> two languages (OKR vs KPI) for a firm that asked for a PMS dictionary. Rating bands in the workbook assume KPI achievement, not 0.7 OKR grades.</p>
+    </article>
+    <article class="option">
+      <h3><span class="badge badge-danger">Avoid</span> D. Full Portaverse / BUMN clone</h3>
+      <p>Three-level Impact/Output tree, calibration committee, 360, bonus curve, kamus-per-position IDs. The Pelindo skills already do this for a client. KMPlus People was specified to steal vocabulary, not that complexity.</p>
+    </article>
+  </section>
+
+  <section id="decide">
+    <h2>Locked decisions</h2>
+    <hr class="rule">
+    <p>Recorded 21 Sep 2026 from the product spec and the Option A lean, with Sales added to the company five.</p>
+    <table class="plain">
+      <tr><th>#</th><th>Decision</th><th>Locked as</th></tr>
+      <tr><td>1</td><td>Design option</td><td>A — position-first slim cascade</td></tr>
+      <tr><td>2</td><td>How many scored items</td><td>Five per filled KpiPortfolio. Company five include two Sales outcomes.</td></tr>
+      <tr><td>3</td><td>Empty seats</td><td>No KpiPortfolio until the Position has a current Assignment. Templates later for PM, Product, Finance, HR.</td></tr>
+      <tr><td>4</td><td>SMART Values</td><td>One 10% manager-scored item this year. No 360.</td></tr>
+      <tr><td>5</td><td>Utilization</td><td>70–75% committed. 80% is stretch, not the rating floor.</td></tr>
+    </table>
+    <p>Still open for the next research pass: whether Business Analyst uses the consultant five (BA-shaped evidence) or a BA-specific five (requirements quality, backlog readiness, workshop outcomes). Whether win rate and booked value are two of the Sales five or booked value absorbs win rate.</p>
+    <div style="margin-top:20px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-primary" type="button" id="copy-md">Copy locked decisions</button>
+      <button class="btn btn-secondary" type="button" id="copy-link">Copy file path</button>
+    </div>
+  </section>
+</div>
+<div class="toast" role="status"></div>
+<script>
+const BRANDS = {
+  pelindo: {
+    bg:"#EEF3F9", paper:"#FFFFFF", ink:"#0B1B2B", muted:"#3A4A5C", faint:"#4A5563", line:"#D6DEE8",
+    accent:"#003D7A", accent2:"#005DAA", tint:"#E6F2FA", chip:"#38BDF8", print:"#F37021",
+    success:"#146C3A", warning:"#8A5A0E", danger:"#8F2428", info:"#1D4ED8",
+    sans:"'Lato', system-ui, sans-serif", serif:"'Lora', Georgia, serif", mono:"'DM Mono', ui-monospace, monospace",
+    radius:"8px", radiusLg:"12px", shadow:"0 8px 24px -10px rgba(11,27,43,.18)"
+  },
+  injourney: {
+    bg:"#F3EBE0", paper:"#FFFBF5", ink:"#181616", muted:"#4A433C", faint:"#5C534C", line:"#E4D6C6",
+    accent:"#0A5C5B", accent2:"#C45C26", tint:"#EFE4D4", chip:"#2A9A90", print:"#C9A227",
+    success:"#2F7D4A", warning:"#8A5A0E", danger:"#8F2428", info:"#1F6B8A",
+    sans:"'Inter', system-ui, sans-serif", serif:"'Fraunces', Georgia, serif", mono:"'IBM Plex Mono', ui-monospace, monospace",
+    radius:"14px", radiusLg:"20px", shadow:"0 16px 40px -18px rgba(24,22,22,.22)"
+  },
+  kmplus: {
+    bg:"#FAFAFA", paper:"#FFFFFF", ink:"#222222", muted:"#3D3D3D", faint:"#4A4A4A", line:"#DEDEDE",
+    accent:"#14665F", accent2:"#1E857C", tint:"#EDFFFE", chip:"#12A864", print:"#0673C0",
+    success:"#146C3A", warning:"#8A5A0E", danger:"#8F2428", info:"#0673C0",
+    sans:"'Inter', system-ui, sans-serif", serif:"'Inter', system-ui, sans-serif", mono:"'IBM Plex Mono', ui-monospace, monospace",
+    radius:"12px", radiusLg:"16px", shadow:"0 10px 28px -14px rgba(34,34,34,.16)"
+  }
+};
+function applyBrand(id) {
+  const b = BRANDS[id] || BRANDS.kmplus;
+  const r = document.documentElement.style;
+  const map = {
+    bg:"--bg", paper:"--paper", ink:"--ink", muted:"--muted", faint:"--faint", line:"--line",
+    accent:"--accent", accent2:"--accent-2", tint:"--tint", chip:"--chip", print:"--print",
+    success:"--success", warning:"--warning", danger:"--danger", info:"--info",
+    sans:"--sans", serif:"--serif", mono:"--mono", radius:"--radius", radiusLg:"--radius-lg", shadow:"--shadow"
+  };
+  Object.entries(map).forEach(([k, css]) => r.setProperty(css, b[k]));
+  document.documentElement.dataset.brand = id;
+  localStorage.setItem("htmlBrand", id);
+  document.querySelectorAll(".brand-switch button").forEach(btn => {
+    btn.setAttribute("aria-pressed", String(btn.dataset.brand === id));
+  });
+}
+function currentBrand() {
+  const q = new URLSearchParams(location.search).get("brand");
+  return q && BRANDS[q] ? q : (localStorage.getItem("htmlBrand") || "kmplus");
+}
+function toast(msg) {
+  const t = document.querySelector(".toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1400);
+}
+function initBrandSwitcher() {
+  applyBrand(currentBrand());
+  document.querySelectorAll(".brand-switch button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      applyBrand(btn.dataset.brand);
+      const url = new URL(location.href);
+      url.searchParams.set("brand", btn.dataset.brand);
+      history.replaceState(null, "", url);
+    });
+  });
+}
+document.querySelectorAll(".tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", "false"));
+    btn.setAttribute("aria-selected", "true");
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+document.getElementById("copy-md").addEventListener("click", () => {
+  navigator.clipboard.writeText(`KMPlus 2027 KPI design — locked
+1. Option A: position-first slim cascade. Five KpiItems per filled KpiPortfolio.
+2. Company five: revenue, qualified pipeline, win rate / booked value, utilization 70–75%, delivery reliability.
+3. Sales seats get a commercial five (booked, pipeline, win rate, expansion/retention, SMART 10%). Skip vacant Sales Manager to Head of Sales.
+4. No KpiPortfolio on vacant Positions. Dual approval LineManager + Admin. LineManager skips vacant ancestors.
+5. SMART Values one 10% manager-scored item. No 360. Split OD vs Corporate Affairs packs.`).then(() => toast("Copied"));
+});
+document.getElementById("copy-link").addEventListener("click", () => {
+  navigator.clipboard.writeText("docs/research/2026-09-20-kmplus-kpi-starting-data.html").then(() => toast("Copied"));
+});
+initBrandSwitcher();
+</script>
+</body>
+</html>

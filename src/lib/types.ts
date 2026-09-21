@@ -129,7 +129,10 @@ export type CorrectionRequest = {
 
 export type KpiCycleStatus = "draft" | "open" | "closed";
 
-export type CheckInCadence = "monthly" | "quarterly";
+export type KpiYearPhase = "planning" | "monitoring" | "closed";
+
+export type CheckInFrequency = "monthly" | "quarterly";
+export type CheckInCadence = CheckInFrequency;
 export type CascadeMode = "direct" | "indirect";
 export type DirectMix = "children-only" | "own-plus-children";
 
@@ -138,12 +141,15 @@ export type KpiCycle = {
   tenantId: string;
   name: string;
   year: number;
+  /** Legacy persist field; kept in sync with `phase`. */
   status: KpiCycleStatus;
+  phase: KpiYearPhase | null;
+  adjustmentOpen: boolean;
   checkInCadence: CheckInCadence;
   checkInWindows: { quarter: 1 | 2 | 3 | 4; open: boolean }[];
 };
 
-export type KpiSetStatus = "draft" | "agreed" | "active" | "scored" | "returned";
+export type KpiSetStatus = "draft" | "pending" | "returned" | "approved" | "scored";
 
 export type KpiSet = {
   id: string;
@@ -151,7 +157,10 @@ export type KpiSet = {
   assignmentId: string;
   cycleId: string;
   status: KpiSetStatus;
+  /** @deprecated Legacy persist flag; prefer status `pending`. */
   readyForAgreement?: boolean;
+  lineManagerApprovedBy?: string;
+  adminApprovedBy?: string;
   returnComment?: string;
   score?: number;
 };
@@ -174,6 +183,8 @@ export type KpiItem = {
   directMix?: DirectMix;
 };
 
+export type CheckInStatus = "pending" | "approved" | "returned";
+
 export type CheckInRecord = {
   id: string;
   tenantId: string;
@@ -182,6 +193,10 @@ export type CheckInRecord = {
   window: string;
   actual: number;
   note: string;
+  status?: CheckInStatus;
+  lineManagerApprovedBy?: string;
+  adminApprovedBy?: string;
+  returnComment?: string;
 };
 
 export type AuditEntry = {
@@ -199,6 +214,7 @@ export type DemoUser = {
   role: Role;
   personId: string;
   label: string;
+  adminGrant?: boolean;
 };
 
 export type TenantUser = {
@@ -207,6 +223,7 @@ export type TenantUser = {
   personId: string;
   email: string;
   role: Role;
+  adminGrant?: boolean;
   mustSetPassword: boolean;
 };
 

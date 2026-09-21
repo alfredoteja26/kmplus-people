@@ -9,10 +9,10 @@ export function HealthBadge({ health }: { health: Health }) {
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  if (status === "active" || status === "agreed" || status === "applied" || status === "accepted") {
+  if (status === "active" || status === "agreed" || status === "approved" || status === "applied" || status === "accepted") {
     return <Badge tone="success">{status}</Badge>;
   }
-  if (status === "in-review" || status === "parsed" || status === "draft-hire") {
+  if (status === "in-review" || status === "pending" || status === "parsed" || status === "draft-hire") {
     return <Badge tone="accent">{status}</Badge>;
   }
   if (status === "returned" || status === "at-risk") return <Badge tone="warning">{status}</Badge>;

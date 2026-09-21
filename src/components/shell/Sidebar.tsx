@@ -53,9 +53,9 @@ function NavLink({
   );
 }
 
-export function Sidebar({ role }: { role: Role }) {
+export function Sidebar({ role, kpiAdmin }: { role: Role; kpiAdmin: boolean }) {
   const pathname = usePathname();
-  const groups = navGroupsForRole(role);
+  const groups = navGroupsForRole(role, kpiAdmin);
   const [collapsed, setCollapsed] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [hydrated, setHydrated] = useState(false);

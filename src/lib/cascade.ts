@@ -73,13 +73,13 @@ export function validateParents(state: AppState, kpiSetId: string): string | nul
 
   for (const item of items) {
     if (!item.parentKpiItemId) {
-      return `“${item.name}” needs a parent KpiItem from this cycle`;
+      return `“${item.name}” needs a parent KpiItem from this KpiYear`;
     }
     if (item.parentKpiItemId === item.id) {
       return "A KpiItem cannot be its own parent";
     }
     if (!allowed.has(item.parentKpiItemId)) {
-      return `“${item.name}” has an invalid parent (empty seat or wrong cycle)`;
+      return `“${item.name}” has an invalid parent (empty seat or wrong KpiYear)`;
     }
   }
 
@@ -101,7 +101,7 @@ export function normalizeKpiItemParent(
   }
 
   const locked =
-    kpiSet.status === "active" || kpiSet.status === "agreed" || kpiSet.status === "scored";
+    kpiSet.status === "approved" || kpiSet.status === "scored";
   if (locked && existing && !isHrLike(state.currentRole)) {
     return existing.parentKpiItemId ?? null;
   }

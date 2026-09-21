@@ -15,8 +15,12 @@ The human. Identity, contact, and reviewed evidence (Education, Experience, Cert
 _Avoid_: Employee as a mixed blob of identity, job, and pay
 
 **User**:
-A login to one Tenant. A Person may have a User. A candidate Curriculum Vitae may not.
+A login to one Tenant. A Person may have a User. A candidate Curriculum Vitae may not. A User may be granted Admin.
 _Avoid_: Account, profile (when you mean login)
+
+**Admin**:
+A User granted KPI governance for the Tenant. One role, assigned to chosen Users by HR or by an existing Admin. Not implied by HR. May cast the Admin vote on their own KpiPortfolio and KpiCheckIns. LineManager must be a different Person.
+_Avoid_: Tenant admin as a synonym, HR as the cycle opener, Admin as an exclusive login hat that replaces Employee or Manager, a single User slot that moves between people
 
 **Employment**:
 The work relationship between a Person and the Tenant: join date, status, and contract type.
@@ -39,6 +43,10 @@ _Avoid_: President Director as a type, TenantObjective, fake company seat
 **Assignment**:
 A Person holding a Position for a date range. Mutation, dual-hat, and resignation are extra Assignments, not in-place edits.
 _Avoid_: Staffing, project assignment, manager as a field on Person
+
+**LineManager**:
+The Person on the nearest ancestor Position that currently has an Assignment. Vacant Positions (no current Assignment) are skipped, as many hops as needed. If no filled ancestor exists, Admin is the remaining approver. That Person has LineManager powers for draft, KpiPortfolio approval, and KpiCheckIn approval, including the Team queue.
+_Avoid_: manager as a field on Person, Atasan as a stored type, acting manager as an extra Assignment
 
 **Grade**:
 The band on a Position. Later compensation hangs off Grade, not off Person.
@@ -68,20 +76,36 @@ _Avoid_: Competency (until a later competency module exists)
 
 ## Performance
 
-**KpiCycle**:
-The open period for planning and scoring, annual. It has a default CheckInCadence. A KpiItem may override that cadence.
-_Avoid_: Period as an unnamed date range, TW1/TW2 portfolio
+**KpiYear**:
+The annual container for KpiPortfolios in one Tenant. Holds the default CheckInFrequency and whether the Tenant is in KpiPlanning or KpiMonitoring. After Admin closes it, no draft, adjustment, or KpiCheckIn. Closed KpiYears stay as history.
+_Avoid_: KpiCycle, Cycle, Period as an unnamed date range, TW1/TW2 portfolio
 
-**CheckInCadence**:
-Monthly or quarterly. Default lives on the KpiCycle. Override lives on the KpiItem.
-_Avoid_: Check-in window as a free date range with no cadence
+**KpiAdmin**:
+Tenant-wide KPI governance for one KpiYear: start KpiPlanning, start KpiMonitoring, open a KpiAdjustmentWindow, and close/score. The user-facing feature. Not a stored pack of KpiItems.
+_Avoid_: KpiCycle as a product name, Cycle as a nav or screen label, KPI Cycle
 
-**KpiSet**:
-The agreed pack of KpiItems for one Assignment in one KpiCycle.
-_Avoid_: Portfolio, KPI Impact / Output as stored types
+**KpiPlanning**:
+The yearly tenant-wide phase before KpiMonitoring. Admin, the Person, and the LineManager may draft KpiItems on that Person’s KpiPortfolio. A KpiCheckIn is not allowed in this phase. A KpiPortfolio that is not yet dual-approved may still be drafted after KpiMonitoring starts.
+_Avoid_: Open cycle as a synonym for planning, drafting only inside a KpiAdjustmentWindow
+
+**KpiMonitoring**:
+The tenant-wide phase Admin starts after KpiPlanning. A Person may submit a KpiCheckIn only in this phase, and only if that KpiPortfolio is dual-approved by LineManager and Admin.
+_Avoid_: Active cycle, Check-In as soon as one manager agrees
+
+**KpiAdjustmentWindow**:
+A tenant-wide interval inside KpiMonitoring. Admin opens it and Admin closes it. Typical rhythm is once per quarter, not automatic at the quarter boundary. While it is open, planned KpiItems and targets on a dual-approved KpiPortfolio may be changed. The whole KpiPortfolio goes back to pending; new KpiCheckIns on that Assignment pause until LineManager and Admin approve again. Already-approved KpiCheckIns stay. Other Assignments are unaffected.
+_Avoid_: Flipping the Tenant back to KpiPlanning, semesterly, TW1/TW2 portfolio copy, pausing Check-Ins for the whole Tenant, a per-Assignment window, an automatic quarter-long window
+
+**CheckInFrequency**:
+Monthly or quarterly. UI name: KPI Check-in Frequency. Default lives on the KpiYear. Override lives on the KpiItem.
+_Avoid_: CheckInCadence, cadence, semesterly, check-in window as a free date range with no frequency
+
+**KpiPortfolio**:
+The pack of KpiItems for one Assignment in one KpiYear. UI name: KPI Portfolio. A Person with two current Assignments has two KpiPortfolios, each with its own LineManager chain. Dual-approved by LineManager and Admin, in either order, before KpiCheckIns may be submitted. Any modification or Return clears both approvals. A vacant Position has no KpiPortfolio. A mid-year mutation leaves the old KpiPortfolio on the old Assignment and starts a new one on the new Assignment.
+_Avoid_: KpiSet, one Portfolio on Person, KPI owned by Position while vacant, leftover approval after an edit, KPI Impact / Output as stored types
 
 **KpiItem**:
-One measurable: name, definition, target, unit, weight, polarity, optional CheckInCadence override, and DirectMix when it is a parent. Every KpiItem on a non-root Assignment names exactly one parent KpiItem. A parent may have many children. KpiItems on a RootPosition Assignment have no parent.
+One measurable: name, definition, target, unit, weight, polarity, optional CheckInFrequency override, and DirectMix when it is a parent. Every KpiItem on a non-root Assignment names exactly one parent KpiItem. A parent may have many children. KpiItems on a RootPosition Assignment have no parent.
 _Avoid_: Goal, OKR (as the stored object), KPI Impact, KPI Output, parent as a Position field, true 1:1 (one child per parent), required parent on RootPosition items
 
 **Cascade**:
@@ -89,24 +113,24 @@ A child KpiItem pointing at one parent KpiItem. The parent may sit on any Assign
 _Avoid_: Automatic copy down the org chart, three-level KPI type tree, parent “owned by Position” (the parent is a KpiItem on an Assignment)
 
 **Direct**:
-Cascade mode where child CheckIn actuals add into the parent. Child and parent must share unit and CheckInCadence. The add is a raw sum.
+Cascade mode where child KpiCheckIn actuals add into the parent. Child and parent must share unit and CheckInFrequency. The add is a raw sum.
 _Avoid_: Weighted % of target when units differ, summing monthly actuals into a quarterly parent
 
 **DirectMix**:
-How a parent combines Direct children: children-only (parent actual is the sum) or own-plus-children (parent CheckIn plus the sum). Lives on the parent KpiItem. Default children-only. Indirect children never enter the sum.
+How a parent combines Direct children: children-only (parent actual is the sum) or own-plus-children (parent KpiCheckIn plus the sum). Lives on the parent KpiItem. Default children-only. Indirect children never enter the sum.
 _Avoid_: Mix as a property of each child link
 
 **Indirect**:
-Cascade mode where the child is linked for alignment and the tree only. Child CheckIns do not add into the parent actual.
+Cascade mode where the child is linked for alignment and the tree only. Child KpiCheckIns do not add into the parent actual.
 _Avoid_: Indirect as a second stored KPI type
 
-**CheckIn**:
-A dated actual versus target on a KpiItem, in that item’s CheckInCadence window.
-_Avoid_: Progress update as a free-text-only substitute for actual vs target
+**KpiCheckIn**:
+A dated actual versus target on a KpiItem, in that item’s CheckInFrequency window. UI name: KPI Check-In. Allowed in KpiMonitoring for the current window and for any past window in this KpiYear that has no approved KpiCheckIn yet. Future windows are blocked. After submit, LineManager and Admin must both approve, in either order. Any modification or Return clears both approvals. Pending KpiCheckIns do not count at KpiYear close.
+_Avoid_: CheckIn (unqualified), progress update, realisasi as the stored name, leftover approval after an edit, future-window actuals
 
 **KpiScore**:
-The stored result of a KpiSet at cycle close. Compensation may consume it later. Phase 1 does not compute pay from it.
-_Avoid_: Bonus formula, calibration rating
+The stored result of a KpiPortfolio when Admin closes the KpiYear. Built from already-approved KpiCheckIns only. A KpiPortfolio that is still pending plan has no KpiScore. Compensation may consume it later. Phase 1 does not compute pay from it.
+_Avoid_: Bonus formula, calibration rating, score at cycle close, counting pending Check-Ins
 
 ## Delivery (Phase 2)
 

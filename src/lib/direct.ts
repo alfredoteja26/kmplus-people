@@ -1,4 +1,5 @@
 import { effectiveCadence } from "./cadence";
+import { checkInCountsForActuals } from "./domain-query";
 import type { AppState, KpiCycle, KpiItem } from "./types";
 
 export type DirectValidation = { ok: true } | { ok: false; reason: string };
@@ -30,7 +31,9 @@ export function hasDirectChildren(state: AppState, parentItemId: string): boolea
 
 function sumActualInWindow(state: AppState, kpiItemId: string, window: string): number {
   return state.checkIns
-    .filter((row) => row.kpiItemId === kpiItemId && row.window === window)
+    .filter(
+      (row) => row.kpiItemId === kpiItemId && row.window === window && checkInCountsForActuals(state, row),
+    )
     .reduce((sum, row) => sum + row.actual, 0);
 }
 
@@ -50,7 +53,10 @@ export function rolledActual(state: AppState, parentItem: KpiItem, window: strin
 export function latestRelevantWindow(state: AppState, item: KpiItem): string | null {
   const childIds = directChildren(state, item.id).map((row) => row.id);
   const relevant = state.checkIns
-    .filter((row) => row.kpiItemId === item.id || childIds.includes(row.kpiItemId))
+    .filter(
+      (row) =>
+        (row.kpiItemId === item.id || childIds.includes(row.kpiItemId)) && checkInCountsForActuals(state, row),
+    )
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   return relevant?.window ?? null;
 }
@@ -63,7 +69,7 @@ export function displayedActual(state: AppState, item: KpiItem): number | null {
     return rolledActual(state, item, window);
   }
   const check = state.checkIns
-    .filter((row) => row.kpiItemId === item.id)
+    .filter((row) => row.kpiItemId === item.id && checkInCountsForActuals(state, row))
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   return check ? check.actual : null;
 }

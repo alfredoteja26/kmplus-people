@@ -21,11 +21,12 @@ describe("cascade", () => {
 
     const submit = submitKpiSet(broken, "set-alfredo");
     expect(submit.error).toMatch(/needs a parent/);
-    expect(submit.state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("draft");
+    expect(submit.state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("pending");
 
-    const agree = agreeKpiSet(broken, "set-alfredo");
+    const asRayhan = { ...broken, currentPersonId: "person-rayhan", currentRole: "manager" as const };
+    const agree = agreeKpiSet(asRayhan, "set-alfredo");
     expect(agree.error).toMatch(/needs a parent/);
-    expect(agree.state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("draft");
+    expect(agree.state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("pending");
   });
 
   it("lists parent candidates from any filled Assignment in the cycle, not only the manager", () => {
@@ -79,7 +80,17 @@ describe("cascade", () => {
   it("Indirect cascade: child CheckIn does not change parent actual", () => {
     const state = createInitialState();
     const parentBefore = latestCheckIn(state, "ki-rayhan-1")?.actual;
-    const { state: next } = addCheckIn(state, "ki-digit-1", 99, "Spike should stay on child only");
+    const { state: next } = addCheckIn(
+      {
+        ...state,
+        currentPersonId: "person-digit",
+        currentRole: "employee",
+        checkIns: state.checkIns.filter((row) => !(row.kpiItemId === "ki-digit-1" && row.window === "2026-Q3")),
+      },
+      "ki-digit-1",
+      99,
+      "Spike should stay on child only",
+    );
     expect(latestCheckIn(next, "ki-digit-1")?.actual).toBe(99);
     expect(latestCheckIn(next, "ki-rayhan-1")?.actual).toBe(parentBefore);
   });

@@ -16,6 +16,7 @@ import {
   positionById,
   todayIso,
 } from "@/lib/domain";
+import { canAccessKpiAdmin } from "@/lib/domain-query";
 import { useStore } from "@/lib/store";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -23,9 +24,10 @@ import { useMemo, useState } from "react";
 
 export default function PersonPage() {
   const params = useParams<{ id: string }>();
-  const { state, assignPosition, requestCorrection, resolveCorrection, confirmHire } = useStore();
+  const { state, assignPosition, requestCorrection, resolveCorrection, confirmHire, grantAdmin, revokeAdmin } = useStore();
   const person = state.people.find((row) => row.id === params.id);
   const hr = isHrLike(state.currentRole);
+  const canManageAdminGrant = state.currentRole === "hr" || canAccessKpiAdmin(state);
   const isSelf = state.currentPersonId === params.id;
   const loginUser = person ? state.users.find((row) => row.personId === person.id) : undefined;
   const seats = emptySeats(state);
@@ -129,6 +131,22 @@ export default function PersonPage() {
                   ? ". They set a password on first sign-in. No email is sent."
                   : "."}
               </Callout>
+            </div>
+          ) : null}
+          {canManageAdminGrant && loginUser ? (
+            <div className="mt-4">
+              <p className="mt-0 mb-2 text-sm text-muted">
+                Admin grant {loginUser.adminGrant ? "is on" : "is off"}. It stacks with this login role.
+              </p>
+              {loginUser.adminGrant ? (
+                <Button variant="secondary" type="button" onClick={() => revokeAdmin(person.id)}>
+                  Revoke Admin
+                </Button>
+              ) : (
+                <Button type="button" onClick={() => grantAdmin(person.id)}>
+                  Grant Admin
+                </Button>
+              )}
             </div>
           ) : null}
         </Card>

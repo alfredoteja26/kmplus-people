@@ -5,19 +5,21 @@ import { Card } from "@/components/ui/Card";
 import { Field, Select } from "@/components/ui/Input";
 import { HealthBadge, StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { kpiYearPhase } from "@/lib/domain-query";
 import { kpiSetForAssignment, personById, positionById, setHealth } from "@/lib/domain";
-import type { AppState, CheckInCadence, KpiCycle } from "@/lib/types";
+import type { AppState, CheckInFrequency, KpiCycle } from "@/lib/types";
 
-function formatCheckInWindows(cycle: KpiCycle) {
-  return cycle.checkInWindows
-    .map((window) => (window.open ? `Q${window.quarter} open` : `Q${window.quarter}`))
-    .join(" · ");
+function phaseLabel(phase: ReturnType<typeof kpiYearPhase>) {
+  if (phase === "planning") return "KpiPlanning";
+  if (phase === "monitoring") return "KpiMonitoring";
+  if (phase === "closed") return "Closed";
+  return "Not started";
 }
 
 function healthOrScore(state: AppState, cycle: KpiCycle, assignmentId: string) {
   const kpiSet = kpiSetForAssignment(state, assignmentId, cycle.id);
   if (!kpiSet) return "—";
-  if (cycle.status === "closed") {
+  if (kpiYearPhase(cycle) === "closed") {
     return kpiSet.score !== undefined ? `${kpiSet.score}` : "—";
   }
   return <HealthBadge health={setHealth(state, kpiSet)} />;
@@ -26,26 +28,33 @@ function healthOrScore(state: AppState, cycle: KpiCycle, assignmentId: string) {
 export function CycleCard({
   cycle,
   state,
-  onOpen,
+  onStartPlanning,
+  onStartMonitoring,
   onClose,
   onDraftMissing,
-  onCadenceChange,
+  onFrequencyChange,
+  onOpenAdjustmentWindow,
+  onCloseAdjustmentWindow,
 }: {
   cycle: KpiCycle;
   state: AppState;
-  onOpen: () => void;
-  onClose: () => void;
-  onDraftMissing: () => void;
-  onCadenceChange: (cadence: CheckInCadence) => void;
+  onStartPlanning: () => string | null;
+  onStartMonitoring: () => string | null;
+  onClose: () => string | null;
+  onDraftMissing: () => number;
+  onFrequencyChange: (frequency: CheckInFrequency) => string | null;
+  onOpenAdjustmentWindow: () => string | null;
+  onCloseAdjustmentWindow: () => string | null;
 }) {
-  const isOpen = cycle.status === "open";
+  const phase = kpiYearPhase(cycle);
+  const isActive = phase === "planning" || phase === "monitoring";
   const activeAssignments = state.assignments.filter((row) => row.endDate === null);
   const setsForCycle = state.kpiSets.filter((row) => row.cycleId === cycle.id);
   const missingCount = activeAssignments.filter(
     (assignment) => !setsForCycle.some((row) => row.assignmentId === assignment.id),
   ).length;
 
-  const cadenceLabel = cycle.checkInCadence === "monthly" ? "Monthly" : "Quarterly";
+  const frequencyLabel = cycle.checkInCadence === "monthly" ? "Monthly" : "Quarterly";
 
   return (
     <Card className="mb-4">
@@ -53,25 +62,20 @@ export function CycleCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="m-0 text-[16px] font-medium">{cycle.name}</h2>
-            <StatusBadge status={cycle.status} />
+            <StatusBadge status={phaseLabel(phase)} />
           </div>
           <p className="mt-1 mb-0 text-sm text-muted">
-            {isOpen ? (
-              <>CheckIn windows: {formatCheckInWindows(cycle)}</>
-            ) : (
-              <>
-                Default CheckIn cadence: {cadenceLabel} · CheckIn windows: {formatCheckInWindows(cycle)}
-              </>
-            )}
+            Default KPI Check-in Frequency: {frequencyLabel}
+            {cycle.adjustmentOpen ? " · KpiAdjustmentWindow open" : null}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          {isOpen ? (
-            <Field label="Default CheckIn cadence">
+          {isActive ? (
+            <Field label="Default KPI Check-in Frequency">
               <Select
                 className="min-w-[10rem]"
                 value={cycle.checkInCadence}
-                onChange={(event) => onCadenceChange(event.target.value as CheckInCadence)}
+                onChange={(event) => onFrequencyChange(event.target.value as CheckInFrequency)}
               >
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
@@ -79,22 +83,39 @@ export function CycleCard({
             </Field>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            {!isOpen ? (
-              <Button type="button" onClick={onOpen}>
-                Open
+            {phase === null ? (
+              <Button type="button" onClick={() => onStartPlanning()}>
+                Start KpiPlanning
               </Button>
-            ) : (
+            ) : null}
+            {phase === "planning" ? (
+              <Button type="button" onClick={() => onStartMonitoring()}>
+                Start KpiMonitoring
+              </Button>
+            ) : null}
+            {phase === "monitoring" ? (
+              cycle.adjustmentOpen ? (
+                <Button variant="secondary" type="button" onClick={() => onCloseAdjustmentWindow()}>
+                  Close KpiAdjustmentWindow
+                </Button>
+              ) : (
+                <Button variant="secondary" type="button" onClick={() => onOpenAdjustmentWindow()}>
+                  Open KpiAdjustmentWindow
+                </Button>
+              )
+            ) : null}
+            {isActive ? (
               <>
-                <Button variant="secondary" type="button" onClick={onClose}>
-                  Close and score
+                <Button variant="secondary" type="button" onClick={() => onClose()}>
+                  Close KpiYear
                 </Button>
                 {missingCount > 0 ? (
-                  <Button variant="secondary" type="button" onClick={onDraftMissing}>
-                    Draft missing KpiSets ({missingCount})
+                  <Button variant="secondary" type="button" onClick={() => onDraftMissing()}>
+                    Draft missing KpiPortfolios ({missingCount})
                   </Button>
                 ) : null}
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -104,7 +125,7 @@ export function CycleCard({
             <tr>
               <Th>Person</Th>
               <Th>Position</Th>
-              <Th>KpiSet</Th>
+              <Th>KPI Portfolio</Th>
               <Th>Health / score</Th>
             </tr>
           </thead>
