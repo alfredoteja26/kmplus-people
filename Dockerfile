@@ -41,14 +41,12 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-# Prisma schema + generated client + CLI, needed for db push/seed at startup
+# Full node_modules from the build stage so `prisma db push`, `prisma db seed`
+# (via tsx) and their transitive deps (e.g. effect, @prisma/config) all resolve.
+# The standalone bundle above already has its own trimmed node_modules for the
+# server; this overlays the complete set needed for startup migrations.
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=build /app/node_modules/prisma ./node_modules/prisma
-# tsx + seed sources so `prisma db seed` works in the runtime image
-COPY --from=build /app/node_modules/tsx ./node_modules/tsx
-COPY --from=build /app/node_modules/.bin ./node_modules/.bin
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 
