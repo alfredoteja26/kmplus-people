@@ -20,7 +20,7 @@ export function Card({
   );
 }
 
-export function Callout({ children, tone = "accent" }: { children: ReactNode; tone?: "accent" | "warning" | "danger" }) {
+export function Callout({ children, tone = "accent", className }: { children: ReactNode; tone?: "accent" | "warning" | "danger"; className?: string }) {
   const wash =
     tone === "danger"
       ? "bg-[color-mix(in_srgb,var(--danger)_8%,var(--paper))]"
@@ -28,7 +28,7 @@ export function Callout({ children, tone = "accent" }: { children: ReactNode; to
         ? "bg-[color-mix(in_srgb,var(--warning)_10%,var(--paper))]"
         : "bg-tint";
   return (
-    <div role="status" className={cn("rounded-[12px] border-[1.5px] border-line p-4 text-sm", wash)}>
+    <div role="status" className={cn("rounded-[12px] border-[1.5px] border-line p-4 text-sm", wash, className)}>
       {children}
     </div>
   );
