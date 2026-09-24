@@ -3,7 +3,7 @@ import { FORGOT_PASSWORD_MESSAGE, loginEmailChanges, shouldSendPasswordEmail, va
 import { applyCv, confirmHire, decideCvField, setLoginEmail } from "./commands";
 import { createInitialState, DEMO_PASSWORD, seedTenantUsers } from "./fixtures";
 import { overlaySessionIdentity } from "./session-identity";
-import { evaluateLogin } from "./server/login";
+import { evaluateLogin, rejectPassword } from "./server/login";
 import { hashPassword, verifyPassword } from "./server/password";
 import { createSessionToken, verifySessionToken } from "./server/session-token";
 import { employmentFor } from "./domain";
@@ -74,7 +74,7 @@ describe("login", () => {
     });
   });
 
-  it("sends a person who has not set a password to the email link", () => {
+  it("asks for the email only after a password sign-in fails for a new login", () => {
     const invited = evaluateLogin(
       {
         id: "user-new",
@@ -86,11 +86,13 @@ describe("login", () => {
       },
       true,
     );
-    expect(invited).toMatchObject({
+    expect(invited.ok).toBe(true);
+    expect(rejectPassword(true)).toMatchObject({
       ok: false,
       status: 403,
       needsPasswordEmail: true,
     });
+    expect(rejectPassword(false)).toMatchObject({ ok: false, status: 401, error: "Invalid email or password" });
   });
 });
 

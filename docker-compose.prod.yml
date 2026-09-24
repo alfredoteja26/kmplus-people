@@ -20,6 +20,10 @@ services:
       # Talks to the db service on the compose network
       DATABASE_URL: "postgresql://kmplus:${POSTGRES_PASSWORD:-kmplus}@db:5432/kmplus_people?schema=public"
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in .env.production}"
+      APP_ORIGIN: "${APP_ORIGIN:-https://internal.kmplus.co.id}"
+      NEXT_PUBLIC_FIREBASE_API_KEY: "${NEXT_PUBLIC_FIREBASE_API_KEY:?set NEXT_PUBLIC_FIREBASE_API_KEY in .env.production}"
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "${NEXT_PUBLIC_FIREBASE_PROJECT_ID:?set NEXT_PUBLIC_FIREBASE_PROJECT_ID in .env.production}"
+      FIREBASE_SERVICE_ACCOUNT_JSON: "${FIREBASE_SERVICE_ACCOUNT_JSON:?set FIREBASE_SERVICE_ACCOUNT_JSON in .env.production}"
       NODE_ENV: "production"
       # First boot pushes schema + seeds. Set to false after initial launch.
       RUN_DB_PUSH: "${RUN_DB_PUSH:-true}"

@@ -39,7 +39,7 @@ export default function PeoplePage() {
         <Callout>
           {hr
             ? "No People in this tenant yet. Create Person opens Employment; assign a Position from the profile when a seat is ready."
-            : "No Person record is visible for your role. Switch to HR in the role switcher to seed the roster, or open your own profile when Employment exists."}
+            : "No Person record is visible for your role. Open your own profile when Employment exists."}
         </Callout>
       ) : (
         <Table>

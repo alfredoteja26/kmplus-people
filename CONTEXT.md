@@ -15,15 +15,15 @@ The human. Identity, contact, and reviewed evidence (Education, Experience, Cert
 _Avoid_: Employee as a mixed blob of identity, job, and pay
 
 **User**:
-A login to one Tenant. A Person may have a User. A candidate Curriculum Vitae may not. A User may be granted Admin.
-_Avoid_: Account, profile (when you mean login)
+A login to one Tenant, reached by that User’s corporate email (`@kmplus.co.id`), which is not the Person’s contact email. A Person has at most one User. A candidate Curriculum Vitae may not. A User may be granted Admin.
+_Avoid_: Account, profile (when you mean login), Person email as the login
 
 **Admin**:
-A User granted KPI governance for the Tenant. One role, assigned to chosen Users by HR or by an existing Admin. Not implied by HR. May cast the Admin vote on their own KpiPortfolio and KpiCheckIns. LineManager must be a different Person.
-_Avoid_: Tenant admin as a synonym, HR as the cycle opener, Admin as an exclusive login hat that replaces Employee or Manager, a single User slot that moves between people
+A User granted KPI governance for the Tenant, who may also open any Project, change its ProjectCode, name, client name, and dates, and add, end, or correct Staffing. One role, assigned to chosen Users by HR or by an existing Admin. Not implied by HR. May cast the Admin vote on their own KpiPortfolio and KpiCheckIns. LineManager must be a different Person.
+_Avoid_: Tenant admin as a synonym, HR as the cycle opener, Admin as an exclusive login hat that replaces Employee or Manager, Admin as the person who creates a User or changes a login email, a single User slot that moves between people, a separate grant only for opening a Project
 
 **Employment**:
-The work relationship between a Person and the Tenant: join date, status, and contract type.
+The work relationship between a Person and the Tenant: join date, status, and contract type. Only an active Employment allows that Person’s User to sign in.
 _Avoid_: Contract as a synonym for the whole relationship
 
 ## Organization
@@ -135,16 +135,20 @@ _Avoid_: Bonus formula, calibration rating, score at cycle close, counting pendi
 ## Delivery (Phase 2)
 
 **Project**:
-A named body of work for a client or for KMPlus, with dates and a health status. Not a task list.
-_Avoid_: Engagement as a stored type, job (when you mean Project), task board
+A named body of work opened by Admin, for one named client or for KMPlus when that name is blank. It has a ProjectCode, a required start, an optional end, and a health status recorded as a ProjectUpdate.
+_Avoid_: Engagement as a stored type, job (when you mean Project), task board, Client as its own record, a required end date
+
+**ProjectCode**:
+The short code an Admin types for one Project, unique in the Tenant regardless of letter case, and changeable later by any Admin. Changing the code does not create a new Project.
+_Avoid_: Project id as the code people type, a system-assigned number
 
 **Staffing**:
-A Person allocated to a Project for a date range, with a Load. This is not an Assignment.
-_Avoid_: Assignment, project assignment, resource booking as a synonym for the org seat
+A Person on a Project for a required start and an optional end, with a Load. Any Admin may add a row, end it, or delete a row that was a mistake. Ranges for one Person on one Project do not overlap and may fall outside the Project’s dates. No row means the Person is not on the Project. This is not an Assignment.
+_Avoid_: Assignment, project assignment, resource booking as a synonym for the org seat, a Person shown on the Project with no row
 
 **Load**:
-The share of one Person’s capacity committed on one Staffing row, as a percent.
-_Avoid_: Utilization as the stored field (utilization is a KPI example, not Load)
+The share of one Person’s capacity committed on one Staffing row, as a whole percent from 1 to 100. Admin changes it by editing that number. The sum across a Person’s rows may exceed 100. That excess is overload and stays visible.
+_Avoid_: Utilization as the stored field (utilization is a KPI example, not Load), a cap that hides overload, a stored history of older percents
 
 **ProjectUpdate**:
 A dated health note on a Project (status and narrative). It is not a task, checklist, or timesheet.

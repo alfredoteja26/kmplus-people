@@ -27,18 +27,47 @@ export default function PersonPage() {
   const { state, assignPosition, requestCorrection, resolveCorrection, confirmHire, grantAdmin, revokeAdmin } = useStore();
   const person = state.people.find((row) => row.id === params.id);
   const hr = isHrLike(state.currentRole);
+  const canSetLoginEmail = state.currentRole === "hr";
   const canManageAdminGrant = state.currentRole === "hr" || canAccessKpiAdmin(state);
   const isSelf = state.currentPersonId === params.id;
   const loginUser = person ? state.users.find((row) => row.personId === person.id) : undefined;
   const seats = emptySeats(state);
   const [positionId, setPositionId] = useState(seats[0]?.id ?? "");
   const [field, setField] = useState("phone");
+  const [loginEmailDraft, setLoginEmailDraft] = useState("");
+  const [loginEmailTouched, setLoginEmailTouched] = useState(false);
+  const [loginEmailError, setLoginEmailError] = useState("");
+  const [loginEmailPending, setLoginEmailPending] = useState(false);
   const [proposed, setProposed] = useState("");
   const fieldCurrent = useMemo(() => {
     if (!person) return "";
     const record = person as unknown as Record<string, string>;
     return record[field] ?? "";
   }, [person, field]);
+  const shownLoginEmail = loginEmailTouched ? loginEmailDraft : (loginUser?.email ?? "");
+
+  async function saveLoginEmail() {
+    if (!person) return;
+    setLoginEmailError("");
+    setLoginEmailPending(true);
+    try {
+      const response = await fetch("/api/auth/login-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personId: person.id, email: shownLoginEmail }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setLoginEmailError(payload.error || "Could not save the login email.");
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setLoginEmailError("Could not save the login email.");
+    } finally {
+      setLoginEmailPending(false);
+    }
+  }
 
   if (!person || !canReadPerson(state, person.id)) {
     return (
@@ -123,14 +152,36 @@ export default function PersonPage() {
               </Button>
             </div>
           ) : null}
-          {hr && loginUser ? (
+          {canSetLoginEmail ? (
+            <form
+              className="mt-4 grid gap-3 border-t border-line pt-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveLoginEmail();
+              }}
+            >
+              <Field label="Login email">
+                <Input
+                  type="email"
+                  value={shownLoginEmail}
+                  onChange={(event) => {
+                    setLoginEmailTouched(true);
+                    setLoginEmailDraft(event.target.value);
+                  }}
+                  required
+                />
+              </Field>
+              <p className="m-0 text-sm text-muted">
+                This is the sign-in address. It does not change the Person contact email. Saving a new @kmplus.co.id address sends the set-password email.
+              </p>
+              {loginEmailError ? <Callout tone="danger">{loginEmailError}</Callout> : null}
+              <Button type="submit" disabled={loginEmailPending}>
+                {loginEmailPending ? "Saving…" : loginUser ? "Save login email" : "Create login"}
+              </Button>
+            </form>
+          ) : loginUser ? (
             <div className="mt-4">
-              <Callout>
-                Login email is {loginUser.email}
-                {loginUser.mustSetPassword
-                  ? ". They set a password on first sign-in. No email is sent."
-                  : "."}
-              </Callout>
+              <Callout>Login email is {loginUser.email}.</Callout>
             </div>
           ) : null}
           {canManageAdminGrant && loginUser ? (

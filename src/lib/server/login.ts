@@ -24,7 +24,11 @@ export function evaluateLogin(user: LoginUser | null, employmentActive: boolean)
   if (!user || !employmentActive || !normalizeLoginEmail(user.email)) {
     return { ok: false, status: 401, error: INVALID };
   }
-  if (user.mustSetPassword) {
+  return { ok: true, user };
+}
+
+export function rejectPassword(mustSetPassword: boolean): LoginFailure {
+  if (mustSetPassword) {
     return {
       ok: false,
       status: 403,
@@ -32,5 +36,5 @@ export function evaluateLogin(user: LoginUser | null, employmentActive: boolean)
       needsPasswordEmail: true,
     };
   }
-  return { ok: true, user };
+  return { ok: false, status: 401, error: INVALID };
 }

@@ -7,10 +7,6 @@ import { TENANT_ID } from "@/lib/types";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (!firebaseAuthConfigured()) {
-    return NextResponse.json({ error: "Password email is not available yet." }, { status: 503 });
-  }
-
   let oobCode = "";
   let password = "";
   let confirm = "";
@@ -27,6 +23,9 @@ export async function POST(request: Request) {
   }
   const invalid = validateNewPassword(password, confirm);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+  if (!firebaseAuthConfigured()) {
+    return NextResponse.json({ error: "Password email is not available yet." }, { status: 503 });
+  }
 
   try {
     const reset = await resetPassword(oobCode, password);

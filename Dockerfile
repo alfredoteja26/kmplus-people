@@ -48,6 +48,7 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

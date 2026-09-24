@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { evaluateLogin } from "@/lib/server/login";
+import { evaluateLogin, rejectPassword } from "@/lib/server/login";
 import { firebaseAuthConfigured, signInWithPassword } from "@/lib/server/firebase-auth";
 import { getPrisma } from "@/lib/server/prisma";
 import { writeSession } from "@/lib/server/session";
@@ -61,7 +61,18 @@ export async function POST(request: Request) {
   try {
     await signInWithPassword(result.user.email, password);
   } catch {
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    const rejected = rejectPassword(result.user.mustSetPassword);
+    return NextResponse.json(
+      { error: rejected.error, needsPasswordEmail: rejected.needsPasswordEmail === true },
+      { status: rejected.status },
+    );
+  }
+
+  if (result.user.mustSetPassword) {
+    await prisma.user.update({
+      where: { id: result.user.id },
+      data: { mustSetPassword: false },
+    });
   }
 
   await writeSession(result.user.id, result.user.authEpoch);
