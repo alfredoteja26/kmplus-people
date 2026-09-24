@@ -21,8 +21,8 @@ export async function readSession(): Promise<SessionPayload | null> {
   }
 }
 
-export async function writeSession(userId: string): Promise<void> {
-  const token = await createSessionToken(userId);
+export async function writeSession(userId: string, authEpoch: number): Promise<void> {
+  const token = await createSessionToken(userId, authEpoch);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,

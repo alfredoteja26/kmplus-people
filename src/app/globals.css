@@ -89,6 +89,25 @@ textarea {
   outline-offset: 2px;
 }
 
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, white);
+  color: var(--ink);
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateX(28px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

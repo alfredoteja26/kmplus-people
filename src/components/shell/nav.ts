@@ -19,8 +19,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/", label: "Home", icon: "home" },
       { href: "/people", label: "People", icon: "people" },
-      { href: "/org", label: "Org", icon: "org" },
-      { href: "/cv", label: "CV", icon: "cv" },
+      { href: "/org", label: "Organization", icon: "org" },
     ],
   },
   {
@@ -29,13 +28,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/kpi", label: "My KPI", icon: "kpi" },
       { href: "/kpi/team", label: "Team", icon: "team" },
       { href: "/kpi/cycle", label: "KPI Admin", icon: "cycle" },
-      { href: "/kpi/tree", label: "KPI tree", icon: "tree" },
+      { href: "/kpi/tree", label: "KPI Tree", icon: "tree" },
     ],
   },
 ];
 
 function canSeeNavItem(href: string, role: Role, kpiAdmin: boolean): boolean {
-  if (href === "/cv") return isHrLike(role) || role === "employee";
   if (href === "/kpi/team") return role === "manager" || isHrLike(role);
   if (href === "/kpi/cycle") return kpiAdmin;
   return true;

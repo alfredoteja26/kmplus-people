@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { evaluateLogin } from "@/lib/server/login";
-import { hashPassword } from "@/lib/server/password";
+import { firebaseAuthConfigured, signInWithPassword } from "@/lib/server/firebase-auth";
 import { getPrisma } from "@/lib/server/prisma";
 import { writeSession } from "@/lib/server/session";
 import type { Role } from "@/lib/types";
@@ -11,10 +11,13 @@ export const runtime = "nodejs";
 type LoginBody = {
   email?: string;
   password?: string;
-  newPassword?: string;
 };
 
 export async function POST(request: Request) {
+  if (!firebaseAuthConfigured()) {
+    return NextResponse.json({ error: "Password sign-in is not available yet." }, { status: 503 });
+  }
+
   let body: LoginBody;
   try {
     body = (await request.json()) as LoginBody;
@@ -24,47 +27,44 @@ export async function POST(request: Request) {
 
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
-  const newPassword = typeof body.newPassword === "string" ? body.newPassword : undefined;
-  if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  if (!email || !password) {
+    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
 
   const prisma = getPrisma();
   const record = await prisma.user.findFirst({
     where: { tenantId: TENANT_ID, email: { equals: email, mode: "insensitive" } },
+    include: { person: { include: { employments: true } } },
   });
+  const employmentActive = record?.person.employments.some((row) => row.status === "active") ?? false;
   const result = evaluateLogin(
     record
       ? {
           id: record.id,
           email: record.email,
-          passwordHash: record.passwordHash,
           role: record.role as Role,
           personId: record.personId,
           mustSetPassword: record.mustSetPassword,
+          authEpoch: record.authEpoch,
         }
       : null,
-    { password, newPassword },
+    employmentActive,
   );
 
   if (!result.ok) {
     return NextResponse.json(
-      { error: result.error, mustSetPassword: result.mustSetPassword === true },
+      { error: result.error, needsPasswordEmail: result.needsPasswordEmail === true },
       { status: result.status },
     );
   }
 
-  if (result.setPassword) {
-    await prisma.user.update({
-      where: { id: result.user.id },
-      data: {
-        passwordHash: hashPassword(result.setPassword),
-        mustSetPassword: false,
-      },
-    });
+  try {
+    await signInWithPassword(result.user.email, password);
+  } catch {
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
-  await writeSession(result.user.id);
+  await writeSession(result.user.id, result.user.authEpoch);
   return NextResponse.json({
     ok: true,
     personId: result.user.personId,

@@ -1,3 +1,4 @@
+import { normalizeLoginEmail } from "./auth-policy";
 import { dateInWindow, effectiveCadence, isFutureWindow, windowFor } from "./cadence";
 import { normalizeKpiItemParent, validateParents } from "./cascade";
 import { blocksOwnCheckIn, displayedActual, validateAllDirectInSet, validateDirectCascade } from "./direct";
@@ -141,7 +142,8 @@ export function confirmHire(state: AppState, personId: string): CommandResult {
     ),
   };
 
-  if (wasDraft && !next.users.some((row) => row.personId === personId)) {
+  const loginEmail = normalizeLoginEmail(person.email);
+  if (wasDraft && loginEmail && !next.users.some((row) => row.personId === personId)) {
     const userId = nid("user");
     next = {
       ...next,
@@ -151,17 +153,65 @@ export function confirmHire(state: AppState, personId: string): CommandResult {
           id: userId,
           tenantId: TENANT_ID,
           personId,
-          email: person.email,
+          email: loginEmail,
           role: "employee",
           mustSetPassword: true,
           adminGrant: false,
+          authEpoch: 0,
         },
       ],
     };
-    next = audit(next, "create", "User", userId, `Invited User ${person.email}`);
+    next = audit(next, "create", "User", userId, `Invited User ${loginEmail}`);
   }
 
   return { state: audit(next, "update", "Employment", personId, "Confirmed hire") };
+}
+
+export function setLoginEmail(
+  state: AppState,
+  personId: string,
+  email: string,
+): CommandResult<{ error?: string }> {
+  if (state.currentRole !== "hr") return { state, error: "HR sets the login email." };
+  const loginEmail = normalizeLoginEmail(email);
+  if (!loginEmail) return { state, error: "Login email must end with @kmplus.co.id." };
+  if (state.users.some((row) => row.personId !== personId && row.email.toLowerCase() === loginEmail)) {
+    return { state, error: "That login email is already used." };
+  }
+  const person = state.people.find((row) => row.id === personId);
+  if (!person) return { state, error: "Person not found." };
+
+  const existing = state.users.find((row) => row.personId === personId);
+  if (!existing) {
+    const userId = nid("user");
+    const withUser: AppState = {
+      ...state,
+      users: [
+        ...state.users,
+        {
+          id: userId,
+          tenantId: TENANT_ID,
+          personId,
+          email: loginEmail,
+          role: "employee",
+          mustSetPassword: true,
+          adminGrant: false,
+          authEpoch: 0,
+        },
+      ],
+    };
+    return { state: audit(withUser, "create", "User", userId, `Invited User ${loginEmail}`) };
+  }
+  if (existing.email.toLowerCase() === loginEmail) return { state };
+  const next: AppState = {
+    ...state,
+    users: state.users.map((row) =>
+      row.personId === personId
+        ? { ...row, email: loginEmail, mustSetPassword: true, authEpoch: row.authEpoch + 1 }
+        : row,
+    ),
+  };
+  return { state: audit(next, "update", "User", existing.id, `Changed login email to ${loginEmail}`) };
 }
 
 function draftPortfolioForActiveYear(state: AppState, assignmentId: string): AppState {
@@ -451,7 +501,7 @@ function closedYearErrorForSet(state: AppState, kpiSetId: string): string | null
   if (!kpiSet) return null;
   const cycle = findKpiYear(state, kpiSet.cycleId);
   if (!cycle) return null;
-  if (normalizeKpiYearPhase(cycle) === "closed") return "KpiYear is closed";
+  if (normalizeKpiYearPhase(cycle) === "closed") return "KPI year is closed";
   return null;
 }
 
@@ -460,22 +510,22 @@ export function startKpiPlanning(state: AppState, cycleId: string): CommandResul
   if (denied) return { state, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase === "closed") return { state, error: "KpiYear is closed" };
-  if (phase === "planning" || phase === "monitoring") return { state, error: "KpiYear is already active" };
+  if (phase === "closed") return { state, error: "KPI year is closed" };
+  if (phase === "planning" || phase === "monitoring") return { state, error: "KPI year is already active" };
   const otherActive = activeKpiYear(state);
   if (otherActive && otherActive.id !== cycleId) {
-    return { state, error: "At most one KpiYear may be in KpiPlanning or KpiMonitoring" };
+    return { state, error: "At most one KPI year may be in planning or monitoring" };
   }
   if (!allPriorYearsClosed(state, cycle.year)) {
-    return { state, error: "Close earlier KpiYears before starting KpiPlanning" };
+    return { state, error: "Close earlier KPI years before starting planning" };
   }
 
   const next = patchKpiYear(state, cycleId, { phase: "planning" });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, "Started KpiPlanning"),
+    state: audit(next, "update", "KpiYear", cycleId, "Started planning"),
     error: null,
   };
 }
@@ -485,16 +535,16 @@ export function startKpiMonitoring(state: AppState, cycleId: string): CommandRes
   if (denied) return { state, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase === "closed") return { state, error: "KpiYear is closed" };
-  if (phase === "monitoring") return { state, error: "KpiYear is already in KpiMonitoring" };
-  if (phase !== "planning") return { state, error: "Start KpiPlanning before KpiMonitoring" };
+  if (phase === "closed") return { state, error: "KPI year is closed" };
+  if (phase === "monitoring") return { state, error: "KPI year is already in monitoring" };
+  if (phase !== "planning") return { state, error: "Start planning before monitoring" };
 
   const next = patchKpiYear(state, cycleId, { phase: "monitoring" });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, "Started KpiMonitoring"),
+    state: audit(next, "update", "KpiYear", cycleId, "Started monitoring"),
     error: null,
   };
 }
@@ -504,19 +554,19 @@ export function openKpiAdjustmentWindow(state: AppState, cycleId: string): Comma
   if (denied) return { state, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
   if (phase !== "monitoring") {
-    return { state, error: "KpiAdjustmentWindow is only available during KpiMonitoring" };
+    return { state, error: "The adjustment window is only available during monitoring" };
   }
   if (cycle.adjustmentOpen) {
-    return { state, error: "KpiAdjustmentWindow is already open" };
+    return { state, error: "The adjustment window is already open" };
   }
 
   const next = patchKpiYear(state, cycleId, { adjustmentOpen: true });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, "Opened KpiAdjustmentWindow"),
+    state: audit(next, "update", "KpiYear", cycleId, "Opened the adjustment window"),
     error: null,
   };
 }
@@ -526,19 +576,19 @@ export function closeKpiAdjustmentWindow(state: AppState, cycleId: string): Comm
   if (denied) return { state, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
   if (phase !== "monitoring") {
-    return { state, error: "KpiAdjustmentWindow is only available during KpiMonitoring" };
+    return { state, error: "The adjustment window is only available during monitoring" };
   }
   if (!cycle.adjustmentOpen) {
-    return { state, error: "KpiAdjustmentWindow is not open" };
+    return { state, error: "The adjustment window is not open" };
   }
 
   const next = patchKpiYear(state, cycleId, { adjustmentOpen: false });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, "Closed KpiAdjustmentWindow"),
+    state: audit(next, "update", "KpiYear", cycleId, "Closed the adjustment window"),
     error: null,
   };
 }
@@ -548,7 +598,7 @@ function approvedPortfolioEditBlocked(state: AppState, kpiSetId: string): string
   if (!kpiSet || kpiSet.status !== "approved") return null;
   const cycle = findKpiYear(state, kpiSet.cycleId);
   if (!cycle || cycle.adjustmentOpen) return null;
-  return "Open KpiAdjustmentWindow to change a dual-approved KPI Portfolio";
+  return "Open the adjustment window to change a KPI portfolio that is already approved";
 }
 
 export function setKpiYearCheckInFrequency(
@@ -559,21 +609,47 @@ export function setKpiYearCheckInFrequency(
   const denied = kpiAdminDenied(state);
   if (denied) return { state, error: denied };
   if (checkInCadence !== "monthly" && checkInCadence !== "quarterly") {
-    return { state, error: "CheckInFrequency must be monthly or quarterly" };
+    return { state, error: "Check-in frequency must be monthly or quarterly" };
   }
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase === "closed") return { state, error: "KpiYear is closed" };
+  if (phase === "closed") return { state, error: "KPI year is closed" };
   if (phase !== "planning" && phase !== "monitoring") {
-    return { state, error: "Start KpiPlanning before setting CheckInFrequency" };
+    return { state, error: "Start planning before setting the check-in frequency" };
   }
 
   const next = patchKpiYear(state, cycleId, { checkInCadence });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, `Default CheckInFrequency ${checkInCadence}`),
+    state: audit(next, "update", "KpiYear", cycleId, `Default check-in frequency ${checkInCadence}`),
+    error: null,
+  };
+}
+
+export function setKpiPlanningEndDate(
+  state: AppState,
+  cycleId: string,
+  planningEndsOn: string,
+): CommandResult<{ error: string | null }> {
+  const denied = kpiAdminDenied(state);
+  if (denied) return { state, error: denied };
+
+  const cycle = findKpiYear(state, cycleId);
+  if (!cycle) return { state, error: "KPI year not found" };
+
+  const phase = normalizeKpiYearPhase(cycle);
+  if (phase !== "planning") {
+    return { state, error: "Set the planning end date while the KPI year is in planning" };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(planningEndsOn)) {
+    return { state, error: "Planning end date must be a calendar date" };
+  }
+
+  const next = patchKpiYear(state, cycleId, { planningEndsOn });
+  return {
+    state: audit(next, "update", "KpiYear", cycleId, `Planning ends ${planningEndsOn}`),
     error: null,
   };
 }
@@ -583,12 +659,12 @@ export function closeKpiYear(state: AppState, cycleId: string): CommandResult<{ 
   if (denied) return { state, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
 
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase === "closed") return { state, error: "KpiYear is already closed" };
+  if (phase === "closed") return { state, error: "KPI year is already closed" };
   if (phase !== "planning" && phase !== "monitoring") {
-    return { state, error: "Only an active KpiYear may be closed" };
+    return { state, error: "Only an active KPI year may be closed" };
   }
 
   const sets = state.kpiSets.map((row) => {
@@ -607,7 +683,7 @@ export function closeKpiYear(state: AppState, cycleId: string): CommandResult<{ 
   });
   const next = patchKpiYear({ ...state, kpiSets: sets }, cycleId, { phase: "closed", adjustmentOpen: false });
   return {
-    state: audit(next, "update", "KpiYear", cycleId, "Closed KpiYear"),
+    state: audit(next, "update", "KpiYear", cycleId, "Closed the KPI year"),
     error: null,
   };
 }
@@ -667,10 +743,10 @@ export function createMissingKpiSets(state: AppState, cycleId: string): CommandR
   if (denied) return { state, created: 0, error: denied };
 
   const cycle = findKpiYear(state, cycleId);
-  if (!cycle) return { state, created: 0, error: "KpiYear not found" };
+  if (!cycle) return { state, created: 0, error: "KPI year not found" };
   const phase = normalizeKpiYearPhase(cycle);
   if (phase !== "planning" && phase !== "monitoring") {
-    return { state, created: 0, error: "Start KpiPlanning before drafting KpiPortfolios" };
+    return { state, created: 0, error: "Start planning before drafting KPI portfolios" };
   }
   const current = state.assignments.filter((row) => row.endDate === null);
   const missing = current.filter(
@@ -690,7 +766,7 @@ export function createMissingKpiSets(state: AppState, cycleId: string): CommandR
       })),
     ],
   };
-  return { state: audit(next, "create", "KpiSet", cycleId, `Drafted ${missing.length} KpiSets`), created: missing.length };
+  return { state: audit(next, "create", "KpiSet", cycleId, `Drafted ${missing.length} KPI portfolios`), created: missing.length };
 }
 
 function portfolioIsLocked(kpiSet: KpiSet): boolean {
@@ -801,12 +877,12 @@ export function removeKpiItem(state: AppState, id: string): CommandResult<{ erro
     const adjustmentBlocked = approvedPortfolioEditBlocked(state, item.kpiSetId);
     if (adjustmentBlocked) return { state, error: adjustmentBlocked };
     if (!canDraftKpiPortfolio(state, item.kpiSetId)) {
-      return { state, error: "Only the Person, their LineManager, or Admin may draft this KpiPortfolio" };
+      return { state, error: "Only the person, their line manager, or an admin may draft this KPI portfolio" };
     }
   }
   let next: AppState = { ...state, kpiItems: state.kpiItems.filter((row) => row.id !== id) };
   if (item) next = applyPortfolioModification(next, item.kpiSetId);
-  return { state: audit(next, "delete", "KpiItem", id, "Removed KpiItem"), error: null };
+  return { state: audit(next, "delete", "KpiItem", id, "Removed KPI"), error: null };
 }
 
 export function submitKpiSet(state: AppState, kpiSetId: string): CommandResult<{ error: string | null }> {
@@ -833,17 +909,17 @@ export function submitKpiSet(state: AppState, kpiSetId: string): CommandResult<{
         : row,
     ),
   };
-  return { state: audit(next, "update", "KpiSet", kpiSetId, "Submitted KPI Portfolio for approval"), error: null };
+  return { state: audit(next, "update", "KpiSet", kpiSetId, "Submitted KPI portfolio for approval"), error: null };
 }
 
 export function agreeKpiSet(state: AppState, kpiSetId: string): CommandResult<{ error: string | null }> {
   const closed = closedYearErrorForSet(state, kpiSetId);
   if (closed) return { state, error: closed };
   if (!canAgreeOrReturnKpiPortfolio(state, kpiSetId)) {
-    return { state, error: "Only the LineManager or Admin may agree this KpiPortfolio" };
+    return { state, error: "Only the line manager or an admin may agree this KPI portfolio" };
   }
   const kpiSet = state.kpiSets.find((row) => row.id === kpiSetId);
-  if (!kpiSet) return { state, error: "KpiPortfolio not found" };
+  if (!kpiSet) return { state, error: "KPI portfolio not found" };
   if (kpiSet.status !== "pending") {
     return { state, error: "Only a pending KPI Portfolio can be approved" };
   }
@@ -851,7 +927,7 @@ export function agreeKpiSet(state: AppState, kpiSetId: string): CommandResult<{ 
   const stamp = resolvePortfolioAgreeStamp(state, kpiSetId);
   if (!stamp) {
     if (ownerId === state.currentPersonId && !adminIsRemainingApproverForKpiSet(state, kpiSetId)) {
-      return { state, error: "LineManager approval must come from a different Person" };
+      return { state, error: "Line manager approval must come from a different person" };
     }
     return { state, error: "No further approval is available for you on this KPI Portfolio" };
   }
@@ -878,9 +954,9 @@ export function agreeKpiSet(state: AppState, kpiSetId: string): CommandResult<{ 
     ...state,
     kpiSets: state.kpiSets.map((row) => (row.id === kpiSetId ? nextSet : row)),
   };
-  const label = stamp === "lineManager" ? "LineManager" : "Admin";
+  const label = stamp === "lineManager" ? "Line manager" : "Admin";
   return {
-    state: audit(next, "update", "KpiSet", kpiSetId, `${label} approved KPI Portfolio`),
+    state: audit(next, "update", "KpiSet", kpiSetId, `${label} approved KPI portfolio`),
     error: null,
   };
 }
@@ -889,7 +965,7 @@ export function returnKpiSet(state: AppState, kpiSetId: string, comment: string)
   const closed = closedYearErrorForSet(state, kpiSetId);
   if (closed) return { state, error: closed };
   if (!canAgreeOrReturnKpiPortfolio(state, kpiSetId)) {
-    return { state, error: "Only the LineManager or Admin may return this KpiPortfolio" };
+    return { state, error: "Only the line manager or an admin may return this KPI portfolio" };
   }
   const next: AppState = {
     ...state,
@@ -954,39 +1030,39 @@ export function addCheckIn(
   options?: { window?: string },
 ): CommandResult<{ error: string | null }> {
   const item = state.kpiItems.find((row) => row.id === kpiItemId);
-  if (!item) return { state, error: "KpiItem not found" };
+  if (!item) return { state, error: "KPI not found" };
   const kpiSet = state.kpiSets.find((row) => row.id === item.kpiSetId);
-  if (!kpiSet) return { state, error: "KpiPortfolio not found" };
+  if (!kpiSet) return { state, error: "KPI portfolio not found" };
   const ownerId = personIdForKpiSet(state, kpiSet.id);
   if (!ownerId || ownerId !== state.currentPersonId) {
-    return { state, error: "Only the Person on this Assignment may submit a KpiCheckIn" };
+    return { state, error: "Only the person on this seat may submit a KPI check-in" };
   }
   const cycle = state.cycles.find((row) => row.id === kpiSet.cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase === "closed") return { state, error: "KpiYear is closed" };
-  if (phase !== "monitoring") return { state, error: "KpiCheckIn is only allowed during KpiMonitoring" };
+  if (phase === "closed") return { state, error: "KPI year is closed" };
+  if (phase !== "monitoring") return { state, error: "A KPI check-in is only allowed during monitoring" };
   if (!isPortfolioDualApproved(state, kpiSet.id)) {
-    return { state, error: "KpiCheckIn requires a dual-approved KPI Portfolio" };
+    return { state, error: "A KPI check-in requires a KPI portfolio that both approvers have agreed" };
   }
   if (blocksOwnCheckIn(state, item)) {
-    return { state, error: "KpiCheckIn is blocked for this KpiItem" };
+    return { state, error: "A KPI check-in is blocked for this KPI" };
   }
   const cadence = effectiveCadence(cycle, item);
   const currentWindow = windowFor(todayIso(), cadence);
   const window = options?.window ?? currentWindow;
   if (!window.startsWith(String(cycle.year))) {
-    return { state, error: "KpiCheckIn window must belong to this KpiYear" };
+    return { state, error: "This check-in window must belong to this KPI year" };
   }
   if (isFutureWindow(window, currentWindow)) {
-    return { state, error: "Future CheckInFrequency windows are not allowed" };
+    return { state, error: "Future check-in windows are not allowed" };
   }
   if (approvedCheckInExistsForWindow(state, kpiItemId, window)) {
-    return { state, error: "An approved KpiCheckIn already exists for this window" };
+    return { state, error: "An approved KPI check-in already exists for this window" };
   }
   const existing = blockingCheckInForWindow(state, kpiItemId, window);
   if (existing) {
-    return { state, error: "A KpiCheckIn is already pending for this window" };
+    return { state, error: "A KPI check-in is already pending for this window" };
   }
   const id = nid("ci");
   const date = options?.window ? dateInWindow(window) : todayIso();
@@ -1013,21 +1089,21 @@ export function updateCheckIn(
   patch: { actual?: number; note?: string },
 ): CommandResult<{ error: string | null }> {
   const checkIn = checkInById(state, checkInId);
-  if (!checkIn) return { state, error: "KpiCheckIn not found" };
+  if (!checkIn) return { state, error: "KPI check-in not found" };
   const ownerId = personIdForCheckIn(state, checkInId);
   if (!ownerId || ownerId !== state.currentPersonId) {
-    return { state, error: "Only the Person on this Assignment may edit a KpiCheckIn" };
+    return { state, error: "Only the person on this seat may edit a KPI check-in" };
   }
   const item = state.kpiItems.find((row) => row.id === checkIn.kpiItemId);
-  if (!item) return { state, error: "KpiItem not found" };
+  if (!item) return { state, error: "KPI not found" };
   const kpiSet = state.kpiSets.find((row) => row.id === item.kpiSetId);
-  if (!kpiSet) return { state, error: "KpiPortfolio not found" };
+  if (!kpiSet) return { state, error: "KPI portfolio not found" };
   const cycle = state.cycles.find((row) => row.id === kpiSet.cycleId);
-  if (!cycle) return { state, error: "KpiYear not found" };
+  if (!cycle) return { state, error: "KPI year not found" };
   const phase = normalizeKpiYearPhase(cycle);
-  if (phase !== "monitoring") return { state, error: "KpiCheckIn is only allowed during KpiMonitoring" };
+  if (phase !== "monitoring") return { state, error: "A KPI check-in is only allowed during monitoring" };
   if (!isPortfolioDualApproved(state, kpiSet.id)) {
-    return { state, error: "KpiCheckIn requires a dual-approved KPI Portfolio" };
+    return { state, error: "A KPI check-in requires a KPI portfolio that both approvers have agreed" };
   }
   const updated = clearCheckInStamps({
     ...checkIn,
@@ -1039,7 +1115,7 @@ export function updateCheckIn(
     ...state,
     checkIns: state.checkIns.map((row) => (row.id === checkInId ? updated : row)),
   };
-  return { state: audit(next, "update", "CheckIn", checkInId, "Updated KpiCheckIn"), error: null };
+  return { state: audit(next, "update", "CheckIn", checkInId, "Updated KPI check-in"), error: null };
 }
 
 function closedYearErrorForCheckIn(state: AppState, checkInId: string): string | null {
@@ -1054,21 +1130,21 @@ export function agreeCheckIn(state: AppState, checkInId: string): CommandResult<
   const closed = closedYearErrorForCheckIn(state, checkInId);
   if (closed) return { state, error: closed };
   if (!canAgreeOrReturnCheckIn(state, checkInId)) {
-    return { state, error: "Only the LineManager or Admin may agree this KpiCheckIn" };
+    return { state, error: "Only the line manager or an admin may agree this KPI check-in" };
   }
   const checkIn = checkInById(state, checkInId);
-  if (!checkIn) return { state, error: "KpiCheckIn not found" };
+  if (!checkIn) return { state, error: "KPI check-in not found" };
   if (effectiveCheckInStatus(checkIn) !== "pending") {
-    return { state, error: "Only a pending KpiCheckIn can be approved" };
+    return { state, error: "Only a pending KPI check-in can be approved" };
   }
   const ownerId = personIdForCheckIn(state, checkInId);
   const stamp = resolveCheckInAgreeStamp(state, checkInId);
   if (!stamp) {
     const item = checkIn ? state.kpiItems.find((row) => row.id === checkIn.kpiItemId) : undefined;
     if (ownerId === state.currentPersonId && item && !adminIsRemainingApproverForKpiSet(state, item.kpiSetId)) {
-      return { state, error: "LineManager approval must come from a different Person" };
+      return { state, error: "Line manager approval must come from a different person" };
     }
-    return { state, error: "No further approval is available for you on this KpiCheckIn" };
+    return { state, error: "No further approval is available for you on this KPI check-in" };
   }
   const stamped: CheckInRecord = {
     ...checkIn,
@@ -1085,8 +1161,8 @@ export function agreeCheckIn(state: AppState, checkInId: string): CommandResult<
     ...state,
     checkIns: state.checkIns.map((row) => (row.id === checkInId ? nextRow : row)),
   };
-  const label = stamp === "lineManager" ? "LineManager" : "Admin";
-  return { state: audit(next, "update", "CheckIn", checkInId, `${label} approved KpiCheckIn`), error: null };
+  const label = stamp === "lineManager" ? "Line manager" : "Admin";
+  return { state: audit(next, "update", "CheckIn", checkInId, `${label} approved KPI check-in`), error: null };
 }
 
 export function returnCheckIn(
@@ -1097,10 +1173,10 @@ export function returnCheckIn(
   const closed = closedYearErrorForCheckIn(state, checkInId);
   if (closed) return { state, error: closed };
   if (!canAgreeOrReturnCheckIn(state, checkInId)) {
-    return { state, error: "Only the LineManager or Admin may return this KpiCheckIn" };
+    return { state, error: "Only the line manager or an admin may return this KPI check-in" };
   }
   const checkIn = checkInById(state, checkInId);
-  if (!checkIn) return { state, error: "KpiCheckIn not found" };
+  if (!checkIn) return { state, error: "KPI check-in not found" };
   const next: AppState = {
     ...state,
     checkIns: state.checkIns.map((row) => {

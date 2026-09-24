@@ -5,7 +5,7 @@ export function HealthBadge({ health }: { health: Health }) {
   if (health === "on-track") return <Badge tone="success">On track</Badge>;
   if (health === "at-risk") return <Badge tone="warning">At risk</Badge>;
   if (health === "off") return <Badge tone="danger">Off</Badge>;
-  return <Badge>No CheckIn</Badge>;
+  return <Badge>No check-in</Badge>;
 }
 
 export function StatusBadge({ status }: { status: string }) {

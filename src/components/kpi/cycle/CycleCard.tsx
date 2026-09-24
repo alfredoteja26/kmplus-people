@@ -1,17 +1,19 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Field, Select } from "@/components/ui/Input";
+import { Card, Callout } from "@/components/ui/Card";
+import { Field, Input, Select } from "@/components/ui/Input";
 import { HealthBadge, StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { kpiYearPhase } from "@/lib/domain-query";
+import { liveMonitoringScore } from "@/lib/phase-desk";
 import { kpiSetForAssignment, personById, positionById, setHealth } from "@/lib/domain";
 import type { AppState, CheckInFrequency, KpiCycle } from "@/lib/types";
+import { useState } from "react";
 
 function phaseLabel(phase: ReturnType<typeof kpiYearPhase>) {
-  if (phase === "planning") return "KpiPlanning";
-  if (phase === "monitoring") return "KpiMonitoring";
+  if (phase === "planning") return "Planning";
+  if (phase === "monitoring") return "Monitoring";
   if (phase === "closed") return "Closed";
   return "Not started";
 }
@@ -21,6 +23,10 @@ function healthOrScore(state: AppState, cycle: KpiCycle, assignmentId: string) {
   if (!kpiSet) return "—";
   if (kpiYearPhase(cycle) === "closed") {
     return kpiSet.score !== undefined ? `${kpiSet.score}` : "—";
+  }
+  if (kpiYearPhase(cycle) === "monitoring") {
+    const live = liveMonitoringScore(state, kpiSet.id);
+    if (live !== null) return live;
   }
   return <HealthBadge health={setHealth(state, kpiSet)} />;
 }
@@ -33,6 +39,8 @@ export function CycleCard({
   onClose,
   onDraftMissing,
   onFrequencyChange,
+  onPlanningEndDate,
+  onInspect,
   onOpenAdjustmentWindow,
   onCloseAdjustmentWindow,
 }: {
@@ -43,6 +51,8 @@ export function CycleCard({
   onClose: () => string | null;
   onDraftMissing: () => number;
   onFrequencyChange: (frequency: CheckInFrequency) => string | null;
+  onPlanningEndDate: (date: string) => string | null;
+  onInspect: (kpiSetId: string) => void;
   onOpenAdjustmentWindow: () => string | null;
   onCloseAdjustmentWindow: () => string | null;
 }) {
@@ -55,6 +65,7 @@ export function CycleCard({
   ).length;
 
   const frequencyLabel = cycle.checkInCadence === "monthly" ? "Monthly" : "Quarterly";
+  const [dateError, setDateError] = useState<string | null>(null);
 
   return (
     <Card className="mb-4">
@@ -66,10 +77,24 @@ export function CycleCard({
           </div>
           <p className="mt-1 mb-0 text-sm text-muted">
             Default KPI Check-in Frequency: {frequencyLabel}
-            {cycle.adjustmentOpen ? " · KpiAdjustmentWindow open" : null}
+            {cycle.adjustmentOpen ? " · Adjustment window open" : null}
+            {cycle.planningEndsOn && phase !== "planning" ? ` · Planning ended ${cycle.planningEndsOn}` : null}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
+          {phase === "planning" ? (
+            <Field label="Planning ends">
+              <Input
+                type="date"
+                value={cycle.planningEndsOn ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) return;
+                  setDateError(onPlanningEndDate(value));
+                }}
+              />
+            </Field>
+          ) : null}
           {isActive ? (
             <Field label="Default KPI Check-in Frequency">
               <Select
@@ -85,33 +110,33 @@ export function CycleCard({
           <div className="flex flex-wrap items-center gap-2">
             {phase === null ? (
               <Button type="button" onClick={() => onStartPlanning()}>
-                Start KpiPlanning
+                Start planning
               </Button>
             ) : null}
             {phase === "planning" ? (
               <Button type="button" onClick={() => onStartMonitoring()}>
-                Start KpiMonitoring
+                Start monitoring
               </Button>
             ) : null}
             {phase === "monitoring" ? (
               cycle.adjustmentOpen ? (
                 <Button variant="secondary" type="button" onClick={() => onCloseAdjustmentWindow()}>
-                  Close KpiAdjustmentWindow
+                  Close adjustment window
                 </Button>
               ) : (
                 <Button variant="secondary" type="button" onClick={() => onOpenAdjustmentWindow()}>
-                  Open KpiAdjustmentWindow
+                  Open adjustment window
                 </Button>
               )
             ) : null}
             {isActive ? (
               <>
                 <Button variant="secondary" type="button" onClick={() => onClose()}>
-                  Close KpiYear
+                  Close KPI year
                 </Button>
                 {missingCount > 0 ? (
                   <Button variant="secondary" type="button" onClick={() => onDraftMissing()}>
-                    Draft missing KpiPortfolios ({missingCount})
+                    Draft missing KPI portfolios ({missingCount})
                   </Button>
                 ) : null}
               </>
@@ -119,6 +144,14 @@ export function CycleCard({
           </div>
         </div>
       </div>
+      {phase === "planning" && !cycle.planningEndsOn ? (
+        <Callout className="mb-4">Set a planning end date. Performance pages count down to that date. Starting monitoring stays a separate action.</Callout>
+      ) : null}
+      {dateError ? (
+        <Callout tone="danger" className="mb-4">
+          {dateError}
+        </Callout>
+      ) : null}
       <div className="overflow-x-auto">
         <Table>
           <thead>
@@ -127,6 +160,7 @@ export function CycleCard({
               <Th>Position</Th>
               <Th>KPI Portfolio</Th>
               <Th>Health / score</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -140,6 +174,15 @@ export function CycleCard({
                   <Td>{position?.title ?? "—"}</Td>
                   <Td>{kpiSet ? <StatusBadge status={kpiSet.status} /> : "Missing"}</Td>
                   <Td>{healthOrScore(state, cycle, assignment.id)}</Td>
+                  <Td>
+                    {kpiSet ? (
+                      <Button variant="ghost" type="button" onClick={() => onInspect(kpiSet.id)}>
+                        Open portfolio
+                      </Button>
+                    ) : (
+                      "—"
+                    )}
+                  </Td>
                 </tr>
               );
             })}

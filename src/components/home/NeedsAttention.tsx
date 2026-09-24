@@ -74,17 +74,17 @@ export function NeedsAttention({ state }: { state: AppState }) {
               ? `${cvsInReviewCount(state)} Curriculum Vitae in review`
               : null}
             {cycle && (empty.length > 0 || cvQueue.length > 0) && kpiHasGaps ? " · " : null}
-            {cycle && kpiHasGaps ? "KpiSet gaps or CheckIns off track" : null}
+            {cycle && kpiHasGaps ? "KPI portfolio gaps or check-ins off track" : null}
           </p>
         )}
       </div>
 
       {allClear ? (
         <Callout>
-          Every Position has a current Assignment and the Curriculum Vitae queue is clear.
+          Every position has someone in the seat and the curriculum vitae queue is clear.
           {cycle
-            ? " Agreed and active KPI Portfolios in the active KpiYear look healthy."
-            : " Start KpiPlanning on KPI Admin when you are ready to plan KPI Portfolios."}{" "}
+            ? " Agreed and active KPI portfolios in the active KPI year look healthy."
+            : " Start planning on KPI Admin when you are ready to plan KPI portfolios."}{" "}
           Use roster glance below or jump to People, Organization, or Performance when something new arrives.
         </Callout>
       ) : null}
@@ -97,17 +97,17 @@ export function NeedsAttention({ state }: { state: AppState }) {
           <Badge tone={empty.length ? "warning" : "success"}>{empty.length}</Badge>
         </div>
         {empty.length === 0 ? (
-          <p className="m-0 text-sm text-muted">Every Position has a current Assignment.</p>
+          <p className="m-0 text-sm text-muted">Every position has someone in the seat.</p>
         ) : (
           <>
             <p className="mt-0 mb-3 text-sm text-muted">
-              Assign a Person to these Positions in Organization.
+              Assign someone to these positions in Organization.
             </p>
             <Table>
               <thead>
                 <tr>
                   <Th>Position</Th>
-                  <Th>OrgUnit</Th>
+                  <Th>Organization</Th>
                   <Th>Action</Th>
                 </tr>
               </thead>
@@ -141,7 +141,7 @@ export function NeedsAttention({ state }: { state: AppState }) {
         ) : (
           <>
             <p className="mt-0 mb-3 text-sm text-muted">
-              Accept, edit, or reject parsed fields before they write to Person.
+              Accept, edit, or reject parsed fields before they write to the person.
             </p>
             <Table>
               <thead>
@@ -180,17 +180,17 @@ export function NeedsAttention({ state }: { state: AppState }) {
       <section aria-labelledby="home-kpi-cycle">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 id="home-kpi-cycle" className="m-0 text-[16px] font-medium">
-            KpiYear and KPI Portfolios
+            KPI year and portfolios
           </h3>
           {cycle ? (
             <Badge tone={kpiHasGaps ? "warning" : "success"}>{cycle.name}</Badge>
           ) : (
-            <Badge tone="neutral">No active KpiYear</Badge>
+            <Badge tone="neutral">No active KPI year</Badge>
           )}
         </div>
         {!cycle ? (
           <p className="m-0 text-sm text-muted">
-            No KpiYear in KpiPlanning or KpiMonitoring, so on-track KPI Check-Ins are not counted.{" "}
+            No KPI year is in planning or monitoring, so on-track check-ins are not counted.{" "}
             <Link href="/kpi/cycle" className="font-medium text-accent no-underline hover:underline">
               Open KPI Admin
             </Link>{" "}
@@ -201,18 +201,18 @@ export function NeedsAttention({ state }: { state: AppState }) {
             {missingKpiSets > 0 ? (
               <p className="m-0 text-muted">
                 <span className="font-medium text-ink">{missingKpiSets}</span>
-                {missingKpiSets === 1 ? " current Assignment has" : " current Assignments have"} no KpiSet for {cycle.name}.{" "}
+                {missingKpiSets === 1 ? " current assignment has" : " current assignments have"} no KPI portfolio for {cycle.name}.{" "}
                 <Link href="/kpi/cycle" className="font-medium text-accent no-underline hover:underline">
-                  Draft missing KpiSets
+                  Draft missing KPI portfolios
                 </Link>
               </p>
             ) : (
-              <p className="m-0 text-muted">Every current Assignment has a KpiSet for {cycle.name}.</p>
+              <p className="m-0 text-muted">Every current assignment has a KPI portfolio for {cycle.name}.</p>
             )}
             {draftOrReturned > 0 ? (
               <p className="m-0 text-muted">
                 <span className="font-medium text-ink">{draftOrReturned}</span>
-                {draftOrReturned === 1 ? " KpiSet needs" : " KpiSets need"} agreement or return resolution.{" "}
+                {draftOrReturned === 1 ? " KPI portfolio needs" : " KPI portfolios need"} agreement or a return.{" "}
                 <Link href="/kpi/cycle" className="font-medium text-accent no-underline hover:underline">
                   Review in KPI Admin
                 </Link>
@@ -220,7 +220,7 @@ export function NeedsAttention({ state }: { state: AppState }) {
             ) : null}
             <p className="m-0">
               <span className="font-medium text-ink">{onTrack}</span>
-              {onTrack === 1 ? " agreed or active KpiSet is" : " agreed or active KpiSets are"} on track (CheckIns healthy)
+              {onTrack === 1 ? " agreed or active KPI portfolio is" : " agreed or active KPI portfolios are"} on track (check-ins look healthy)
               {agreedActive > 0 ? (
                 <>
                   {" "}
@@ -234,11 +234,11 @@ export function NeedsAttention({ state }: { state: AppState }) {
             </p>
             {offTrack > 0 ? (
               <p className="m-0 text-muted">
-                {offTrack} KpiSet{offTrack === 1 ? " has" : "s have"} at-risk or off CheckIns — follow up in Team or
+                {offTrack} KPI portfolio{offTrack === 1 ? " has" : "s have"} at-risk or off-track check-ins. Follow up in Team or
                 KPI Admin.
               </p>
             ) : agreedActive > 0 && missingKpiSets === 0 && draftOrReturned === 0 ? (
-              <p className="m-0 text-muted">CheckIns for agreed and active KpiSets look healthy.</p>
+              <p className="m-0 text-muted">Check-ins for agreed and active KPI portfolios look healthy.</p>
             ) : null}
           </div>
         )}

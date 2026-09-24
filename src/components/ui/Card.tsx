@@ -39,20 +39,27 @@ export function PageHeader({
   title,
   description,
   actions,
+  className,
 }: {
   kicker?: string;
   title: string;
   description?: string;
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        {kicker ? <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.06em] text-faint">{kicker}</p> : null}
+    <div className={cn("mb-6", className)}>
+      {kicker ? <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.06em] text-faint">{kicker}</p> : null}
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="m-0 text-[30px] font-medium leading-[1.2] tracking-[-0.02em]">{title}</h1>
-        {description ? <p className="mt-1 mb-0 max-w-[62ch] text-muted">{description}</p> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {description ? <p className="mt-2 mb-0 max-w-[62ch] text-muted">{description}</p> : null}
     </div>
   );
+}
+
+/** Performance pages share one measure so stats and actions do not stretch to the viewport edge. */
+export function PageColumn({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("mx-auto flex w-full max-w-5xl flex-col gap-6", className)}>{children}</div>;
 }

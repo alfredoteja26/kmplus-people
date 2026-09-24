@@ -24,7 +24,7 @@ Confirmed 16 Sep 2026. Performance nav: My KPI, Team, KPI Admin, KPI tree.
 ## 3. Selected direction
 
 - **Visual authority:** [DESIGN.md](../../DESIGN.md). Light canvas `#FAFAFA`, paper table and cards, accent `#1E857C`, Inter, KM/PLUS mark in shell only. Restrained sage SaaS; not Portaverse, not navy chrome, no glass or gradient type.
-- **Structural thesis:** One paper work column under existing sidebar and top bar. PageHeader with cycle kicker, “My KPI” title, short description, status badge. Main artifact is a dense table of KpiItems (not a three-level Impact/Output tree). Add-item and submit live in a card below the table when draft or returned.
+- **Structural thesis:** Phase desk. The heading is the phase job. One status line carries the countdown or the score. The queue lists KPIs or people. The sheet is the editor.
 - **Focal moment:** The item row where cascade (parent + Direct/Indirect), optional DirectMix on parents with Direct children, cadence override while drafting, and inline CheckIn (window label + actual + note) converge. RootPosition rows show “no parent” instead of cascade controls.
 - **Companion route:** KpiSet by id mirrors the table read-only with person and position in the header and links back to KPI tree and Person profile.
 
@@ -63,14 +63,14 @@ Confirmed 16 Sep 2026. Performance nav: My KPI, Team, KPI Admin, KPI tree.
 
 ## Direction contract
 
-**THESIS:** One dense paper table is the entire operate surface — not a three-level Impact/Output tree, not hero metrics, not side-wizard cascade. Refuses Portaverse type trees and dashboard chrome.
+**THESIS:** The Performance pages are a phase desk. Planning leads with the countdown and the planning task. Monitoring leads with the live score and check-in. One KPI opens in a sheet. The wide table is no longer the editor.
 
-**OWN-WORLD:** `#FAFAFA` canvas, white bordered table (`border-line`, paper fill), sage primary `#1E857C` on CheckIn/submit only, Inter body, mono cycle kicker on PageHeader, warning/danger callouts without left stripes.
+**OWN-WORLD:** `#FAFAFA` canvas, paper list, sage primary `#1E857C` on submit and check-in, Inter, 16px panel radius. The sheet is a right-hand paper panel on a wide screen and a full-screen panel on a phone.
 
-**STORY:** Employee sees cycle + set status, maintains weighted items to 100%, submits for agreement, then logs actuals in the correct window; manager return comment is visible before rework; scored cycle shows stored KpiScore; tree deep-link proves the same columns read-only with person and position.
+**STORY:** The visitor sees days left while the year is in planning, or the latest monitoring score once the portfolio is approved. They open one KPI, edit or check in, and the queue stays put.
 
-**FIRST VIEWPORT:** PageHeader (mono kicker = cycle name, “My KPI”, one-line description, StatusBadge right). Below: optional return/score/error callouts, then full-width item table (name/definition, target, weight, parent cascade, latest actual, health, cadence when draft). Weight total line under table; Add KpiItem card + Submit for agreement footer when editable.
+**FIRST VIEWPORT:** Heading is the phase job (Submit portfolio, or Check in). Under it, one status line for the countdown or the score. Then a single queue. The sheet opens from a row, a tree node, or Open portfolio.
 
-**FORM:** Operate dense table + inline row affordances (not card grid dashboard). Seed: `confirmed-my-kpi-2026-09-16` (code-led; brief is comp).
+**FORM:** Phase desk plus sheet. Seed: `confirmed-phase-desk-2026-09-24` (code-led).
 
 **FINISH:** Unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.

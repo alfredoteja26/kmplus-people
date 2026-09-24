@@ -123,13 +123,13 @@ Collapsible left sidebar on `--paper` with 1.5px `--line`. Expanded: icon + labe
 
 **Sidebar groups:** Home, People, Organization, then Performance (My KPI, Team, KPI Admin, KPI tree). CV review is a People subpage, not a top-level item.
 
-Main column is `--bg` with one paper work surface.
+Main column is `--bg` with one paper work surface. Performance pages keep that surface, and the stat gauges above it, inside a 64rem column so a status or a button does not sit on the opposite edge of a wide window. The page title and its status sit on one line. Actions inside a panel sit together at the start of the panel footer.
 
 **Org tree:** top-down Positions with connectors, collapse/expand, Grade + OrgUnit on the node, empty-seat badge, search by title or Person. Nodes 12px radius, not circles. Not a people-as-org chart.
 
-**KPI tree:** forest for the open cycle. A node is a KpiItem (name, unit, actual/target, owner Person + Position). Roots = KpiItems on RootPositions. Direct edge = solid sage; Indirect = dashed. Click opens that Assignment’s KpiSet. Not Impact/Output layers.
+**KPI tree:** forest for the open **KpiYear**. A node is a KpiItem (name, unit, actual/target, owner Person + Position). Roots = KpiItems on RootPositions. Direct edge = solid sage; Indirect = dashed. Click opens that Assignment’s **KpiPortfolio**. Not Impact/Output layers.
 
-Phase screens: home worklist, Person list/profile plus CV review subpage, Organization Positions, My KPI / team / KPI Admin / KPI tree.
+Phase screens: home worklist, Person list/profile plus CV review subpage, Organization Positions, My KPI / Team / KPI Admin / KPI tree.
 
 ## Elevation and Depth
 
@@ -148,6 +148,7 @@ Controls radius 12px. Panels 16px. Status badges are pills. Org nodes use 12px r
 - **Badge:** draft = tint/muted; in review = accent wash; done = success; blocked = warning; risk = danger.
 - **Table:** paper, faint uppercase headers, teal for selected row and links.
 - **Review queue:** each parsed field is a row with Accept / Edit / Reject.
+- **Stat gauge:** paper card, 16px radius, 1.5px line. An open ring with the gap at the bottom. Sage when the fact is on track, warning when it is short, danger when it is overdue. The number sits in the ring. One target line and one detail sentence sit under it.
 
 ## Do's and Don'ts
 

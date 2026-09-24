@@ -19,16 +19,16 @@ export function DirectMixField({ state, item, canEdit, onChange }: Props) {
   if (!canEdit) {
     return (
       <p className="text-xs text-muted">
-        DirectMix: {mix === "children-only" ? "children-only (sum of Direct children)" : "own-plus-children"}
+        Direct mix: {mix === "children-only" ? "sum of direct child KPIs" : "own check-in plus child KPIs"}
       </p>
     );
   }
 
   return (
-    <Field label="DirectMix (parent)">
+    <Field label="How this parent combines child KPIs">
       <Select value={mix} onChange={(event) => onChange(event.target.value as DirectMix)}>
-        <option value="children-only">children-only — actual is sum of Direct children</option>
-        <option value="own-plus-children">own-plus-children — parent CheckIn plus sum</option>
+        <option value="children-only">From child KPIs only</option>
+        <option value="own-plus-children">Own check-in plus child KPIs</option>
       </Select>
     </Field>
   );

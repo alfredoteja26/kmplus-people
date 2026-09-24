@@ -180,7 +180,7 @@ export function portfolioApprovalWaitingCopy(state: AppState, kpiSetId: string):
   if (!kpiSet || kpiSet.status !== "pending") return null;
   const gaps = portfolioApprovalGaps(state, kpiSetId);
   const waiting: string[] = [];
-  if (gaps.needsLineManager) waiting.push("LineManager");
+  if (gaps.needsLineManager) waiting.push("line manager");
   if (gaps.needsAdmin) waiting.push("Admin");
   if (waiting.length === 0) return null;
   return `Waiting on ${waiting.join(" and ")} approval`;
@@ -249,7 +249,7 @@ export function checkInApprovalWaitingCopy(state: AppState, checkInId: string): 
   if (!checkIn || effectiveCheckInStatus(checkIn) !== "pending") return null;
   const gaps = checkInApprovalGaps(state, checkInId);
   const waiting: string[] = [];
-  if (gaps.needsLineManager) waiting.push("LineManager");
+  if (gaps.needsLineManager) waiting.push("line manager");
   if (gaps.needsAdmin) waiting.push("Admin");
   if (waiting.length === 0) return null;
   return `Waiting on ${waiting.join(" and ")} approval`;

@@ -551,6 +551,7 @@ export function seedTenantUsers(): TenantUser[] {
       role: demo.role,
       adminGrant: demo.personId === "person-alfredo",
       mustSetPassword: false,
+      authEpoch: 0,
     };
   });
 }

@@ -104,7 +104,7 @@ function PositionForm({
             ))}
           </Select>
         </Field>
-        <Field label="OrgUnit">
+        <Field label="Organization">
           <Select value={orgUnitId} onChange={(event) => setOrgUnitId(event.target.value)}>
             {state.orgUnits.map((unit) => (
               <option key={unit.id} value={unit.id}>

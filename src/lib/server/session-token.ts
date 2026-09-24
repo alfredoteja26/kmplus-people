@@ -6,6 +6,7 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 export type SessionPayload = {
   userId: string;
   tenantId: string;
+  authEpoch: number;
   exp: number;
 };
 
@@ -45,10 +46,11 @@ function timingSafeEqualString(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
-export async function createSessionToken(userId: string, now = Date.now()): Promise<string> {
+export async function createSessionToken(userId: string, authEpoch: number, now = Date.now()): Promise<string> {
   const payload: SessionPayload = {
     userId,
     tenantId: TENANT_ID,
+    authEpoch,
     exp: now + SESSION_MAX_AGE_SECONDS * 1000,
   };
   const encoded = bytesToBase64Url(textToBytes(JSON.stringify(payload)));
@@ -66,6 +68,7 @@ export async function verifySessionToken(token: string, now = Date.now()): Promi
   try {
     const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encoded))) as SessionPayload;
     if (payload.tenantId !== TENANT_ID || typeof payload.userId !== "string") return null;
+    if (typeof payload.authEpoch !== "number") return null;
     if (typeof payload.exp !== "number" || payload.exp <= now) return null;
     return payload;
   } catch {

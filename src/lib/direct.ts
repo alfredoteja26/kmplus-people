@@ -13,7 +13,7 @@ export function canBeDirect(child: KpiItem, parent: KpiItem, cycle: KpiCycle): D
   if (childCadence !== parentCadence) {
     return {
       ok: false,
-      reason: `Direct requires the same CheckInCadence (${childCadence} vs ${parentCadence})`,
+      reason: `Direct requires the same check-in frequency (${childCadence} vs ${parentCadence})`,
     };
   }
   return { ok: true };

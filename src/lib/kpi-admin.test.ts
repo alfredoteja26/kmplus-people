@@ -5,6 +5,7 @@ import {
   closeKpiAdjustmentWindow,
   closeKpiYear,
   openKpiAdjustmentWindow,
+  setKpiPlanningEndDate,
   setKpiYearCheckInFrequency,
   startKpiMonitoring,
   startKpiPlanning,
@@ -51,6 +52,9 @@ describe("KPI Admin nav", () => {
       .map((item) => item.label);
 
     expect(alfredo).toContain("KPI Admin");
+    expect(alfredo).toContain("Organization");
+    expect(alfredo).not.toContain("CV");
+    expect(alfredo.some((label) => label === "Org")).toBe(false);
     expect(alfredo).not.toContain("Cycle");
     expect(denny).not.toContain("KPI Admin");
     expect(denny).not.toContain("Cycle");
@@ -64,6 +68,7 @@ describe("KpiYear Admin commands", () => {
     expect(startKpiPlanning(started, "cycle-2027").error).toMatch(/Admin grant/);
     expect(startKpiMonitoring(started, "cycle-2026").error).toMatch(/Admin grant/);
     expect(setKpiYearCheckInFrequency(started, "cycle-2026", "monthly").error).toMatch(/Admin grant/);
+    expect(setKpiPlanningEndDate(started, "cycle-2026", "2026-12-31").error).toMatch(/Admin grant/);
     expect(closeKpiYear(started, "cycle-2026").error).toMatch(/Admin grant/);
     expect(openKpiAdjustmentWindow(started, "cycle-2026").error).toMatch(/Admin grant/);
     expect(closeKpiAdjustmentWindow(started, "cycle-2026").error).toMatch(/Admin grant/);

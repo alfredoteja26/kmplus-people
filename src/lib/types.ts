@@ -144,6 +144,8 @@ export type KpiCycle = {
   /** Legacy persist field; kept in sync with `phase`. */
   status: KpiCycleStatus;
   phase: KpiYearPhase | null;
+  /** Calendar date `YYYY-MM-DD`. Admin sets it during planning. Countdown only; monitoring does not start from this date. */
+  planningEndsOn?: string | null;
   adjustmentOpen: boolean;
   checkInCadence: CheckInCadence;
   checkInWindows: { quarter: 1 | 2 | 3 | 4; open: boolean }[];
@@ -225,6 +227,7 @@ export type TenantUser = {
   role: Role;
   adminGrant?: boolean;
   mustSetPassword: boolean;
+  authEpoch: number;
 };
 
 export type AppState = {

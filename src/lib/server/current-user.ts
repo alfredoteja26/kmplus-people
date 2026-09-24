@@ -19,9 +19,11 @@ export async function currentSessionUser(): Promise<SessionUser | null> {
   const prisma = getPrisma();
   const user = await prisma.user.findFirst({
     where: { id: session.userId, tenantId: TENANT_ID },
-    include: { person: true },
+    include: { person: { include: { employments: true } } },
   });
   if (!user) return null;
+  if (session.authEpoch !== user.authEpoch) return null;
+  if (!user.person.employments.some((row) => row.status === "active")) return null;
   return {
     id: user.id,
     personId: user.personId,

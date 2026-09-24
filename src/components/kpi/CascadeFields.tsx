@@ -41,7 +41,7 @@ export function CascadeFields({
   onCascadeModeChange,
 }: Props) {
   if (rootAssignment) {
-    return <p className="text-sm text-muted">RootPosition — no parent</p>;
+    return <p className="text-sm text-muted">Top of the organization — no parent KPI</p>;
   }
 
   const mode = item.cascadeMode ?? "indirect";
@@ -61,7 +61,7 @@ export function CascadeFields({
   return (
     <div className="grid gap-2">
       {canChangeParent ? (
-        <Field label="Parent KpiItem">
+        <Field label="Parent KPI">
           <Select
             required
             value={item.parentKpiItemId ?? ""}
@@ -85,7 +85,7 @@ export function CascadeFields({
         <Field label="Cascade">
           <Select value={mode} onChange={(event) => onCascadeModeChange(event.target.value as CascadeMode)}>
             <option value="indirect">Indirect — alignment only</option>
-            <option value="direct">Direct — CheckIn adds into parent</option>
+            <option value="direct">Direct — check-in adds into the parent</option>
           </Select>
         </Field>
       ) : (

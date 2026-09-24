@@ -20,8 +20,8 @@ export default function KpiSetViewPage() {
   if (!kpiSetId || !canViewKpiSet(state, kpiSetId)) {
     return (
       <div>
-        <PageHeader title="KpiSet" />
-        <Callout tone="warning">This KpiSet is not available in your scope.</Callout>
+        <PageHeader title="KPI portfolio" />
+        <Callout tone="warning">This KPI portfolio is not available in your scope.</Callout>
         <p className="mt-3 text-sm">
           <Link href="/kpi/tree">Back to KPI tree</Link>
         </p>
@@ -33,8 +33,8 @@ export default function KpiSetViewPage() {
   if (!summary || !summary.person || !summary.position || !summary.cycle) {
     return (
       <div>
-        <PageHeader title="KpiSet" />
-        <Callout tone="warning">KpiSet not found.</Callout>
+        <PageHeader title="KPI portfolio" />
+        <Callout tone="warning">KPI portfolio not found.</Callout>
       </div>
     );
   }
@@ -46,11 +46,11 @@ export default function KpiSetViewPage() {
     <div className="space-y-4">
       <PageHeader
         kicker={cycle.name}
-        title={`KpiSet · ${personName}`}
+        title={`KPI portfolio · ${personName}`}
         description={`${position.title} · read-only view from KPI tree`}
         actions={<StatusBadge status={kpiSet.status} />}
       />
-      <nav className="text-sm" aria-label="KpiSet context">
+      <nav className="text-sm" aria-label="KPI portfolio">
         <Link href="/kpi/tree">← KPI tree</Link>
         {" · "}
         <Link href={`/people/${person.id}`}>{personName}</Link>
@@ -62,13 +62,13 @@ export default function KpiSetViewPage() {
       ) : null}
       {kpiSet.score !== undefined ? (
         <Callout>
-          <span className="font-medium">Stored KpiScore:</span> {kpiSet.score}
+          <span className="font-medium">Stored score:</span> {kpiSet.score}
         </Callout>
       ) : null}
       <Table>
         <thead>
           <tr>
-            <Th>KpiItem</Th>
+            <Th>KPI</Th>
             <Th>Target</Th>
             <Th>Weight</Th>
             <Th>Parent</Th>

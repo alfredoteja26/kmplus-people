@@ -17,8 +17,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login") {
-    if (signedIn) {
+  if (pathname === "/login" || pathname.startsWith("/login/")) {
+    if (pathname === "/login" && signedIn) {
       return NextResponse.redirect(new URL("/", request.url));
     }
     return NextResponse.next();

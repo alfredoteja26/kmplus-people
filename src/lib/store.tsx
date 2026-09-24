@@ -25,6 +25,7 @@ type Store = {
   startKpiPlanning: (cycleId: string) => string | null;
   startKpiMonitoring: (cycleId: string) => string | null;
   setKpiYearCheckInFrequency: (cycleId: string, cadence: import("./types").CheckInFrequency) => string | null;
+  setKpiPlanningEndDate: (cycleId: string, planningEndsOn: string) => string | null;
   closeKpiYear: (cycleId: string) => string | null;
   openKpiAdjustmentWindow: (cycleId: string) => string | null;
   closeKpiAdjustmentWindow: (cycleId: string) => string | null;
@@ -149,6 +150,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       setKpiYearCheckInFrequency(cycleId, cadence) {
         return commit((prev) => commands.setKpiYearCheckInFrequency(prev, cycleId, cadence)).error;
+      },
+      setKpiPlanningEndDate(cycleId, planningEndsOn) {
+        return commit((prev) => commands.setKpiPlanningEndDate(prev, cycleId, planningEndsOn)).error;
       },
       closeKpiYear(cycleId) {
         return commit((prev) => commands.closeKpiYear(prev, cycleId)).error;

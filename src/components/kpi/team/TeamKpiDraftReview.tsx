@@ -28,7 +28,7 @@ export function TeamKpiDraftReview({ state, cycleId, kpiSet, assignmentId, items
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
-              <Th className="text-[10px]">KpiItem</Th>
+              <Th className="text-[10px]">KPI</Th>
               <Th className="text-[10px]">Weight</Th>
               <Th className="text-[10px]">Parent & cascade</Th>
             </tr>
@@ -37,7 +37,7 @@ export function TeamKpiDraftReview({ state, cycleId, kpiSet, assignmentId, items
             {items.length === 0 ? (
               <tr>
                 <td colSpan={3} className="border-b border-line px-3 py-2.5 text-[13px] text-muted">
-                  No items on this KpiSet yet.
+                  No items on this KPI portfolio yet.
                 </td>
               </tr>
             ) : (

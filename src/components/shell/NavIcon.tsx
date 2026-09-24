@@ -43,8 +43,9 @@ const paths: Record<NavIconId, ReactNode> = {
   ),
   cycle: (
     <>
-      <path d="M12 5a7 7 0 1 1 0 14" />
-      <path d="M12 5V2.5M12 5l2.5 1.5" />
+      <rect x="6" y="3.5" width="12" height="16" rx="2" />
+      <path d="M9 3.5v-.8A1.2 1.2 0 0 1 10.2 1.5h3.6A1.2 1.2 0 0 1 15 2.7v.8" />
+      <path d="M9 9h6M9 12.5h6M9 16h3.5" />
     </>
   ),
   tree: (

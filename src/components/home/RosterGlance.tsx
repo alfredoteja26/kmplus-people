@@ -40,7 +40,7 @@ export function RosterGlance({ state }: { state: AppState }) {
             <tr>
               <Th>Person</Th>
               <Th>Position</Th>
-              <Th>OrgUnit</Th>
+              <Th>Organization</Th>
             </tr>
           </thead>
           <tbody>
@@ -51,7 +51,7 @@ export function RosterGlance({ state }: { state: AppState }) {
                     {person.legalName}
                   </Link>
                 </Td>
-                <Td>{position?.title ?? "No current Assignment"}</Td>
+                  <Td>{position?.title ?? "No current seat"}</Td>
                 <Td>{orgUnit?.name ?? "—"}</Td>
               </tr>
             ))}

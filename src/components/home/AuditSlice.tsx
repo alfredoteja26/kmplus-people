@@ -4,6 +4,21 @@ import { personById } from "@/lib/domain";
 import type { AppState } from "@/lib/types";
 import { Table, Td, Th } from "@/components/ui/Table";
 
+function auditEntityLabel(entity: string): string {
+  const labels: Record<string, string> = {
+    KpiSet: "KPI portfolio",
+    KpiItem: "KPI",
+    KpiCycle: "KPI year",
+    CheckIn: "KPI check-in",
+    Person: "person",
+    Assignment: "assignment",
+    Position: "position",
+    OrgUnit: "organization",
+    CurriculumVitae: "curriculum vitae",
+  };
+  return labels[entity] ?? entity.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+}
+
 export function AuditSlice({ state }: { state: AppState }) {
   const rows = state.audit.slice(0, 8);
 
@@ -32,7 +47,7 @@ export function AuditSlice({ state }: { state: AppState }) {
                   <Td className="font-mono text-xs text-faint">{row.at.slice(0, 19).replace("T", " ")}</Td>
                   <Td>{personById(state, row.actorPersonId)?.preferredName ?? "—"}</Td>
                   <Td className="text-muted">
-                    {row.action} {row.entity}
+                    {row.action} {auditEntityLabel(row.entity)}
                   </Td>
                   <Td className="text-muted">{row.detail}</Td>
                 </tr>

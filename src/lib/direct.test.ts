@@ -101,7 +101,7 @@ describe("canBeDirect", () => {
     const child = childItem({ unit: "count", checkInCadence: "monthly" });
     const result = canBeDirect(child, { ...parent, unit: "count" }, cycle);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/CheckInCadence/i);
+    if (!result.ok) expect(result.reason).toMatch(/check-in frequency/i);
   });
 
   it("accepts matching unit and cadence", () => {
@@ -136,7 +136,7 @@ describe("upsertKpiItem Direct validation", () => {
       unit: parent.unit,
       checkInCadence: "monthly",
     });
-    expect(error).toMatch(/CheckInCadence/i);
+    expect(error).toMatch(/check-in frequency/i);
   });
 });
 

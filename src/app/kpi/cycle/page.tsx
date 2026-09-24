@@ -1,11 +1,15 @@
 "use client";
 
 import { CycleCard } from "@/components/kpi/cycle/CycleCard";
+import { KpiDetailSheet } from "@/components/kpi/KpiDetailSheet";
+import { PhaseFacts } from "@/components/kpi/PhaseFacts";
 import { Button } from "@/components/ui/Button";
-import { Callout, Card, PageHeader } from "@/components/ui/Card";
+import { Callout, Card, PageColumn, PageHeader } from "@/components/ui/Card";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { canAccessKpiAdmin, kpiYearPhase, openCycle } from "@/lib/domain-query";
-import { kpiOnTrackCount, personById } from "@/lib/domain";
+import { kpiOnTrackCount, personById, todayIso } from "@/lib/domain";
+import { lateCheckInCount, peopleWithUndonePlanning } from "@/lib/phase-desk";
+import { StatGauge } from "@/components/ui/StatGauge";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
 
@@ -17,33 +21,70 @@ export default function KpiAdminPage() {
     closeKpiYear,
     createMissingKpiSets,
     setKpiYearCheckInFrequency,
+    setKpiPlanningEndDate,
     openKpiAdjustmentWindow,
     closeKpiAdjustmentWindow,
     grantAdmin,
     revokeAdmin,
   } = useStore();
   const [grantError, setGrantError] = useState<string | null>(null);
+  const [openSetId, setOpenSetId] = useState<string | null>(null);
   const allowed = canAccessKpiAdmin(state);
   const activeYear = openCycle(state);
+  const lateCheckIns = lateCheckInCount(state, todayIso());
+  const planningOpen = peopleWithUndonePlanning(state);
 
   if (!allowed) {
     return <Callout tone="warning">KPI Admin requires the Admin grant. HR and tenant admin do not get it by default.</Callout>;
   }
 
   return (
-    <div>
+    <PageColumn className={openSetId ? "lg:pr-[440px]" : undefined}>
       <PageHeader
-        kicker="Tenant-wide KpiPlanning and KpiMonitoring"
+        className="mb-0"
         title="KPI Admin"
-        description="Start KpiPlanning, then KpiMonitoring, on each KpiYear. Set the default KPI Check-in Frequency while the year is active. Close the year when the firm is done; closed years stay readable."
+        description="Start planning, then monitoring, for each KPI year. Set the planning end date and the default check-in frequency while the year is active. Close the year when the firm is done. Closed years stay readable."
       />
       {activeYear ? (
+        <PhaseFacts
+          cycle={activeYear}
+          extra={
+            <>
+              <StatGauge
+                label="Check-ins late"
+                value={String(lateCheckIns)}
+                percent={lateCheckIns > 0 ? 1 : 0}
+                tone={lateCheckIns > 0 ? "danger" : "accent"}
+                target={activeYear && kpiYearPhase(activeYear) === "monitoring" ? activeYear.name : "Monitoring"}
+                detail={
+                  activeYear && kpiYearPhase(activeYear) === "monitoring"
+                    ? "KPIs that missed a check-in window earlier in this year. The current window is still due, not late."
+                    : "Late check-ins are counted once the year is in monitoring."
+                }
+              />
+              <StatGauge
+                label="Planning still open"
+                value={String(planningOpen)}
+                percent={planningOpen > 0 ? 1 : 0}
+                tone={planningOpen > 0 ? "warning" : "accent"}
+                target="People"
+                detail={
+                  activeYear && kpiYearPhase(activeYear) === "planning"
+                    ? "People whose portfolio is missing, still a draft, or returned."
+                    : "This count is for a KPI year that is in planning."
+                }
+              />
+            </>
+          }
+        />
+      ) : null}
+      {activeYear ? (
         <p className="mb-6 text-sm text-muted">
-          On track in {activeYear.name} ({kpiYearPhase(activeYear)}): {kpiOnTrackCount(state)}
+          On track in {activeYear.name} ({kpiYearPhase(activeYear) === "planning" ? "planning" : kpiYearPhase(activeYear) === "monitoring" ? "monitoring" : "closed"}): {kpiOnTrackCount(state)}
         </p>
       ) : null}
       {state.cycles.length === 0 ? (
-        <Callout tone="accent">No KpiYears yet. Configure an annual KpiYear in tenant setup when that is available.</Callout>
+        <Callout tone="accent">No KPI years yet. Add an annual KPI year in tenant setup when that is available.</Callout>
       ) : (
         state.cycles.map((cycle) => (
           <CycleCard
@@ -55,6 +96,8 @@ export default function KpiAdminPage() {
             onClose={() => closeKpiYear(cycle.id)}
             onDraftMissing={() => createMissingKpiSets(cycle.id)}
             onFrequencyChange={(frequency) => setKpiYearCheckInFrequency(cycle.id, frequency)}
+            onPlanningEndDate={(date) => setKpiPlanningEndDate(cycle.id, date)}
+            onInspect={setOpenSetId}
             onOpenAdjustmentWindow={() => openKpiAdjustmentWindow(cycle.id)}
             onCloseAdjustmentWindow={() => closeKpiAdjustmentWindow(cycle.id)}
           />
@@ -104,6 +147,7 @@ export default function KpiAdminPage() {
           </tbody>
         </Table>
       </Card>
-    </div>
+      {openSetId ? <KpiDetailSheet kpiSetId={openSetId} onClose={() => setOpenSetId(null)} /> : null}
+    </PageColumn>
   );
 }

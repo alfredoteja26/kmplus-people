@@ -39,7 +39,7 @@ export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: st
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   const generatedId = useId();
   const child = Children.only(children);
   const control = isValidElement<{ id?: string }>(child)
@@ -47,7 +47,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
     : child;
   const htmlFor = isValidElement<{ id?: string }>(control) ? control.props.id : generatedId;
   return (
-    <div>
+    <div className={className}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {control}
     </div>

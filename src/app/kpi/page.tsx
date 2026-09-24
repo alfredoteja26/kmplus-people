@@ -1,45 +1,39 @@
 "use client";
 
-import { CadenceField } from "@/components/kpi/CadenceField";
-import { CascadeFields } from "@/components/kpi/CascadeFields";
-import { DirectMixField } from "@/components/kpi/DirectMixField";
-import { EditableItemFields } from "@/components/kpi/my-kpi/editable-item-fields";
-import { latestActualText } from "@/components/kpi/my-kpi/latest-actual";
+import { KpiDetailSheet } from "@/components/kpi/KpiDetailSheet";
+import { PhaseFacts } from "@/components/kpi/PhaseFacts";
 import { Button } from "@/components/ui/Button";
-import { Callout, Card, PageHeader } from "@/components/ui/Card";
-import { Field, Input, Select } from "@/components/ui/Input";
+import { Callout, Card, PageColumn, PageHeader } from "@/components/ui/Card";
+import { Field, Select } from "@/components/ui/Input";
 import { HealthBadge, StatusBadge } from "@/components/ui/StatusBadge";
-import { Table, Td, Th } from "@/components/ui/Table";
 import { isRootAssignment } from "@/lib/cascade";
-import { effectiveCadence, windowFor } from "@/lib/cadence";
 import { blocksOwnCheckIn } from "@/lib/direct";
 import {
   currentAssignments,
-  isHrLike,
   itemHealth,
-  isPortfolioDualApproved,
   itemsForSet,
   kpiSetForAssignment,
-  readableKpiYear,
-  checkInApprovalWaitingCopy,
   portfolioApprovalWaitingCopy,
-  pendingCheckInsForOwner,
   positionById,
+  readableKpiYear,
   todayIso,
   weightSum,
 } from "@/lib/domain";
-import { effectiveCheckInStatus, kpiYearPhase } from "@/lib/domain-query";
+import { kpiYearPhase } from "@/lib/domain-query";
+import { liveMonitoringScore, needsCheckInThisWindow, planningItemGap } from "@/lib/phase-desk";
 import { useStore } from "@/lib/store";
-import type { CascadeMode, KpiCycle, KpiItem, Polarity } from "@/lib/types";
 import { useState } from "react";
 
 export default function MyKpiPage() {
-  const { state, upsertKpiItem, removeKpiItem, submitKpiSet, addCheckIn } = useStore();
-  const myPendingCheckIns = pendingCheckInsForOwner(state, state.currentPersonId);
+  const { state, submitKpiSet } = useStore();
   const cycle = readableKpiYear(state);
   const yearClosed = Boolean(cycle && kpiYearPhase(cycle) === "closed");
+  const phase = cycle ? kpiYearPhase(cycle) : null;
   const assignments = currentAssignments(state, state.currentPersonId);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{ itemId: string } | { add: true } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const assignment =
     assignments.find((row) => row.id === selectedAssignmentId) ??
     assignments.find((row) => (cycle ? kpiSetForAssignment(state, row.id, cycle.id) : undefined)) ??
@@ -48,37 +42,14 @@ export default function MyKpiPage() {
   const items = kpiSet ? itemsForSet(state, kpiSet.id) : [];
   const sum = weightSum(items);
   const canEdit = Boolean(!yearClosed && kpiSet && (kpiSet.status === "draft" || kpiSet.status === "returned"));
-  const canCheckIn = Boolean(!yearClosed && kpiSet && isPortfolioDualApproved(state, kpiSet.id));
   const rootAssignment = assignment ? isRootAssignment(state, assignment.id) : false;
-  const hr = isHrLike(state.currentRole);
-  const canChangeParent =
-    Boolean(canEdit) ||
-    Boolean(!yearClosed && kpiSet && kpiSet.status === "approved" && hr);
-  const canChangeCascadeMode = canChangeParent;
-  const canEditDirectMix =
-    Boolean(canEdit) ||
-    Boolean(!yearClosed && kpiSet && kpiSet.status === "approved" && hr);
-
-  function saveItem(patch: Omit<KpiItem, "tenantId">) {
-    const message = upsertKpiItem(patch);
-    setError(message);
-  }
-
-  const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [definition, setDefinition] = useState("");
-  const [target, setTarget] = useState("100");
-  const [unit, setUnit] = useState("%");
-  const [weight, setWeight] = useState("10");
-  const [polarity, setPolarity] = useState<Polarity>("higher-better");
-  const [parentKpiItemId, setParentKpiItemId] = useState("");
-  const [newCascadeMode, setNewCascadeMode] = useState<CascadeMode>("indirect");
+  const today = todayIso();
 
   if (!cycle) {
     return (
       <div>
-        <PageHeader title="My KPI" description="Weighted KpiItems and KPI Check-Ins for the current KpiYear." />
-        <Callout tone="warning">No KpiYear to show. An Admin starts KpiPlanning on KPI Admin first.</Callout>
+        <PageHeader title="My KPI" description="Weighted KPIs and check-ins for the current KPI year." />
+        <Callout tone="warning">No KPI year to show. An admin starts planning on KPI Admin first.</Callout>
       </div>
     );
   }
@@ -86,356 +57,166 @@ export default function MyKpiPage() {
   if (!assignment || !kpiSet) {
     return (
       <div>
-        <PageHeader kicker={cycle.name} title="My KPI" />
+        <PageHeader title="My KPI" description={cycle.name} />
         <Callout tone="warning">
-          No KPI Portfolio on your current Assignment for {cycle.name}. Admin can draft missing packs from KPI Admin.
+          No KPI portfolio on your current seat for {cycle.name}. An admin can draft missing portfolios from KPI Admin.
         </Callout>
       </div>
     );
   }
 
-  const statusBadge = kpiSet.status;
   const approvalWaiting = portfolioApprovalWaitingCopy(state, kpiSet.id);
+  const score =
+    phase === "monitoring" ? liveMonitoringScore(state, kpiSet.id) : phase === "closed" ? (kpiSet.score ?? null) : undefined;
+
+  const ranked = [...items].sort((left, right) => {
+    const leftRank = rowRank(phase, state, cycle, left, rootAssignment, today);
+    const rightRank = rowRank(phase, state, cycle, right, rootAssignment, today);
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return left.name.localeCompare(right.name);
+  });
+
+  const title = phase === "planning" ? "Submit portfolio" : phase === "monitoring" ? "Check in" : "My KPI";
+  const description =
+    phase === "planning"
+      ? `${cycle.name}. Finish each KPI, then submit the portfolio for your line manager and an Admin.`
+      : phase === "monitoring"
+        ? `${cycle.name}. Record the actual against the target for this window.`
+        : `${cycle.name}. This KPI year is closed.`;
+
+  const canSubmit = sum === 100;
 
   return (
-    <div className="space-y-4">
+    <PageColumn className={sheet ? "lg:pr-[440px]" : undefined}>
       <PageHeader
-        kicker={cycle.name}
-        title="My KPI"
-        description="Draft weighted KpiItems to 100%, then your manager agrees. CheckIn is actual versus target."
-        actions={<StatusBadge status={statusBadge} />}
+        className="mb-0"
+        title={title}
+        description={description}
+        actions={<StatusBadge status={kpiSet.status} />}
       />
-      {assignments.length > 1 ? (
-        <Field label="KPI Portfolio seat">
-          <Select
-            value={assignment.id}
-            onChange={(event) => setSelectedAssignmentId(event.target.value)}
-          >
-            {assignments.map((row) => (
-              <option key={row.id} value={row.id}>
-                {positionById(state, row.positionId)?.title ?? row.positionId}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      ) : null}
-
-      {kpiSet.returnComment ? (
-        <Callout tone="warning">
-          <span className="font-medium">Returned for revision.</span> {kpiSet.returnComment}
-        </Callout>
-      ) : null}
-      {approvalWaiting ? (
-        <Callout tone="accent">
-          <span className="font-medium">KPI Portfolio in review.</span> {approvalWaiting}
-        </Callout>
-      ) : null}
-      {yearClosed ? (
-        <Callout>This KpiYear is closed. KPI Portfolios are read-only. Stored KpiScore stays visible.</Callout>
-      ) : null}
-      {error ? <Callout tone="danger">{error}</Callout> : null}
-      {kpiSet.score !== undefined ? (
-        <Callout>
-          <span className="font-medium">Stored KpiScore:</span> {kpiSet.score}
-        </Callout>
-      ) : null}
-
-      {items.length === 0 && canEdit ? (
-        <Callout tone="accent">No KpiItems yet. Add your first item below — weights must total 100% before submit.</Callout>
-      ) : null}
-
-      <Table>
-        <thead>
-          <tr>
-            <Th>KpiItem</Th>
-            <Th>Target</Th>
-            <Th>Weight</Th>
-            <Th>Parent</Th>
-            <Th>Latest actual</Th>
-            <Th>Health</Th>
-            {canEdit ? <Th>Cadence</Th> : null}
-            <Th>Actions</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <Td>
-                {canEdit ? (
-                  <EditableItemFields item={item} onPatch={(patch) => saveItem(patch)} />
-                ) : (
-                  <>
-                    <div className="font-medium">{item.name}</div>
-                    <div className="text-muted">{item.definition}</div>
-                  </>
-                )}
-                <DirectMixField
-                  state={state}
-                  item={item}
-                  canEdit={canEditDirectMix}
-                  onChange={(directMix) => saveItem({ ...item, directMix })}
-                />
-              </Td>
-              <Td>
-                {canEdit ? (
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Input
-                      className="w-20 tabular-nums"
-                      type="number"
-                      step="any"
-                      aria-label={`Target for ${item.name}`}
-                      defaultValue={String(item.target)}
-                      onBlur={(event) => {
-                        const next = Number(event.target.value);
-                        if (!Number.isNaN(next) && next !== item.target) saveItem({ ...item, target: next });
-                      }}
-                    />
-                    <Input
-                      className="w-16"
-                      aria-label={`Unit for ${item.name}`}
-                      defaultValue={item.unit}
-                      onBlur={(event) => {
-                        const unit = event.target.value;
-                        if (unit !== item.unit) saveItem({ ...item, unit });
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    {item.target} {item.unit}
-                  </>
-                )}
-              </Td>
-              <Td>
-                {canEdit ? (
-                  <Input
-                    className="w-16 tabular-nums"
-                    type="number"
-                    aria-label={`Weight for ${item.name}`}
-                    defaultValue={String(item.weight)}
-                    onBlur={(event) => {
-                      const next = Number(event.target.value);
-                      if (!Number.isNaN(next) && next !== item.weight) saveItem({ ...item, weight: next });
-                    }}
-                  />
-                ) : (
-                  `${item.weight}%`
-                )}
-              </Td>
-              <Td>
-                <CascadeFields
-                  state={state}
-                  cycleId={cycle.id}
-                  item={item}
-                  rootAssignment={rootAssignment}
-                  canChangeParent={canChangeParent}
-                  canChangeCascadeMode={canChangeCascadeMode}
-                  onParentChange={(parentId) => saveItem({ ...item, parentKpiItemId: parentId })}
-                  onCascadeModeChange={(cascadeMode) => saveItem({ ...item, cascadeMode })}
-                />
-              </Td>
-              <Td className="tabular-nums">
-                <div>{latestActualText(state, item)}</div>
-                {myPendingCheckIns
-                  .filter((row) => row.kpiItemId === item.id)
-                  .map((row) => {
-                    const waiting = checkInApprovalWaitingCopy(state, row.id);
-                    return waiting ? (
-                      <p key={row.id} className="m-0 mt-1 text-xs text-muted">
-                        KPI Check-In {row.window}: {waiting}
-                      </p>
-                    ) : null;
-                  })}
-                {state.checkIns
-                  .filter((row) => row.kpiItemId === item.id && effectiveCheckInStatus(row) === "returned")
-                  .map((row) => (
-                    <p key={row.id} className="m-0 mt-1 text-xs text-warning">
-                      Returned: {row.returnComment ?? "Please revise this Check-In"}
-                    </p>
-                  ))}
-              </Td>
-              <Td>
-                <HealthBadge health={itemHealth(state, item)} />
-              </Td>
-              {canEdit ? (
-                <Td>
-                  <CadenceField
-                    compact
-                    item={item}
-                    cycleCadence={cycle.checkInCadence}
-                    onChange={(checkInCadence) => saveItem({ ...item, checkInCadence })}
-                  />
-                </Td>
-              ) : null}
-              <Td>
-                {canEdit ? (
-                  <Button variant="ghost" type="button" onClick={() => removeKpiItem(item.id)}>
-                    Remove
-                  </Button>
-                ) : null}
-                {canCheckIn ? (
-                  <CheckInForm state={state} cycle={cycle} item={item} onSave={addCheckIn} />
-                ) : null}
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-
-      <p
-        className={`text-sm tabular-nums ${sum === 100 ? "text-success" : "text-warning"}`}
-        role="status"
-      >
-        Weights {sum}% {sum === 100 ? "— ready to submit" : "(must be 100%)"}
-      </p>
-
-      {canEdit ? (
-        <Card className="mt-2">
-          <h2 className="mt-0 mb-3 text-[16px] font-medium">Add KpiItem</h2>
-          <form
-            className="grid gap-3 md:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const message = upsertKpiItem({
-                kpiSetId: kpiSet.id,
-                name,
-                definition,
-                target: Number(target),
-                unit,
-                weight: Number(weight),
-                polarity,
-                parentKpiItemId: rootAssignment ? null : parentKpiItemId || null,
-                cascadeMode: newCascadeMode,
-              });
-              setError(message);
-              if (message) return;
-              setName("");
-              setDefinition("");
-              setParentKpiItemId("");
-              setNewCascadeMode("indirect");
-            }}
-          >
-            <Field label="Name">
-              <Input required value={name} onChange={(event) => setName(event.target.value)} />
-            </Field>
-            <Field label="Unit">
-              <Input value={unit} onChange={(event) => setUnit(event.target.value)} />
-            </Field>
-            <Field label="Definition">
-              <Input value={definition} onChange={(event) => setDefinition(event.target.value)} />
-            </Field>
-            <Field label="Target">
-              <Input type="number" step="any" value={target} onChange={(event) => setTarget(event.target.value)} />
-            </Field>
-            <Field label="Weight %">
-              <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
-            </Field>
-            <Field label="Polarity">
-              <Select value={polarity} onChange={(event) => setPolarity(event.target.value as Polarity)}>
-                <option value="higher-better">higher-better</option>
-                <option value="lower-better">lower-better</option>
-              </Select>
-            </Field>
-            {!rootAssignment ? (
-              <CascadeFields
-                state={state}
-                cycleId={cycle.id}
-                item={{
-                  id: "new",
-                  tenantId: state.tenantId,
-                  kpiSetId: kpiSet.id,
-                  name: name || "New item",
-                  definition,
-                  target: Number(target) || 0,
-                  unit,
-                  weight: Number(weight) || 0,
-                  polarity,
-                  parentKpiItemId: parentKpiItemId || null,
-                  cascadeMode: newCascadeMode,
-                }}
-                rootAssignment={false}
-                canChangeParent
-                canChangeCascadeMode
-                onParentChange={(parentId) => setParentKpiItemId(parentId ?? "")}
-                onCascadeModeChange={setNewCascadeMode}
-              />
-            ) : null}
-            <div className="md:col-span-2">
-              <Button type="submit" variant="secondary">
-                Add item
-              </Button>
-            </div>
-          </form>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-            <p className="m-0 text-sm text-muted">Submit sends this set to your manager for agreement.</p>
-            <Button
-              type="button"
-              onClick={() => {
-                const message = submitKpiSet(kpiSet.id);
-                setError(message);
+      <PhaseFacts cycle={cycle} score={score} weight={sum} />
+      <Card>
+        {assignments.length > 1 ? (
+          <Field label="KPI Portfolio seat" className="mb-4 max-w-sm">
+            <Select
+              value={assignment.id}
+              onChange={(event) => {
+                setSelectedAssignmentId(event.target.value);
+                setSheet(null);
               }}
             >
-              Submit for agreement
+              {assignments.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {positionById(state, row.positionId)?.title ?? row.positionId}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
+        {kpiSet.returnComment ? (
+          <Callout tone="warning" className="mb-4">
+            <span className="font-medium">Returned for revision.</span> {kpiSet.returnComment}
+          </Callout>
+        ) : null}
+        {approvalWaiting ? (
+          <Callout tone="accent" className="mb-4">
+            <span className="font-medium">KPI Portfolio in review.</span> {approvalWaiting}
+          </Callout>
+        ) : null}
+        {error ? (
+          <Callout tone="danger" className="mb-4">
+            {error}
+          </Callout>
+        ) : null}
+
+        {items.length === 0 ? (
+          <p className="m-0 text-sm text-muted">No KPIs yet. Add the first one, then bring the weights to 100%.</p>
+        ) : (
+          <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-[12px] border-[1.5px] border-line p-0">
+            {ranked.map((item) => {
+              const reason = rowReason(phase, state, cycle, item, rootAssignment, today);
+              const open = sheet !== null && "itemId" in sheet && sheet.itemId === item.id;
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    aria-haspopup="dialog"
+                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+                    onClick={() => setSheet({ itemId: item.id })}
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium">{item.name}</span>
+                      <span className="block text-sm text-muted">{reason}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm tabular-nums text-muted">{item.weight}%</span>
+                      <HealthBadge health={itemHealth(state, item)} />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {canEdit ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+            <Button variant="secondary" type="button" onClick={() => setSheet({ add: true })}>
+              Add KPI
+            </Button>
+            <Button
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => {
+                setError(submitKpiSet(kpiSet.id));
+              }}
+            >
+              Submit portfolio
             </Button>
           </div>
-        </Card>
+        ) : null}
+      </Card>
+
+      {sheet ? (
+        <KpiDetailSheet
+          kpiSetId={kpiSet.id}
+          initialItemId={"itemId" in sheet ? sheet.itemId : null}
+          adding={"add" in sheet}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
-    </div>
+    </PageColumn>
   );
 }
 
-function CheckInForm({
-  state,
-  cycle,
-  item,
-  onSave,
-}: {
-  state: import("@/lib/types").AppState;
-  cycle: KpiCycle;
-  item: KpiItem;
-  onSave: (kpiItemId: string, actual: number, note: string) => string | null;
-}) {
-  const [actual, setActual] = useState("");
-  const [note, setNote] = useState("");
-  const cadence = effectiveCadence(cycle, item);
-  const windowId = windowFor(todayIso(), cadence);
-  if (blocksOwnCheckIn(state, item)) {
-    return <p className="text-xs text-muted">Rolls up from Direct children (children-only DirectMix)</p>;
+function rowRank(
+  phase: ReturnType<typeof kpiYearPhase>,
+  state: Parameters<typeof needsCheckInThisWindow>[0],
+  cycle: Parameters<typeof needsCheckInThisWindow>[1],
+  item: Parameters<typeof planningItemGap>[0],
+  rootAssignment: boolean,
+  today: string,
+) {
+  if (phase === "monitoring") {
+    if (blocksOwnCheckIn(state, item)) return 2;
+    return needsCheckInThisWindow(state, cycle, item, today) ? 0 : 1;
   }
-  return (
-    <form
-      className="flex min-w-[12rem] flex-col gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const message = onSave(item.id, Number(actual), note);
-        if (message) return;
-        setActual("");
-        setNote("");
-      }}
-    >
-      <span className="text-xs text-muted">
-        Window {windowId} · {cadence}
-      </span>
-      <div className="flex flex-wrap items-end gap-2">
-        <Input
-          className="w-24 tabular-nums"
-          type="number"
-          step="any"
-          placeholder="Actual"
-          aria-label={`Actual for ${item.name}, window ${windowId}`}
-          value={actual}
-          onChange={(event) => setActual(event.target.value)}
-          required
-        />
-        <Input
-          className="min-w-[8rem] flex-1"
-          placeholder="Note"
-          aria-label={`CheckIn note for ${item.name}`}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-        <Button type="submit">Submit KPI Check-In</Button>
-      </div>
-    </form>
-  );
+  return planningItemGap(item, rootAssignment) ? 0 : 1;
+}
+
+function rowReason(
+  phase: ReturnType<typeof kpiYearPhase>,
+  state: Parameters<typeof needsCheckInThisWindow>[0],
+  cycle: Parameters<typeof needsCheckInThisWindow>[1],
+  item: Parameters<typeof planningItemGap>[0],
+  rootAssignment: boolean,
+  today: string,
+) {
+  if (phase === "monitoring") {
+    if (blocksOwnCheckIn(state, item)) return "Rolls up from direct child KPIs";
+    return needsCheckInThisWindow(state, cycle, item, today) ? "Check in this window" : "Checked in";
+  }
+  if (phase === "closed") return "Read only";
+  return planningItemGap(item, rootAssignment) ?? "Ready";
 }

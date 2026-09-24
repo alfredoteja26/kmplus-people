@@ -20,8 +20,8 @@ import type {
 } from "@/lib/types";
 import { TENANT_ID } from "@/lib/types";
 import { normalizeKpiYearPhase } from "@/lib/domain-query";
-import { DEMO_PASSWORD, DEMO_USERS, createInitialState } from "@/lib/fixtures";
-import { hashPassword } from "./password";
+import { DEMO_USERS, createInitialState } from "@/lib/fixtures";
+import { loginEmailChanges } from "@/lib/auth-policy";
 import { getPrisma } from "./prisma";
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -100,6 +100,7 @@ function toTenantUser(row: {
   role: string;
   adminGrant?: boolean;
   mustSetPassword: boolean;
+  authEpoch?: number;
 }): TenantUser {
   return {
     id: row.id,
@@ -109,6 +110,7 @@ function toTenantUser(row: {
     role: row.role as Role,
     adminGrant: row.adminGrant ?? false,
     mustSetPassword: row.mustSetPassword,
+    authEpoch: row.authEpoch ?? 0,
   };
 }
 
@@ -119,6 +121,7 @@ function hydrateKpiCycle(row: {
   year: number;
   status: string;
   phase?: string | null;
+  planningEndsOn?: string | null;
   adjustmentOpen?: boolean;
   checkInCadence: string;
   checkInWindows: unknown;
@@ -130,6 +133,7 @@ function hydrateKpiCycle(row: {
     year: row.year,
     status: row.status as KpiCycle["status"],
     phase: (row.phase as KpiCycle["phase"]) ?? null,
+    planningEndsOn: row.planningEndsOn ?? null,
     adjustmentOpen: row.adjustmentOpen ?? false,
     checkInCadence: row.checkInCadence as CheckInCadence,
     checkInWindows: asArray(row.checkInWindows),
@@ -139,13 +143,12 @@ function hydrateKpiCycle(row: {
 
 export async function seedDemoUserPasswords(): Promise<void> {
   const prisma = getPrisma();
-  const passwordHash = hashPassword(DEMO_PASSWORD);
   for (const demo of DEMO_USERS) {
     await prisma.user.updateMany({
       where: { tenantId: TENANT_ID, personId: demo.personId },
       data: {
-        passwordHash,
-        mustSetPassword: false,
+        passwordHash: "",
+        mustSetPassword: true,
         role: demo.role,
         adminGrant: Boolean(demo.adminGrant),
       },
@@ -339,6 +342,16 @@ export async function loadTenantState(): Promise<AppState> {
 export async function saveTenantState(state: AppState): Promise<void> {
   const prisma = getPrisma();
   const tenantId = TENANT_ID;
+  const previous = await prisma.user.findMany({
+    where: { tenantId },
+    select: { personId: true, email: true },
+  });
+  const changes = loginEmailChanges(previous, state.users ?? []);
+  if (changes.length > 0) {
+    const { applyLoginEmailChanges, firebaseAuthConfigured } = await import("./firebase-auth");
+    if (!firebaseAuthConfigured()) throw new Error("Firebase Auth is not configured");
+    await applyLoginEmailChanges(changes);
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.tenant.upsert({
@@ -414,15 +427,22 @@ export async function saveTenantState(state: AppState): Promise<void> {
             role: row.role,
             adminGrant: Boolean(row.adminGrant),
             mustSetPassword: row.mustSetPassword,
+            authEpoch: row.authEpoch ?? 0,
           },
         });
       } else {
+        const emailChanged = existing.email.toLowerCase() !== row.email.toLowerCase();
+        const authEpoch = emailChanged
+          ? Math.max(existing.authEpoch + 1, row.authEpoch ?? 0)
+          : Math.max(existing.authEpoch, row.authEpoch ?? existing.authEpoch);
         await tx.user.update({
           where: { id: existing.id },
           data: {
             email: row.email,
             role: row.role,
             adminGrant: Boolean(row.adminGrant),
+            authEpoch,
+            ...(emailChanged ? { mustSetPassword: true } : {}),
           },
         });
       }
@@ -546,6 +566,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
           year: row.year,
           status,
           phase,
+          planningEndsOn: row.planningEndsOn ?? null,
           adjustmentOpen: row.adjustmentOpen ?? false,
           checkInCadence: row.checkInCadence,
           checkInWindows: json(row.checkInWindows),
@@ -555,6 +576,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
           year: row.year,
           status,
           phase,
+          planningEndsOn: row.planningEndsOn ?? null,
           adjustmentOpen: row.adjustmentOpen ?? false,
           checkInCadence: row.checkInCadence,
           checkInWindows: json(row.checkInWindows),
