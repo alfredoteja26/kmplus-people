@@ -1,0 +1,1208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMPlus People — Project and Worksheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafafa;
+    --paper: #fff;
+    --ink: #222;
+    --muted: #5e5e5e;
+    --line: #dedede;
+    --accent: #1e857c;
+        --tint: #edfffe;
+    --success: #12a864;
+    --warning: #c9891a;
+    --danger: #c4353a;
+    --info: #0673c0;
+    --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --shadow: 0 10px 28px -14px rgba(34, 34, 34, .16);
+    --border: 1.5px solid var(--line);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--tint); color: var(--ink); }
+  button, input, select { font-family: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .deck {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: 232px 1fr;
+  }
+  header.bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--paper);
+    border-bottom: var(--border);
+  }
+  .logo { height: 40px; width: auto; display: block; }
+  .logo-sm { height: 28px; }
+  .bar-title { font-weight: 600; font-size: 14px; }
+  .bar-title span { color: var(--muted); font-weight: 500; }
+  .bar-spacer { flex: 1; }
+  .count { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); }
+  .progress { width: 120px; height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .progress b { display: block; height: 100%; background: var(--accent); width: 0%; }
+  nav.outline {
+    background: var(--paper);
+    border-right: var(--border);
+    overflow: auto;
+    padding: 12px 10px 24px;
+  }
+  nav.outline button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  nav.outline button[aria-current="true"] { background: var(--accent); color: #fff; }
+  nav.outline .group {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 14px 12px 6px;
+  }
+  main.stage {
+    overflow: auto;
+    padding: 36px 16px 16px;
+    display: flex;
+    min-height: 0;
+  }
+  .slide { display: none; width: 100%; margin: 0; }
+  .slide.on {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 1;
+    min-height: 0;
+  }
+  h1 { font-size: 30px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; margin: 0 0 8px; }
+  h2 { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 8px; }
+  .lead { font-size: 16px; color: var(--muted); max-width: none; margin: 0 0 12px; }
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(240px, .7fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .talk p { margin: 0 0 12px; }
+  ul.uc { margin: 0; padding: 0; list-style: none; }
+  ul.uc li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  ul.uc li:last-child { border-bottom: 0; }
+  ul.uc strong { display: block; font-size: 14px; font-weight: 600; }
+  ul.uc span { display: block; margin-top: 4px; color: var(--muted); font-size: 14px; }
+  .row-in, .pop, .drop, .typed, .ghost-out { }
+  .slide.on .row-in { animation: rise .55s cubic-bezier(.22,1,.36,1) both; }
+  .slide.on .pop { animation: rise .5s cubic-bezier(.22,1,.36,1) .8s both; }
+  .slide.on .drop { animation: drop .5s cubic-bezier(.22,1,.36,1) both; }
+  .slide.on .fill { animation: rise .4s cubic-bezier(.22,1,.36,1) both; }
+  .slide.on .d2 { animation-delay: .45s; }
+  .slide.on .d3 { animation-delay: .9s; }
+  .slide.on .d4 { animation-delay: 1.35s; }
+  .slide.on .stack .drop:nth-child(2) { animation-delay: .22s; }
+  .slide.on .stack .drop:nth-child(3) { animation-delay: .44s; }
+  .slide.on .step2 { animation-delay: .7s; }
+  .slide.on .step3 { animation-delay: 1.4s; }
+  .slide.on .step4 { animation-delay: 2.1s; }
+  .slide.on .step5 { animation-delay: 2.7s; }
+  .ghost { color: var(--muted); }
+  .field .box.swap { display: grid; align-items: center; }
+  .swap .ghost, .swap .typed { grid-area: 1 / 1; }
+  .typed { opacity: 0; }
+  .slide.on .swap .ghost { animation: fadeout .25s ease-out 1.5s both; }
+  .slide.on .swap .typed { animation: rise .35s cubic-bezier(.22,1,.36,1) 1.6s both; }
+  .slide.on .swap.late .ghost { animation-delay: 2.3s; }
+  .slide.on .swap.late .typed { animation-delay: 2.4s; }
+  .slide.on .press { animation: rise .35s cubic-bezier(.22,1,.36,1) 3.1s both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeout { to { opacity: 0; } }
+  @keyframes wash { from { background: transparent; } to { background: var(--tint); } }
+  @media (prefers-reduced-motion: reduce) {
+    .slide.on .row-in, .slide.on .pop, .slide.on .drop, .slide.on .fill,
+    .slide.on .swap .ghost, .slide.on .swap .typed, .slide.on .press, .slide.on tr.hot {
+      animation: none;
+    }
+    .typed { position: static; opacity: 1; }
+    .swap .ghost { display: none; }
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+  .pill, .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--tint);
+    color: var(--ink);
+  }
+  .badge-accent { background: var(--tint); color: var(--ink); }
+  .badge-ok { background: var(--tint); color: var(--ink); }
+  .badge-warn { background: var(--paper); color: var(--ink); }
+  .badge-danger { background: var(--paper); color: var(--danger); }
+  .note, .cover-card {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .note strong, .cover-card strong { display: block; margin-bottom: 4px; }
+  .note p, .cover-card p { margin: 0; color: var(--muted); font-size: 14px; }
+  ul.clean { margin: 8px 0 0; padding: 0; list-style: none; }
+  ul.clean li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  ul.clean li:last-child { border-bottom: 0; }
+  .app {
+    background: var(--bg);
+    border: var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .app-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--paper);
+    border-bottom: var(--border);
+    font-size: 12px;
+    border-radius: 16px 16px 0 0;
+  }
+  .app-top .product { font-weight: 600; }
+  .app-top .tenant { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .app-top .who { margin-left: auto; color: var(--muted); font-weight: 500; }
+  .app-body { display: block; }
+  .side {
+    background: var(--paper);
+    border-right: var(--border);
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+  .side .g {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 8px 4px;
+  }
+  .side .item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .side .item.on { background: var(--accent); color: #fff; }
+  .dot { width: 8px; height: 8px; border-radius: 99px; background: currentColor; opacity: .45; flex: none; }
+  .side .item.on .dot { opacity: 1; background: #fff; }
+  .work { padding: 12px 14px; }
+  .work h3 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+  .work-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .work-head .actions { margin-left: auto; display: flex; gap: 6px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    border: 1.5px solid transparent;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn.sec { background: var(--paper); color: var(--ink); border-color: var(--line); }
+  .btn.tiny { height: 28px; padding: 0 8px; font-size: 12px; }
+  .btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border-radius: 0;
+    font-size: 14px;
+    box-shadow: none;
+    font-variant-numeric: tabular-nums;
+  }
+  table.data th {
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: .02em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.data td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.data tr:last-child td { border-bottom: 0; }
+  table.data tr.hot td { background: var(--tint); }
+  .code { font-family: var(--mono); font-size: 12px; color: var(--ink); font-weight: 500; white-space: nowrap; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.wide { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .field .box {
+    min-height: 34px;
+    border: var(--border);
+    border-radius: 12px;
+    background: #fff;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+  }
+  .field .box em { color: var(--muted); font-style: normal; }
+  .banner {
+    background: var(--paper);
+    color: var(--danger);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .loads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .load-card { background: var(--paper); border-radius: 0; padding: 10px 12px; box-shadow: none; }
+  .load-card .pct { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .load-card .pct.warn { color: var(--danger); }
+  .load-card p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .entry {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.8fr) minmax(220px, 1.1fr);
+    gap: 14px;
+    align-items: start;
+  }
+  .sheet {
+    position: static;
+    width: auto;
+    background: var(--paper);
+    border-radius: 12px;
+    border: var(--border);
+    padding: 14px;
+  }
+  .sheet h4 { margin: 0 0 10px; font-size: 16px; }
+  .sheet .row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+  .behind { color: var(--muted); font-size: 14px; margin: 0; }
+  .cal { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .cal.full { grid-template-columns: repeat(7, 1fr); }
+  .cal:not(.full) .wkend { display: none; }
+  .day { background: var(--paper); border-radius: 0; padding: 6px; box-shadow: none; min-width: 0; display: flex; flex-direction: column; }
+  .dh { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .dh b { display: block; color: var(--ink); font-size: 14px; }
+  .stack { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .ev { border-radius: 12px; padding: 6px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .ev.meet { background: var(--tint); color: var(--ink); }
+  .ev.act { background: var(--paper); color: var(--info); }
+  .ev.leave { background: var(--danger); color: #fff; flex: 1; }
+  .week-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .tog { display: flex; gap: 4px; }
+  .team { width: 100%; border-collapse: collapse; background: var(--paper); font-size: 12px; }
+  .team th, .team td { border-bottom: 1px solid var(--line); padding: 6px 4px; vertical-align: top; text-align: left; }
+  .team th { color: var(--ink); font-weight: 600; font-size: 12px; }
+  .team .person { font-weight: 600; white-space: nowrap; }
+  .team .role { display: block; font-weight: 500; color: var(--ink); }
+  .team td.today, .team th.today { background: var(--tint); }
+  .team th.today { color: var(--ink); }
+  .mark-chip {
+    display: block;
+    border-radius: 999px;
+    padding: 2px 6px;
+    margin: 2px 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .mark-meet { background: var(--tint); color: var(--ink); }
+  .mark-act { background: var(--paper); color: var(--info); border: 1.5px solid var(--line); }
+  .mark-leave, .mark-leave span { background: var(--danger); color: #fff; }
+  .mark-remote { background: var(--paper); color: var(--accent); border: 1.5px solid var(--line); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .workflow { display: flex; align-items: stretch; gap: 0; }
+  .workflow .step {
+    flex: 1;
+    min-width: 0;
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .workflow .step strong { display: block; font-size: 14px; margin-bottom: 6px; }
+  .workflow .step p { margin: 0; color: var(--muted); font-size: 14px; }
+  .workflow .arrow {
+    flex: none;
+    align-self: center;
+    color: var(--accent);
+    font-size: 22px;
+    line-height: 1;
+    padding: 0 6px;
+  }
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .flow article {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .flow h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+  .flow p { margin: 0; color: var(--muted); font-size: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cover-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; align-items: start; }
+  footer.nav {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--paper);
+    border-top: var(--border);
+  }
+  footer.nav .hintkey { color: var(--muted); font-size: 14px; margin-left: 8px; }
+  .navbtn {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: var(--border);
+    background: var(--paper);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .navbtn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  @media (max-width: 980px) {
+    .deck { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    nav.outline {
+      display: flex;
+      gap: 4px;
+      overflow: auto;
+      border-right: 0;
+      border-bottom: var(--border);
+      padding: 8px;
+    }
+    nav.outline .group { display: none; }
+    nav.outline button { width: auto; white-space: nowrap; }
+    .split, .cover-grid, .flow, .two, .form, .loads { grid-template-columns: 1fr; }
+    .workflow { flex-direction: column; }
+    .workflow .arrow { transform: rotate(90deg); }
+    main.stage { padding: 28px 16px 16px; }
+    h1 { font-size: 22px; }
+    .side { display: none; }
+    .entry { grid-template-columns: 1fr; }
+  }
+  @media print {
+    .deck { display: block; height: auto; }
+    header.bar, nav.outline, footer.nav { display: none; }
+    .slide { display: block !important; break-after: page; padding: 12px 0 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+  <header class="bar">
+    <img class="logo" src="kmplus-logo.png" alt="KMPlus">
+    <div class="bar-title">People <span>· Project and Worksheet · 30 September 2026</span></div>
+    <div class="bar-spacer"></div>
+    <div class="progress" aria-hidden="true"><b id="bar"></b></div>
+    <div class="count" id="count">1 / 14</div>
+  </header>
+  <nav class="outline" id="outline" aria-label="Slides"></nav>
+  <main class="stage" id="stage">
+    <section class="slide on" id="s1" data-label="Cover">
+      <div class="cover-grid">
+        <div>
+          <h1>A project records the work. A worksheet records the hours of the person doing it.</h1>
+          <p class="lead">This briefing shows Project and Worksheet in KMPlus People through example screens, so the flow can be seen rather than only described.</p>
+          <div class="chips">
+            <span class="pill">Names and numbers on the screens are examples</span>
+            <span class="pill">These screens are mockups</span>
+          </div>
+          <div class="note">
+            <strong>What is in use, and what is still a design</strong>
+            <p>The app in use today covers people, organization, CV review, and KPI. Project and Worksheet follow the product design and are not in the menu yet. The screens in this file are mockups of that design.</p>
+          </div>
+        </div>
+        <div class="cover-card">
+          <strong>Order of the briefing</strong>
+          <ul class="clean">
+            <li>Where these functions sit beside People and KPI.</li>
+            <li>Opening a project, placing people, and keeping a load above 100% visible.</li>
+            <li>A flat work item, plus a file or a link.</li>
+            <li>A weekly worksheet, a one-hour minimum, and leave that adds no work hours.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="slide" id="s2" data-label="Context">
+      <h2>Two layers, so the room is not promised the wrong thing.</h2>
+      <p class="lead">KMPlus People is a people system with evidence: who someone is, the position they hold, a CV that has been reviewed, and this year's KPIs.</p>
+      <div class="two">
+        <div class="note">
+          <strong>In use today</strong>
+          <ul class="clean">
+            <li>The list of people, positions, and the organization.</li>
+            <li>A CV changes a person's record only after HR accepts it.</li>
+            <li>This year's KPI: one's own portfolio, the manager queue, KPI Admin, and the KPI tree.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <strong>Shown here as mockups</strong>
+          <ul class="clean">
+            <li>A project for one client, or for KMPlus when the client name is blank.</li>
+            <li>People on the project, work items, and deliverables.</li>
+            <li>A worksheet, which is that person's own hour calendar.</li>
+            <li>Leave, sick time, and remote on the same sheet.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note" style="margin-top:12px">
+        <p>The example screens add a Work group to the menu. That group is not in the app that is running today.</p>
+      </div>
+    </section>
+    <section class="slide" id="s3" data-label="The four parts">
+      <h2>Four things meet on one person.</h2>
+      <p class="lead">A project is not a task board. A worksheet is not a leave list. They meet when a person who is staffed on a project records hours against one work item.</p>
+      <div class="flow">
+        <article>
+          <h3>Project</h3>
+          <p>A body of work with a code, a name, an optional client, a required start, and an optional end.</p>
+        </article>
+        <article>
+          <h3>Staffing</h3>
+          <p>A person on that project, with dates and a load in percent. This is not their position in the organization.</p>
+        </article>
+        <article>
+          <h3>Work item</h3>
+          <p>One named piece of work, with one person in charge and a start and an end. The row has no status.</p>
+        </article>
+        <article>
+          <h3>Worksheet</h3>
+          <p>Hours the person records. If those hours name a project, they name one work item.</p>
+        </article>
+      </div>
+      <div class="note" style="margin-top:14px">
+        <p>A deliverable is a file or a link on the project. It may be attached to several work items, or to none. Status sits on the deliverable, not on the work item and not on the project.</p>
+      </div>
+    </section>
+    <section class="slide" id="s4" data-label="Who does what">
+      <h2>Admin opens a project. A person records their own hours.</h2>
+      <p class="lead">Admin is a grant given to chosen users. Holding HR does not make someone Admin. A person may still hold a KPI while they hold Admin.</p>
+      <div class="app">
+        <div class="work">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Admin</th>
+                <th>Person with staffing in progress</th>
+                <th>Each person, for themselves</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Open a project and change its code, name, client, and dates</td>
+                <td>Yes, on any project</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Add, end, or remove staffing, including the load</td>
+                <td>Yes</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Work items and deliverables</td>
+                <td>Yes</td>
+                <td>Yes, while that staffing has started and has not ended</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Record hours on the worksheet</td>
+                <td>—</td>
+                <td>—</td>
+                <td>Only on their own calendar</td>
+              </tr>
+              <tr>
+                <td>Request leave, sick time, or remote</td>
+                <td>May file for someone else</td>
+                <td>—</td>
+                <td>Files for themselves</td>
+              </tr>
+              <tr>
+                <td>Decide that request</td>
+                <td>May be taken unpaid, may be taken paid, or may not be taken</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="note" style="margin-top:12px">
+        <p>Admin also configures deliverable status labels, leave types, and time block types. The starter statuses are Draft, Shared, and Accepted. The starter time block types are Meeting and Activity. A label that is still in use cannot be removed.</p>
+      </div>
+    </section>
+    <section class="slide" id="s5" data-label="Project list">
+      <h2>The project list is the front door, not a health board.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Irfan Alfieri · Admin</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head">
+                <h3>Projects</h3>
+                <div class="actions"><span class="btn">Open project</span></div>
+              </div>
+              <table class="data">
+                <thead>
+                  <tr><th>Code</th><th>Name</th><th>Client</th><th>Start</th><th>End</th><th>People</th></tr>
+                </thead>
+                <tbody>
+                  <tr class="hot row-in">
+                    <td class="code">KMP-04</td>
+                    <td>People system</td>
+                    <td>KMPlus</td>
+                    <td>6 Jan 2026</td>
+                    <td>—</td>
+                    <td>4</td>
+                  </tr>
+                  <tr class="row-in d2">
+                    <td class="code">KMP-07</td>
+                    <td>Advisory retainer</td>
+                    <td>Harbor &amp; Co</td>
+                    <td>1 Mar 2026</td>
+                    <td>30 Nov 2026</td>
+                    <td>2</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="hint">A blank client means the project is for KMPlus. The screen writes KMPlus.</p>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Find a project</strong>
+            <span>Example: Irfan opens Projects and sees KMP-04 People system, for KMPlus, and KMP-07 Advisory retainer, for Harbor &amp; Co.</span>
+          </li>
+          <li>
+            <strong>Tell an internal project from a client project</strong>
+            <span>Example: KMP-04 has a blank client, so the screen writes KMPlus. KMP-07 names Harbor &amp; Co.</span>
+          </li>
+          <li>
+            <strong>Open the next project</strong>
+            <span>Example: Irfan chooses Open project and types a new code. The list does not show a health light or a Kanban board.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s6" data-label="Open a project">
+      <h2>Opening a project asks only for identity and dates.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Irfan Alfieri · Admin</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head"><h3>Open project</h3></div>
+              <div class="form">
+                <div class="field"><label>Project code</label><div class="box fill">KMP-04</div></div>
+                <div class="field"><label>Name</label><div class="box fill step2">People system</div></div>
+                <div class="field wide"><label>Client name</label><div class="box fill step3"><em>Optional. Blank means this project is for KMPlus.</em></div></div>
+                <div class="field"><label>Start</label><div class="box fill step4">6 Jan 2026</div></div>
+                <div class="field"><label>End</label><div class="box fill step5"><em>Optional</em></div></div>
+              </div>
+              <div class="work-head" style="margin:12px 0 0">
+                <div class="actions"><span class="btn sec">Cancel</span><span class="btn">Open project</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Open a project with a code people can type</strong>
+            <span>Example: Irfan types KMP-04 and the name People system. He leaves the client blank, so the project is for KMPlus.</span>
+          </li>
+          <li>
+            <strong>Set the dates</strong>
+            <span>Example: The start is 6 January 2026. He leaves the end blank because the work is still open.</span>
+          </li>
+          <li>
+            <strong>Correct it later</strong>
+            <span>Example: Any Admin can change the code or the client name afterward. That edit does not create a second project.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s7" data-label="Staffing">
+      <h2>Load may pass 100%, and the excess stays visible.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Irfan Alfieri · Admin</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head">
+                <h3>KMP-04 · People</h3>
+                <div class="actions"><span class="btn">Add person</span></div>
+              </div>
+              <div class="banner pop">Ahmad Raafi is at 120% across open staffing. The overload stays visible.</div>
+              <div class="loads">
+                <div class="load-card"><div class="pct">70%</div><p>KMP-04 People system<br>6 Jan 2026 – open</p></div>
+                <div class="load-card"><div class="pct warn">50%</div><p>KMP-07 Advisory retainer<br>1 Mar 2026 – 30 Nov 2026</p></div>
+              </div>
+              <table class="data">
+                <thead><tr><th>Person</th><th>Start</th><th>End</th><th>Load</th></tr></thead>
+                <tbody>
+                  <tr class="hot"><td>Ahmad Raafi</td><td>6 Jan 2026</td><td>—</td><td>70%</td></tr>
+                  <tr><td>Marcelino Hambali</td><td>6 Jan 2026</td><td>—</td><td>40%</td></tr>
+                  <tr><td>Farhan Haryawan</td><td>1 Apr 2026</td><td>30 Sep 2026</td><td>20%</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Place a person on a project</strong>
+            <span>Example: Irfan adds Ahmad to KMP-04 from 6 January, with no end date, at 70%.</span>
+          </li>
+          <li>
+            <strong>See when someone is over capacity</strong>
+            <span>Example: Ahmad is also at 50% on KMP-07. The screen adds them and shows 120%. It does not hide the extra 20%.</span>
+          </li>
+          <li>
+            <strong>Keep this separate from the organization chart</strong>
+            <span>Example: Ahmad's position in the organization does not change because he is staffed on KMP-04.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s8" data-label="Work item">
+      <h2>A work item is a flat list. The row has no status.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Ahmad Raafi · on this project</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head">
+                <h3>Work items</h3>
+                <span class="badge">KMP-04</span>
+                <div class="actions"><span class="btn">Add work item</span></div>
+              </div>
+              <table class="data">
+                <thead><tr><th>Work item</th><th>In charge</th><th>Start</th><th>End</th></tr></thead>
+                <tbody>
+                  <tr class="row-in"><td>Design workshop</td><td>Ahmad Raafi</td><td>6 Jan 2026</td><td>31 Mar 2026</td></tr>
+                  <tr class="row-in d2"><td>Build the KPI portfolio</td><td>Marcelino Hambali</td><td>1 Apr 2026</td><td>30 Sep 2026</td></tr>
+                </tbody>
+              </table>
+              <p class="hint">There is no status column, no parent, and no sprint.</p>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Name one piece of the project</strong>
+            <span>Example: Ahmad adds Design workshop, with himself in charge, from 6 January to 31 March.</span>
+          </li>
+          <li>
+            <strong>Hand the next piece to someone else</strong>
+            <span>Example: Marcelino owns Build the KPI portfolio, from 1 April to 30 September. He is already staffed on KMP-04.</span>
+          </li>
+          <li>
+            <strong>Keep status off this list</strong>
+            <span>Example: Neither row has a status, a parent, or a sprint. Progress shows up on the deliverable and on the worksheet, not here.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s9" data-label="Deliverable">
+      <h2>A file keeps versions. A link replaces the previous address.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Ahmad Raafi · on this project</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head">
+                <h3>Deliverables</h3>
+                <div class="actions"><span class="btn sec">Add link</span><span class="btn">Add file</span></div>
+              </div>
+              <table class="data">
+                <thead><tr><th>Name</th><th>Kind</th><th>Status</th><th>On work items</th></tr></thead>
+                <tbody>
+                  <tr class="row-in"><td>brief-v2.pdf</td><td>File · v2</td><td><span class="badge badge-accent">Shared</span></td><td>Design workshop</td></tr>
+                  <tr class="row-in d2"><td>Client folder</td><td>Link</td><td><span class="badge">Draft</span></td><td>—</td></tr>
+                  <tr class="row-in d3"><td>minutes-accepted.pdf</td><td>File · v1</td><td><span class="badge badge-ok">Accepted</span></td><td>Design workshop, Build the KPI portfolio</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Share a file and keep the earlier version</strong>
+            <span>Example: Ahmad uploads a second brief. The row becomes brief-v2.pdf, version 2, status Shared, attached to Design workshop.</span>
+          </li>
+          <li>
+            <strong>Share a link without versions</strong>
+            <span>Example: He adds Client folder as a link, still Draft, attached to no work item. A new address replaces the old one.</span>
+          </li>
+          <li>
+            <strong>Mark something accepted</strong>
+            <span>Example: minutes-accepted.pdf is Accepted and is attached to both Design workshop and Build the KPI portfolio.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s10" data-label="Worksheet">
+      <h2>The person's own week.</h2>
+      <div class="split">
+        <div class="app">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Ahmad Raafi</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head">
+                <h3>Worksheet</h3>
+                <span class="badge">28 Sep – 4 Oct 2026</span>
+                <div class="actions">
+                  <div class="tog" role="group" aria-label="Week width">
+                    <button class="btn tiny sec" type="button" id="wk5" aria-pressed="true">Mon–Fri</button>
+                    <button class="btn tiny sec" type="button" id="wk7" aria-pressed="false">Full week</button>
+                  </div>
+                </div>
+              </div>
+              <div class="cal" id="cal">
+                <div class="day"><div class="dh">Mon<b>28</b></div><div class="stack">
+                  <div class="ev meet drop">09–11 Meeting<br>Design workshop</div>
+                  <div class="ev act drop">11–15 Activity<br>Design workshop</div>
+                  <div class="ev meet drop">15–17 Meeting<br>Agree the agenda</div>
+                </div><div class="dh">8 h</div></div>
+                <div class="day"><div class="dh">Tue<b>29</b></div><div class="stack">
+                  <div class="ev act drop">09–12 Activity<br>KPI portfolio</div>
+                  <div class="ev meet drop">12–15 Meeting<br>KPI portfolio</div>
+                  <div class="ev act drop">15–17 Activity<br>KPI portfolio</div>
+                </div><div class="dh">8 h</div></div>
+                <div class="day"><div class="dh">Wed<b>30</b></div><div class="stack">
+                  <div class="ev meet drop">09–10 Meeting<br>No project</div>
+                  <div class="ev act drop">10–14 Activity<br>Design workshop</div>
+                  <div class="ev meet drop">14–17 Meeting<br>Workshop agenda</div>
+                </div><div class="dh">8 h</div></div>
+                <div class="day"><div class="dh">Thu<b>1</b></div><div class="stack">
+                  <div class="ev act drop">09–12 Activity<br>KPI portfolio</div>
+                  <div class="ev meet drop">12–16 Meeting<br>Design workshop</div>
+                  <div class="ev act drop">16–17 Activity<br>No project</div>
+                </div><div class="dh">8 h</div></div>
+                <div class="day"><div class="dh">Fri<b>2</b></div><div class="stack">
+                  <div class="ev leave drop">Leave · Annual<br>Family event out of town<br>May be taken, paid<br>0 work hours</div>
+                </div><div class="dh">0 h</div></div>
+                <div class="day wkend"><div class="dh">Sat<b>3</b></div><div class="stack"></div><div class="dh">0 h</div></div>
+                <div class="day wkend"><div class="dh">Sun<b>4</b></div><div class="stack"></div><div class="dh">0 h</div></div>
+              </div>
+              <div class="week-foot"><span>Mon 8 · Tue 8 · Wed 8 · Thu 8 · Fri 0</span><strong>Week total 32 h</strong></div>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Plan the week</strong>
+            <span>Example: Ahmad fills Monday through Thursday. Each of those days is 8 hours, and the blocks appear on the grid as he places them.</span>
+          </li>
+          <li>
+            <strong>Attach a work item to a block</strong>
+            <span>Example: Monday 09:00–11:00 is a Meeting on KMP-04, work item Design workshop. The next block, 11:00–15:00, is an Activity on the same work item.</span>
+          </li>
+          <li>
+            <strong>Hold a meeting that is not on a project</strong>
+            <span>Example: Wednesday 14:00–17:00 is a Meeting to agree the workshop agenda. No project is attached. It is one of three blocks that make Wednesday 8 hours.</span>
+          </li>
+          <li>
+            <strong>Block a day with leave and a reason</strong>
+            <span>Example: Friday is Leave, type Annual, reason “Family event out of town.” It may be taken and is paid. It fills the day and adds 0 work hours. The week total is 32 hours.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s15" data-label="Timesheet Admin">
+      <h2>Admin sees the day's agenda for everyone.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Irfan Alfieri · Admin</span>
+          </div>
+          <div class="work">
+            <div class="work-head">
+              <h3>Timesheet</h3>
+              <span class="badge">Wed 30 Sep is today</span>
+            </div>
+            <table class="team">
+              <thead>
+                <tr>
+                  <th>Person</th>
+                  <th>Mon 28</th>
+                  <th>Tue 29</th>
+                  <th>Wed 30</th>
+                  <th>Thu 1</th>
+                  <th>Fri 2</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="row-in">
+                  <td><span class="person">Ahmad Raafi</span><span class="role">KMP-04</span></td>
+                  <td><span class="mark-chip mark-meet">09–11 Meeting</span><span class="mark-chip mark-act">11–15 Activity</span><span class="mark-chip mark-meet">15–17 Meeting</span></td>
+                  <td><span class="mark-chip mark-act">09–12 Activity</span><span class="mark-chip mark-meet">12–17 Meeting</span></td>
+                  <td><span class="mark-chip mark-meet">09–10 Meeting</span><span class="mark-chip mark-act">10–14 Activity</span><span class="mark-chip mark-meet">14–17 Agenda</span></td>
+                  <td><span class="mark-chip mark-act">09–12 Activity</span><span class="mark-chip mark-meet">12–17 Meeting</span></td>
+                  <td><span class="mark-chip mark-leave">Leave · Annual</span><span class="mark-chip mark-leave">Family event out of town</span></td>
+                </tr>
+                <tr class="row-in d2">
+                  <td><span class="person">Marcelino Hambali</span><span class="role">KMP-04</span></td>
+                  <td><span class="mark-chip mark-act">09–17 Activity</span></td>
+                  <td><span class="mark-chip mark-meet">09–12 Meeting</span><span class="mark-chip mark-act">13–17 Activity</span></td>
+                  <td><span class="mark-chip mark-act">09–13 Activity</span><span class="mark-chip mark-meet">14–17 Meeting</span></td>
+                  <td><span class="mark-chip mark-meet">10–12 Meeting</span></td>
+                  <td><span class="mark-chip mark-act">09–12 Activity</span></td>
+                </tr>
+                <tr class="row-in d3">
+                  <td><span class="person">Farhan Haryawan</span><span class="role">KMP-04</span></td>
+                  <td></td>
+                  <td><span class="mark-chip mark-meet">13–15 Meeting</span></td>
+                  <td><span class="mark-chip mark-act">10–12 Activity</span></td>
+                  <td></td>
+                  <td><span class="mark-chip mark-remote">Remote</span></td>
+                </tr>
+                <tr class="row-in d4">
+                  <td><span class="person">Irfan Alfieri</span><span class="role">Admin</span></td>
+                  <td><span class="mark-chip mark-meet">09–10 Meeting</span></td>
+                  <td></td>
+                  <td><span class="mark-chip mark-meet">11–12 Meeting</span></td>
+                  <td><span class="mark-chip mark-remote">Remote</span></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="legend">
+              <span class="mark-chip mark-meet">Meeting</span>
+              <span class="mark-chip mark-act">Activity</span>
+              <span class="mark-chip mark-leave">Leave</span>
+              <span class="mark-chip mark-remote">Remote</span>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Read today's agenda for the whole team</strong>
+            <span>Example: On Wednesday 30 Sep, Irfan sees Ahmad in a meeting at 09:00, then on Design workshop until 14:00, then in the agenda meeting.</span>
+          </li>
+          <li>
+            <strong>See which work item the hours belong to</strong>
+            <span>Example: Marcelino's Wednesday activity is on Build the KPI portfolio. Farhan has one two-hour activity, matching his 20% load.</span>
+          </li>
+          <li>
+            <strong>See leave, and the reason, without opening each sheet</strong>
+            <span>Example: Friday shows Ahmad in red, on annual leave, with the reason written on the block. That day adds no work hours. Farhan and Irfan show Remote on other days.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s11" data-label="Record hours">
+      <h2>A block is at least one hour. A project requires a work item.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Ahmad Raafi</span>
+          </div>
+          <div class="app-body">
+            <div class="work">
+              <div class="work-head"><h3>Worksheet</h3><span class="badge">Week of 28 Sep</span></div>
+              <div class="entry">
+                <p class="behind">The week stays in place. This panel sits beside it and does not cover the whole screen.</p>
+                <div class="sheet">
+                  <h4>Add time block</h4>
+                  <div class="form">
+                    <div class="field"><label>Start</label><div class="box fill">30 Sep · 13:00</div></div>
+                    <div class="field"><label>End</label><div class="box fill step2">30 Sep · 15:00</div></div>
+                    <div class="field wide"><label>Type</label><div class="box fill step3">Meeting</div></div>
+                    <div class="field wide"><label>Project</label><div class="box swap"><span class="ghost">None</span><span class="typed">KMP-04 · People system</span></div></div>
+                    <div class="field wide"><label>Work item</label><div class="box swap late"><span class="ghost">Required only when a project is chosen</span><span class="typed">Design workshop</span></div></div>
+                  </div>
+                  <div class="row"><span class="btn sec">Cancel</span><span class="btn press">Save</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Block the hour</strong>
+            <span>Example: Ahmad sets Wednesday 30 September, 13:00 to 15:00. A block shorter than one hour cannot be saved.</span>
+          </li>
+          <li>
+            <strong>Choose the type</strong>
+            <span>Example: He marks it Meeting. The other starter type is Activity. Admin may add more labels.</span>
+          </li>
+          <li>
+            <strong>Attach the project and the work item</strong>
+            <span>Example: The form starts with no project. He then chooses KMP-04 and the work item Design workshop. The screen plays that change.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s12" data-label="Leave on the sheet">
+      <h2>Leave, sick time, and remote appear on the sheet. None of them add hours.</h2>
+      <div class="split">
+        <div class="app" aria-hidden="true">
+          <div class="app-top">
+            <img class="logo logo-sm" src="kmplus-logo.png" alt="">
+            <span class="product">People</span>
+            <span class="tenant">kmplus</span>
+            <span class="who">Irfan Alfieri · Admin</span>
+          </div>
+          <div class="work">
+            <div class="work-head"><h3>Leave request</h3><span class="badge badge-ok">May be taken, paid</span></div>
+            <div class="form">
+              <div class="field"><label>Person</label><div class="box">Ahmad Raafi</div></div>
+              <div class="field"><label>Kind</label><div class="box">Leave</div></div>
+              <div class="field"><label>Leave type</label><div class="box">Annual</div></div>
+              <div class="field"><label>When</label><div class="box">Fri 2 Oct 2026 · full day</div></div>
+              <div class="field wide"><label>Note</label><div class="box">Family event out of town.</div></div>
+            </div>
+            <div class="chips" style="margin-top:12px">
+              <span class="badge badge-ok pop">May be taken, paid</span>
+              <span class="badge row-in d2">May be taken, unpaid</span>
+              <span class="badge badge-danger row-in d3">May not be taken</span>
+            </div>
+            <p class="hint">Only a decision that the time may be taken appears on the worksheet.</p>
+          </div>
+        </div>
+        <ul class="uc">
+          <li>
+            <strong>Ask for a day</strong>
+            <span>Example: Ahmad requests Friday 2 October as Leave, type Annual, with the note “Family event out of town.”</span>
+          </li>
+          <li>
+            <strong>Let Admin decide</strong>
+            <span>Example: Irfan marks it “May be taken, paid.” The other answers are unpaid, or not taken. Only a “may be taken” decision appears on the worksheet.</span>
+          </li>
+          <li>
+            <strong>Keep the hours at zero</strong>
+            <span>Example: That Friday shows on Ahmad’s sheet and adds no work hours. Approved leave and sick time also block a work block on the same hours. Approved remote does not.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+    <section class="slide" id="s13" data-label="The path">
+      <h2>The workflow, from a new project to recorded hours.</h2>
+      <div class="workflow">
+        <article class="step row-in">
+          <strong>Admin opens a project</strong>
+          <p>Irfan opens KMP-04, People system. The client is blank, so it is for KMPlus. The start is 6 January 2026, and there is no end date.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step row-in d2">
+          <strong>Admin staffs the project</strong>
+          <p>Irfan places Ahmad on KMP-04 at 70%. Ahmad is also at 50% on KMP-07, so the screen shows 120%.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step row-in d3">
+          <strong>Staff create a work item</strong>
+          <p>Ahmad creates Design workshop, with himself in charge, ending 31 March 2026.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step row-in d4">
+          <strong>Staff add a deliverable</strong>
+          <p>Ahmad uploads the brief as a file and marks it Shared, attached to Design workshop.</p>
+        </article>
+        <div class="arrow" aria-hidden="true">→</div>
+        <article class="step fill step5">
+          <strong>Staff fill the worksheet</strong>
+          <p>Monday through Thursday are 8 hours each. Friday is leave, reason “Family event out of town,” and adds no work hours. The week total is 32 hours.</p>
+        </article>
+      </div>
+      <div class="note" style="margin-top:16px">
+        <p>Hours on a project are valid only when there is a work item and staffing covers that date. Hours with no project are still valid, and they still count in the type and in the week total. An invitation from someone else counts only after it is accepted.</p>
+      </div>
+    </section>
+    <section class="slide" id="s14" data-label="The boundary">
+      <h2>This function is deliberately narrow.</h2>
+      <div class="two">
+        <div class="note">
+          <strong>In this design</strong>
+          <ul class="clean">
+            <li>A project with a code that can be changed, an optional client, and an optional end date.</li>
+            <li>Staffing with a load, including a load that passes 100%.</li>
+            <li>A flat work item with one person in charge.</li>
+            <li>A deliverable that is a versioned file or a link, with a status.</li>
+            <li>A weekly worksheet, time block types, and leave that appears without adding hours.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <strong>Not in this design</strong>
+          <ul class="clean">
+            <li>A Kanban board, a sprint, a ticket, or a parent work item.</li>
+            <li>A project health status, or a status on the work item.</li>
+            <li>A leave balance and a pay calculation.</li>
+            <li>A work block shorter than one hour.</li>
+            <li>Payslip. That is a separate module, and it is not part of this briefing.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note" style="margin-top:12px">
+        <strong>Closing line</strong>
+        <p>A project gives the work and its people a place. A worksheet gives evidence of the hours, including hours that are not attached to a project, and leave that may be taken without counting as work hours. The screens in this file are mockups of that design.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="nav">
+    <button class="navbtn" type="button" id="prev">Previous</button>
+    <button class="navbtn primary" type="button" id="next">Next</button>
+    <span class="hintkey">Left and right arrows move between screens. Home and End jump to the ends.</span>
+  </footer>
+</div>
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  const outline = document.getElementById("outline");
+  const count = document.getElementById("count");
+  const bar = document.getElementById("bar");
+  let i = 0;
+  const groups = [
+    { at: 0, label: "Start" },
+    { at: 4, label: "Project" },
+    { at: 9, label: "Worksheet" },
+    { at: 13, label: "Close" }
+  ];
+  slides.forEach((slide, idx) => {
+    const g = [...groups].reverse().find((item) => idx >= item.at);
+    const prevG = idx === 0 ? null : [...groups].reverse().find((item) => idx - 1 >= item.at);
+    if (!prevG || prevG.label !== g.label) {
+      const lab = document.createElement("div");
+      lab.className = "group";
+      lab.textContent = g.label;
+      outline.appendChild(lab);
+    }
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = slide.dataset.label;
+    b.addEventListener("click", () => show(idx));
+    outline.appendChild(b);
+  });
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, idx) => s.classList.toggle("on", idx === i));
+    [...outline.querySelectorAll("button")].forEach((b, idx) => {
+      if (idx === i) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
+    });
+    count.textContent = (i + 1) + " / " + slides.length;
+    bar.style.width = ((i + 1) / slides.length * 100) + "%";
+    const id = slides[i].id;
+    if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
+    document.getElementById("stage").scrollTop = 0;
+  }
+  document.getElementById("prev").addEventListener("click", () => show(i - 1));
+  document.getElementById("next").addEventListener("click", () => show(i + 1));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); show(i + 1); }
+    if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i - 1); }
+    if (e.key === "Home") { e.preventDefault(); show(0); }
+    if (e.key === "End") { e.preventDefault(); show(slides.length - 1); }
+  });
+  const cal = document.getElementById("cal");
+  const wk5 = document.getElementById("wk5");
+  const wk7 = document.getElementById("wk7");
+  function setWeek(full) {
+    cal.classList.toggle("full", full);
+    wk5.setAttribute("aria-pressed", full ? "false" : "true");
+    wk7.setAttribute("aria-pressed", full ? "true" : "false");
+  }
+  wk5.addEventListener("click", () => setWeek(false));
+  wk7.addEventListener("click", () => setWeek(true));
+  const start = slides.findIndex((s) => "#" + s.id === location.hash);
+  show(start >= 0 ? start : 0);
+</script>
+</body>
+</html>

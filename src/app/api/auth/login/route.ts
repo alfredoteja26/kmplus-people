@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { evaluateLogin, rejectPassword } from "@/lib/server/login";
 import { firebaseAuthConfigured, signInWithPassword } from "@/lib/server/firebase-auth";
+import { verifyPassword } from "@/lib/server/password";
 import { getPrisma } from "@/lib/server/prisma";
 import { writeSession } from "@/lib/server/session";
 import type { Role } from "@/lib/types";
@@ -14,10 +15,6 @@ type LoginBody = {
 };
 
 export async function POST(request: Request) {
-  if (!firebaseAuthConfigured()) {
-    return NextResponse.json({ error: "Password sign-in is not available yet." }, { status: 503 });
-  }
-
   let body: LoginBody;
   try {
     body = (await request.json()) as LoginBody;
@@ -58,9 +55,17 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    await signInWithPassword(result.user.email, password);
-  } catch {
+  const localOk = record?.passwordHash ? verifyPassword(password, record.passwordHash) : false;
+  let remoteOk = false;
+  if (firebaseAuthConfigured()) {
+    try {
+      await signInWithPassword(result.user.email, password);
+      remoteOk = true;
+    } catch {
+      remoteOk = false;
+    }
+  }
+  if (!localOk && !remoteOk) {
     const rejected = rejectPassword(result.user.mustSetPassword);
     return NextResponse.json(
       { error: rejected.error, needsPasswordEmail: rejected.needsPasswordEmail === true },

@@ -2,6 +2,8 @@
 
 Confirmed 16 Sep 2026. Nav names: Organization, KPI Admin. CV review is a People subpage.
 
+> **Stale domain nouns below** (KpiSet / KpiCycle). Prefer [CONTEXT.md](../../CONTEXT.md): **KpiPortfolio** / **KpiYear**. Layout thesis still valid.
+
 ## 1. Job and audience
 
 - **Who:** HR first (tenant admin and HR role via demo switcher); managers and employees may land here but Phase 1 Home optimizes for HR’s daily operate loop.

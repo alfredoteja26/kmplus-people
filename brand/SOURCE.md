@@ -5,7 +5,8 @@ Identity is **KMPlus Optima Internasional**. Never Akasia.
 - Site of truth: https://kmplusconsulting.com/ (captured 4 Sep 2026)
 - Wordmark: stacked KM / PLUS, IBM Plex Sans 600, letter-spacing 0.02em
 - Mark: five white bars at 19°, 38°, 47°, 58°, 79° (Framer rectangles on the live site)
-- Palette: `#0B2131` chrome, `#0A706D` primary, `#1E857C` mid, `#3AC7BB` accent, `#FAFAFA` canvas
+- Marketing site palette: `#0B2131` chrome, `#0A706D` primary, `#1E857C` mid, `#3AC7BB` accent, `#FAFAFA` canvas
+- **In-app chrome:** light sage per [DESIGN.md](../DESIGN.md) — do not paint product work surfaces with marketing `#0B2131`
 
 Files in this folder:
 

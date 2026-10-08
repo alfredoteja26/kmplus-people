@@ -4,10 +4,13 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root
+- **`CONTEXT.md`** at the repo root (glossary; wins on naming conflicts)
 - **`docs/adr/`**: read ADRs that touch the area you're about to work in
+- **`PRODUCT.md`**: Phase scope and anti-references (not a second glossary)
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront.
+
+Ignore root **`PRD.md`** (archived). Treat **`docs/shape/`** as historical UI briefs; translate nouns through CONTEXT before coding.
 
 ## File structure
 
