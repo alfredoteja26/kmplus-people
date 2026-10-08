@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import * as commands from "./commands";
+import type * as commands from "./commands";
+import { COMMANDS, refusal, type CommandArgs, type CommandName, type CommandOutput } from "./command-registry";
 import type { ApplyCvMode, CreatePersonInput } from "./commands";
-import { currentAssignment, roleLabel } from "./domain";
+import { currentAssignment, recordingIds, roleLabel, withIdSource } from "./domain";
 import { createInitialState } from "./fixtures";
 import { overlaySessionIdentity } from "./session-identity";
 import type { Role } from "./types";
@@ -12,6 +13,9 @@ import type { AppState, CurriculumVitae, FieldDecision, KpiItem, Person, Positio
 type Store = {
   state: AppState;
   persisted: boolean;
+  /** Set when the server refused a change the browser had already shown; cleared by the next accepted one. */
+  syncError: string | null;
+  dismissSyncError: () => void;
   createPerson: (input: CreatePersonInput) => string;
   updatePerson: (personId: string, patch: Partial<Person>) => void;
   confirmHire: (personId: string) => void;
@@ -79,15 +83,16 @@ type Store = {
 
 const StoreContext = createContext<Store | null>(null);
 
-async function putTenantState(state: AppState) {
-  const response = await fetch("/api/tenant-state", {
-    method: "PUT",
+type CommandReply = { state?: AppState; error?: string };
+
+async function postCommand(name: CommandName, args: unknown[], ids: string[]): Promise<{ status: number; reply: CommandReply }> {
+  const response = await fetch("/api/commands", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(state),
+    body: JSON.stringify({ name, args, ids }),
   });
-  if (!response.ok) {
-    throw new Error("Could not save tenant state");
-  }
+  const reply = (await response.json().catch(() => ({}))) as CommandReply;
+  return { status: response.status, reply };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -95,8 +100,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [persisted, setPersisted] = useState(false);
   /** Latest committed state, updated synchronously so two commits in one tick build on each other. */
   const latest = useRef<AppState | null>(null);
-  /** Saves run one after another so an older snapshot never lands after a newer one. */
-  const saving = useRef<Promise<void>>(Promise.resolve());
+  /** Commands reach the server one after another, in the order the user made them. */
+  const sending = useRef<Promise<void>>(Promise.resolve());
+  /** Commands sent but not yet answered; the server's view replaces local state once this reaches zero. */
+  const inFlight = useRef(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,207 +152,232 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!state) return null;
     const current = state;
 
-    function persist(next: AppState) {
+    function send(name: CommandName, args: unknown[], ids: string[]) {
       if (!persisted) return;
-      saving.current = saving.current
-        .then(() => putTenantState(next))
-        .catch(() => setPersisted(false));
+      inFlight.current += 1;
+      sending.current = sending.current
+        .then(async () => {
+          const { status, reply } = await postCommand(name, args, ids);
+          if (status === 401) {
+            window.location.href = "/login";
+            return;
+          }
+          if (status >= 500 || (!reply.state && status !== 400)) throw new Error(reply.error ?? "Save failed");
+          if (status === 403 || status === 400) setSyncError(reply.error ?? "The server did not accept that change.");
+          else setSyncError(null);
+          if (reply.state && inFlight.current === 1) {
+            latest.current = reply.state;
+            setState(reply.state);
+          }
+        })
+        .catch(() => setPersisted(false))
+        .finally(() => {
+          inFlight.current -= 1;
+        });
     }
 
-    function commit<T extends { state: AppState }>(run: (prev: AppState) => T): Omit<T, "state"> {
-      const { state: next, ...rest } = run(latest.current ?? current);
-      latest.current = next;
-      setState(next);
-      persist(next);
-      return rest as Omit<T, "state">;
+    /** Runs a command locally for an instant result, then sends it (with the ids it created) to the server. */
+    function commit<N extends CommandName>(name: N, args: CommandArgs<N>): Omit<CommandOutput<N>, "state"> {
+      const recorder = recordingIds();
+      const command = COMMANDS[name] as unknown as (state: AppState, ...rest: unknown[]) => CommandOutput<N>;
+      const output = withIdSource(recorder.source, () => command(latest.current ?? current, ...(args as unknown[])));
+      const { state: next, ...rest } = output as CommandOutput<N> & { state: AppState };
+      if (!refusal(output as { error?: unknown })) {
+        latest.current = next;
+        setState(next);
+        send(name, args as unknown[], recorder.ids);
+      }
+      return rest as Omit<CommandOutput<N>, "state">;
     }
 
     return {
       state: current,
       persisted,
+      syncError,
+      dismissSyncError: () => setSyncError(null),
       createPerson(input) {
-        return commit((prev) => commands.createPerson(prev, input)).personId;
+        return commit("createPerson", [input]).personId;
       },
       updatePerson(personId, patch) {
-        commit((prev) => commands.updatePerson(prev, personId, patch));
+        commit("updatePerson", [personId, patch]);
       },
       confirmHire(personId) {
-        commit((prev) => commands.confirmHire(prev, personId));
+        commit("confirmHire", [personId]);
       },
       assignPosition(personId, positionId, startDate) {
-        commit((prev) => commands.assignPosition(prev, personId, positionId, startDate));
+        commit("assignPosition", [personId, positionId, startDate]);
       },
       createPosition(input) {
-        return commit((prev) => commands.createPosition(prev, input)).positionId;
+        return commit("createPosition", [input]).positionId;
       },
       updatePosition(positionId, patch) {
-        commit((prev) => commands.updatePosition(prev, positionId, patch));
+        commit("updatePosition", [positionId, patch]);
       },
       requestCorrection(personId, field, currentValue, proposedValue) {
-        commit((prev) => commands.requestCorrection(prev, personId, field, currentValue, proposedValue));
+        commit("requestCorrection", [personId, field, currentValue, proposedValue]);
       },
       resolveCorrection(id, status) {
-        commit((prev) => commands.resolveCorrection(prev, id, status));
+        commit("resolveCorrection", [id, status]);
       },
       addCv(cv) {
-        return commit((prev) => commands.addCv(prev, cv)).cvId;
+        return commit("addCv", [cv]).cvId;
       },
       decideCvField(cvId, key, decision, editedValue) {
-        commit((prev) => commands.decideCvField(prev, cvId, key, decision, editedValue));
+        commit("decideCvField", [cvId, key, decision, editedValue]);
       },
       applyCv(cvId, mode) {
-        const { personId } = commit((prev) => commands.applyCv(prev, cvId, mode));
+        const { personId } = commit("applyCv", [cvId, mode]);
         return mode.type === "new-hire" ? personId : null;
       },
       rejectCv(cvId) {
-        commit((prev) => commands.rejectCv(prev, cvId));
+        commit("rejectCv", [cvId]);
       },
       startKpiPlanning(cycleId) {
-        return commit((prev) => commands.startKpiPlanning(prev, cycleId)).error;
+        return commit("startKpiPlanning", [cycleId]).error;
       },
       startKpiMonitoring(cycleId) {
-        return commit((prev) => commands.startKpiMonitoring(prev, cycleId)).error;
+        return commit("startKpiMonitoring", [cycleId]).error;
       },
       setKpiYearCheckInFrequency(cycleId, cadence) {
-        return commit((prev) => commands.setKpiYearCheckInFrequency(prev, cycleId, cadence)).error;
+        return commit("setKpiYearCheckInFrequency", [cycleId, cadence]).error;
       },
       setKpiPlanningEndDate(cycleId, planningEndsOn) {
-        return commit((prev) => commands.setKpiPlanningEndDate(prev, cycleId, planningEndsOn)).error;
+        return commit("setKpiPlanningEndDate", [cycleId, planningEndsOn]).error;
       },
       closeKpiYear(cycleId) {
-        return commit((prev) => commands.closeKpiYear(prev, cycleId)).error;
+        return commit("closeKpiYear", [cycleId]).error;
       },
       openKpiAdjustmentWindow(cycleId) {
-        return commit((prev) => commands.openKpiAdjustmentWindow(prev, cycleId)).error;
+        return commit("openKpiAdjustmentWindow", [cycleId]).error;
       },
       closeKpiAdjustmentWindow(cycleId) {
-        return commit((prev) => commands.closeKpiAdjustmentWindow(prev, cycleId)).error;
+        return commit("closeKpiAdjustmentWindow", [cycleId]).error;
       },
       createMissingKpiSets(cycleId) {
-        return commit((prev) => commands.createMissingKpiSets(prev, cycleId)).created;
+        return commit("createMissingKpiSets", [cycleId]).created;
       },
       upsertKpiItem(item) {
-        return commit((prev) => commands.upsertKpiItem(prev, item)).error;
+        return commit("upsertKpiItem", [item]).error;
       },
       removeKpiItem(id) {
-        commit((prev) => commands.removeKpiItem(prev, id));
+        commit("removeKpiItem", [id]);
       },
       submitKpiSet(kpiSetId) {
-        return commit((prev) => commands.submitKpiSet(prev, kpiSetId)).error;
+        return commit("submitKpiSet", [kpiSetId]).error;
       },
       agreeKpiSet(kpiSetId) {
-        return commit((prev) => commands.agreeKpiSet(prev, kpiSetId)).error;
+        return commit("agreeKpiSet", [kpiSetId]).error;
       },
       returnKpiSet(kpiSetId, comment) {
-        commit((prev) => commands.returnKpiSet(prev, kpiSetId, comment));
+        commit("returnKpiSet", [kpiSetId, comment]);
       },
       grantAdmin(personId) {
-        return commit((prev) => commands.grantAdmin(prev, personId)).error;
+        return commit("grantAdmin", [personId]).error;
       },
       revokeAdmin(personId) {
-        return commit((prev) => commands.revokeAdmin(prev, personId)).error;
+        return commit("revokeAdmin", [personId]).error;
       },
       addCheckIn(kpiItemId, actual, note) {
-        return commit((prev) => commands.addCheckIn(prev, kpiItemId, actual, note)).error;
+        return commit("addCheckIn", [kpiItemId, actual, note]).error;
       },
       agreeCheckIn(checkInId) {
-        return commit((prev) => commands.agreeCheckIn(prev, checkInId)).error;
+        return commit("agreeCheckIn", [checkInId]).error;
       },
       returnCheckIn(checkInId, comment) {
-        commit((prev) => commands.returnCheckIn(prev, checkInId, comment));
+        commit("returnCheckIn", [checkInId, comment]);
       },
       openProject(input) {
-        return commit((prev) => commands.openProject(prev, input));
+        return commit("openProject", [input]);
       },
       updateProject(projectId, input) {
-        return commit((prev) => commands.updateProject(prev, projectId, input));
+        return commit("updateProject", [projectId, input]);
       },
       addStaffing(input) {
-        return commit((prev) => commands.addStaffing(prev, input));
+        return commit("addStaffing", [input]);
       },
       upsertWorkItem(input) {
-        return commit((prev) => commands.upsertWorkItem(prev, input));
+        return commit("upsertWorkItem", [input]);
       },
       addDeliverable(input) {
-        return commit((prev) => commands.addDeliverable(prev, input));
+        return commit("addDeliverable", [input]);
       },
       updateDeliverable(deliverableId, patch) {
-        return commit((prev) => commands.updateDeliverable(prev, deliverableId, patch));
+        return commit("updateDeliverable", [deliverableId, patch]);
       },
       deleteDeliverable(deliverableId) {
-        return commit((prev) => commands.deleteDeliverable(prev, deliverableId));
+        return commit("deleteDeliverable", [deliverableId]);
       },
       fileLeaveRequest(input) {
-        return commit((prev) => commands.fileLeaveRequest(prev, input));
+        return commit("fileLeaveRequest", [input]);
       },
       decideLeaveRequest(leaveRequestId, decision) {
-        return commit((prev) => commands.decideLeaveRequest(prev, leaveRequestId, decision));
+        return commit("decideLeaveRequest", [leaveRequestId, decision]);
       },
       upsertTimeBlock(input) {
-        return commit((prev) => commands.upsertTimeBlock(prev, input));
+        return commit("upsertTimeBlock", [input]);
       },
       deleteTimeBlock(timeBlockId) {
-        return commit((prev) => commands.deleteTimeBlock(prev, timeBlockId));
+        return commit("deleteTimeBlock", [timeBlockId]);
       },
       respondToInvite(inviteId, status) {
-        return commit((prev) => commands.respondToInvite(prev, inviteId, status));
+        return commit("respondToInvite", [inviteId, status]);
       },
       setWeekGrid(mode, personId) {
-        return commit((prev) => commands.setWeekGrid(prev, mode, personId));
+        return commit("setWeekGrid", [mode, personId]);
       },
       updatePersonContact(personId, patch) {
-        return commit((prev) => commands.updatePersonContact(prev, personId, patch));
+        return commit("updatePersonContact", [personId, patch]);
       },
       addDeliverableStatus(name) {
-        return commit((prev) => commands.addDeliverableStatus(prev, name));
+        return commit("addDeliverableStatus", [name]);
       },
       renameDeliverableStatus(statusId, name) {
-        return commit((prev) => commands.renameDeliverableStatus(prev, statusId, name));
+        return commit("renameDeliverableStatus", [statusId, name]);
       },
       removeDeliverableStatus(statusId) {
-        return commit((prev) => commands.removeDeliverableStatus(prev, statusId));
+        return commit("removeDeliverableStatus", [statusId]);
       },
       addDeliverableCategory(name) {
-        return commit((prev) => commands.addDeliverableCategory(prev, name));
+        return commit("addDeliverableCategory", [name]);
       },
       renameDeliverableCategory(categoryId, name) {
-        return commit((prev) => commands.renameDeliverableCategory(prev, categoryId, name));
+        return commit("renameDeliverableCategory", [categoryId, name]);
       },
       removeDeliverableCategory(categoryId) {
-        return commit((prev) => commands.removeDeliverableCategory(prev, categoryId));
+        return commit("removeDeliverableCategory", [categoryId]);
       },
       addLeaveType(name) {
-        return commit((prev) => commands.addLeaveType(prev, name));
+        return commit("addLeaveType", [name]);
       },
       renameLeaveType(leaveTypeId, name) {
-        return commit((prev) => commands.renameLeaveType(prev, leaveTypeId, name));
+        return commit("renameLeaveType", [leaveTypeId, name]);
       },
       removeLeaveType(leaveTypeId) {
-        return commit((prev) => commands.removeLeaveType(prev, leaveTypeId));
+        return commit("removeLeaveType", [leaveTypeId]);
       },
       addPublicHoliday(date, name) {
-        return commit((prev) => commands.addPublicHoliday(prev, date, name));
+        return commit("addPublicHoliday", [date, name]);
       },
       renamePublicHoliday(holidayId, name) {
-        return commit((prev) => commands.renamePublicHoliday(prev, holidayId, name));
+        return commit("renamePublicHoliday", [holidayId, name]);
       },
       removePublicHoliday(holidayId) {
-        return commit((prev) => commands.removePublicHoliday(prev, holidayId));
+        return commit("removePublicHoliday", [holidayId]);
       },
       applyIndonesiaHolidayFeed(items) {
-        return commit((prev) => commands.applyIndonesiaHolidayFeed(prev, items));
+        return commit("applyIndonesiaHolidayFeed", [items]);
       },
       addTimeBlockType(name) {
-        return commit((prev) => commands.addTimeBlockType(prev, name));
+        return commit("addTimeBlockType", [name]);
       },
       renameTimeBlockType(typeId, name) {
-        return commit((prev) => commands.renameTimeBlockType(prev, typeId, name));
+        return commit("renameTimeBlockType", [typeId, name]);
       },
       removeTimeBlockType(typeId) {
-        return commit((prev) => commands.removeTimeBlockType(prev, typeId));
+        return commit("removeTimeBlockType", [typeId]);
       },
     };
-  }, [state, persisted]);
+  }, [state, persisted, syncError]);
 
   if (!store) return <ShellSkeleton />;
 

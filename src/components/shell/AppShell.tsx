@@ -11,7 +11,7 @@ import { MobileNav, Sidebar } from "./Sidebar";
 import type { ReactNode } from "react";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { state, persisted } = useStore();
+  const { state, persisted, syncError, dismissSyncError } = useStore();
   const role = state.currentRole;
   const person = state.people.find((row) => row.id === state.currentPersonId);
   const displayName = person?.preferredName || person?.legalName || "Signed in";
@@ -55,6 +55,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p role="status" className="m-0 shrink-0 border-b-[1.5px] border-line bg-[color-mix(in_srgb,var(--warning)_12%,var(--paper))] px-4 py-2 text-sm">
           Can’t reach the database. You can keep working, but changes will be lost when you refresh.
         </p>
+      ) : null}
+      {syncError ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b-[1.5px] border-line bg-[color-mix(in_srgb,var(--danger)_8%,var(--paper))] px-4 py-2 text-sm text-destructive-foreground"
+        >
+          <span>That change wasn’t saved: {syncError} The page now shows what is saved.</span>
+          <Button size="sm" variant="ghost" type="button" onClick={dismissSyncError}>
+            Dismiss
+          </Button>
+        </div>
       ) : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar role={role} kpiAdmin={adminGrant} />

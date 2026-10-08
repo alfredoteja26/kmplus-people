@@ -2,8 +2,56 @@ import { displayedActual } from "./direct";
 import { lineManagerReportPersonIds, openCycle } from "./domain-query";
 import type { AppState, Assignment, Health, KpiItem, KpiSet, Person, Position, Role } from "./types";
 
-export function nid(prefix: string) {
+type IdSource = (prefix: string) => string;
+let idSource: IdSource | null = null;
+
+function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function nid(prefix: string) {
+  return idSource ? idSource(prefix) : randomId(prefix);
+}
+
+/**
+ * Runs a command while capturing or supplying the ids it creates. The browser records the ids from its
+ * optimistic run and sends them along; the server replays them so both sides name new records the same.
+ */
+export function withIdSource<T>(source: IdSource, run: () => T): T {
+  const previous = idSource;
+  idSource = source;
+  try {
+    return run();
+  } finally {
+    idSource = previous;
+  }
+}
+
+export function recordingIds(): { source: IdSource; ids: string[] } {
+  const ids: string[] = [];
+  return {
+    ids,
+    source: (prefix) => {
+      const id = randomId(prefix);
+      ids.push(id);
+      return id;
+    },
+  };
+}
+
+const ID_PATTERN = /^[a-z][a-z0-9-]{0,30}-[a-z0-9]{4,16}$/;
+
+/** Replays client ids in order when they fit the prefix and are unused; otherwise falls back to a fresh id. */
+export function replayingIds(supplied: unknown, taken: Set<string>): IdSource {
+  const queue = Array.isArray(supplied) ? supplied.filter((value): value is string => typeof value === "string") : [];
+  return (prefix) => {
+    const candidate = queue.shift();
+    if (candidate && ID_PATTERN.test(candidate) && candidate.startsWith(`${prefix}-`) && !taken.has(candidate)) {
+      taken.add(candidate);
+      return candidate;
+    }
+    return randomId(prefix);
+  };
 }
 
 export function todayIso() {
