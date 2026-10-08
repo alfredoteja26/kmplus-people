@@ -1,20 +1,23 @@
 "use client";
 
-import { StatGauge, type StatGaugeTone } from "@/components/ui/StatGauge";
+import { frequencyLabel, kpiYearName } from "@/components/kpi/kpi-copy";
+import { StatGauge, type StatGaugeTone } from "@/components/product/StatGauge";
 import { todayIso } from "@/lib/domain";
 import { kpiYearPhase } from "@/lib/domain-query";
+import { formatDate } from "@/lib/labels";
 import { planningCountdownCopy, planningDaysLeft } from "@/lib/phase-desk";
 import type { KpiCycle } from "@/lib/types";
 import type { ReactNode } from "react";
 
-function formatDate(iso: string) {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+/** Plain fact card for words and counts that are not progress toward a target. Same surface as StatGauge, no ring. */
+export function FactTile({ label, value, detail }: { label: string; value: ReactNode; detail?: string }) {
+  return (
+    <article className="rounded-2xl bg-card p-5 shadow-[var(--shadow)]">
+      <h2 className="m-0 text-xs font-medium uppercase tracking-[0.06em] text-faint">{label}</h2>
+      <p className="mt-3 mb-0 text-h2 font-medium tabular-nums text-foreground">{value}</p>
+      {detail ? <p className="mt-2 mb-0 text-sm text-muted-foreground">{detail}</p> : null}
+    </article>
+  );
 }
 
 function planningGauge(cycle: KpiCycle) {
@@ -26,8 +29,8 @@ function planningGauge(cycle: KpiCycle) {
       unit: undefined,
       percent: 0,
       tone: "muted" as StatGaugeTone,
-      target: "No end date",
-      detail: "Set the planning end date on KPI Admin.",
+      target: "No end date set",
+      detail: "An Admin sets the planning end date on KPI Admin.",
     };
   }
   if (days < 0) {
@@ -54,24 +57,24 @@ function planningGauge(cycle: KpiCycle) {
 function scoreGauge(score: number | null, stored: boolean) {
   if (score === null) {
     return {
-      label: stored ? "Stored score" : "Monitoring score",
+      label: stored ? "Final score" : "Current score",
       value: "—",
       unit: undefined,
       percent: 0,
       tone: "muted" as StatGaugeTone,
       target: "Target 100",
-      detail: stored ? "This KPI year is closed." : "The score appears after this portfolio is approved.",
+      detail: stored ? "No final score was saved for this KPI Portfolio." : "Shown once your KPI Portfolio is approved.",
     };
   }
   const tone: StatGaugeTone = score >= 80 ? "accent" : score >= 50 ? "warning" : "danger";
   return {
-    label: stored ? "Stored score" : "Monitoring score",
+    label: stored ? "Final score" : "Current score",
     value: String(score),
     unit: undefined,
     percent: Math.min(1, score / 100),
     tone,
     target: "Target 100",
-    detail: stored ? "Saved when the KPI year closed." : "From the latest check-ins. Not saved until the year closes.",
+    detail: stored ? "Saved when the KPI year closed." : "Based on your latest approved KPI Check-Ins. Final when the KPI year closes.",
   };
 }
 
@@ -82,9 +85,9 @@ export function PhaseFacts({
   extra,
 }: {
   cycle: KpiCycle;
-  /** Pass a number or null when this page owns one portfolio. Omit on Team, KPI Admin, and KPI tree. */
+  /** Pass a number or null when this page owns one KPI Portfolio. Omit on Team, KPI Admin, and KPI tree. */
   score?: number | null;
-  /** Portfolio weight total, when this page is editing one portfolio. */
+  /** Weight total, only while the owner can still edit and submit the KPI Portfolio. */
   weight?: number;
   extra?: ReactNode;
 }) {
@@ -101,14 +104,11 @@ export function PhaseFacts({
     gauges.push(<StatGauge key="score" {...monitoring} />);
   } else if (phase === "monitoring") {
     gauges.push(
-      <StatGauge
+      <FactTile
         key="monitoring"
-        label="Monitoring"
-        value="Open"
-        percent={1}
-        tone="accent"
-        target={cycle.name}
-        detail="Open a KPI portfolio to see its latest monitoring score."
+        label={kpiYearName(cycle)}
+        value="Monitoring"
+        detail={`KPI Check-Ins are open. Default frequency: ${frequencyLabel(cycle.checkInCadence).toLowerCase()}.`}
       />,
     );
   } else if (phase === "closed") {
@@ -127,7 +127,7 @@ export function PhaseFacts({
         percent={Math.min(1, weight / 100)}
         tone={ready ? "accent" : "warning"}
         target="Target 100%"
-        detail={ready ? "Ready to submit." : "Must total 100% before you submit."}
+        detail={ready ? "Weights add up to 100%." : `Weights must add up to 100% (now ${weight}%).`}
       />,
     );
   }

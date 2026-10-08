@@ -1,6 +1,7 @@
 "use client";
 
-import { Field, Select } from "@/components/ui/Input";
+import { Field } from "@/components/product/Field";
+import { Select } from "@/components/product/Select";
 import { parentCandidates } from "@/lib/cascade";
 import { personById, positionById } from "@/lib/domain";
 import type { AppState, CascadeMode, KpiItem } from "@/lib/types";
@@ -41,17 +42,18 @@ export function CascadeFields({
   onCascadeModeChange,
 }: Props) {
   if (rootAssignment) {
-    return <p className="text-sm text-muted">Top of the organization — no parent KPI</p>;
+    return <p className="text-sm text-muted">No parent KPI. This position is at the top of the organization.</p>;
   }
 
   const mode = item.cascadeMode ?? "indirect";
+  const modeLabel = mode === "direct" ? "Direct" : "Indirect";
 
   if (!canChangeParent && !canChangeCascadeMode) {
     return (
       <div className="text-sm">
         <span className="text-muted">Parent: </span>
         {parentDisplay(state, item.parentKpiItemId)}
-        <span className="ml-2 text-muted capitalize">({mode})</span>
+        <span className="ml-2 text-muted">· {modeLabel}</span>
       </div>
     );
   }
@@ -67,7 +69,7 @@ export function CascadeFields({
             value={item.parentKpiItemId ?? ""}
             onChange={(event) => onParentChange(event.target.value || null)}
           >
-            <option value="">Select parent…</option>
+            <option value="">Choose a parent KPI</option>
             {candidates.map((row) => (
               <option key={row.kpiItemId} value={row.kpiItemId}>
                 {row.label}
@@ -82,14 +84,14 @@ export function CascadeFields({
         </p>
       )}
       {canChangeCascadeMode ? (
-        <Field label="Cascade">
+        <Field label="Link to parent">
           <Select value={mode} onChange={(event) => onCascadeModeChange(event.target.value as CascadeMode)}>
-            <option value="indirect">Indirect — alignment only</option>
-            <option value="direct">Direct — check-in adds into the parent</option>
+            <option value="indirect">Indirect: aligned, actual stays on this KPI</option>
+            <option value="direct">Direct: actual adds into the parent</option>
           </Select>
         </Field>
       ) : (
-        <p className="text-xs text-muted capitalize">Cascade: {mode}</p>
+        <p className="text-xs text-muted">Link to parent: {modeLabel}</p>
       )}
     </div>
   );

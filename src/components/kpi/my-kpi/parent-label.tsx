@@ -4,6 +4,6 @@ export function parentLabel(state: AppState, item: KpiItem): string {
   if (!item.parentKpiItemId) return "—";
   const parent = state.kpiItems.find((row) => row.id === item.parentKpiItemId);
   if (!parent) return item.parentKpiItemId;
-  const mode = item.cascadeMode ?? "indirect";
-  return `${parent.name} (${mode})`;
+  const mode = item.cascadeMode === "direct" ? "Direct" : "Indirect";
+  return `${parent.name} · ${mode}`;
 }

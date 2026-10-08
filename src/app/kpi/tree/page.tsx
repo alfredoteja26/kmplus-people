@@ -2,10 +2,11 @@
 
 import { KpiDetailSheet } from "@/components/kpi/KpiDetailSheet";
 import { KpiForest } from "@/components/kpi/KpiForest";
+import { kpiYearName } from "@/components/kpi/kpi-copy";
 import { PhaseFacts } from "@/components/kpi/PhaseFacts";
-import { Callout, PageColumn, PageHeader } from "@/components/ui/Card";
-import { Field, Select } from "@/components/ui/Input";
-import { StatGauge } from "@/components/ui/StatGauge";
+import { Callout, PageColumn, PageHeader } from "@/components/product/Card";
+import { Field } from "@/components/product/Field";
+import { Select } from "@/components/product/Select";
 import {
   buildKpiForest,
   canUseTenantKpiTreeScope,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/kpi-tree";
 import { openCycle } from "@/lib/domain";
 import { validateDirectCascade } from "@/lib/direct";
+import { plural } from "@/lib/labels";
 import { useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
 
@@ -41,8 +43,8 @@ export default function KpiTreePage() {
   if (!cycle) {
     return (
       <div>
-        <PageHeader title="KPI tree" description="No KPI year is in planning or monitoring." />
-        <Callout tone="warning">No KPI year is in planning or monitoring. An admin starts the year on KPI Admin first.</Callout>
+        <PageHeader title="KPI tree" />
+        <Callout tone="warning">No KPI year is in planning or monitoring. An Admin starts one from KPI Admin.</Callout>
       </div>
     );
   }
@@ -52,43 +54,20 @@ export default function KpiTreePage() {
       <PageHeader
         className="mb-0"
         title="KPI tree"
-        description={`${cycle.name}. How KPIs connect. A solid line is Direct. A dashed line is Indirect. Open a card to see that KPI.`}
+        description={`How KPIs connect across ${kpiYearName(cycle)}. Solid lines add up; dashed lines show alignment only.`}
       />
-      <PhaseFacts
-        cycle={cycle}
-        extra={
-          <>
-            <StatGauge
-              label="Direct"
-              value={String(edgeStats.direct)}
-              percent={edgeStats.total === 0 ? 0 : edgeStats.direct / edgeStats.total}
-              tone="accent"
-              target="Solid line"
-              detail="The child uses the same unit and check-in frequency. Its actual adds into the parent."
-            />
-            <StatGauge
-              label="Indirect"
-              value={String(edgeStats.indirect)}
-              percent={edgeStats.total === 0 ? 0 : edgeStats.indirect / edgeStats.total}
-              tone="muted"
-              target="Dashed line"
-              detail="The child is aligned to the parent. Its actual stays on its own KPI."
-            />
-            <StatGauge
-              label="Direct breaks"
-              value={String(edgeStats.breaks)}
-              percent={edgeStats.direct === 0 ? 0 : edgeStats.breaks / edgeStats.direct}
-              tone={edgeStats.breaks > 0 ? "warning" : "accent"}
-              target="Unit or frequency"
-              detail={
-                edgeStats.breaks > 0
-                  ? "A Direct link is blocked because the unit or check-in frequency does not match."
-                  : "Every Direct link matches unit and check-in frequency."
-              }
-            />
-          </>
-        }
-      />
+      <PhaseFacts cycle={cycle} />
+      {edgeStats.total > 0 ? (
+        <p className="m-0 text-sm text-muted tabular-nums">
+          {plural(edgeStats.total, "link")} in this view: {edgeStats.direct} Direct, {edgeStats.indirect} Indirect.
+        </p>
+      ) : null}
+      {edgeStats.breaks > 0 ? (
+        <Callout tone="warning">
+          {edgeStats.breaks === 1 ? "1 Direct link does" : `${edgeStats.breaks} Direct links do`} not add up because the
+          child KPI&apos;s unit or KPI Check-in Frequency differs from its parent. Open the KPI marked Blocked to fix it.
+        </Callout>
+      ) : null}
       <Field label="Scope" className="max-w-sm">
         <Select
           value={scope}
@@ -96,7 +75,7 @@ export default function KpiTreePage() {
           className="min-w-[180px]"
         >
           <option value="team">My team</option>
-          {showTenantOption ? <option value="tenant">Whole tenant</option> : null}
+          {showTenantOption ? <option value="tenant">Whole company</option> : null}
         </Select>
       </Field>
       {forest ? (

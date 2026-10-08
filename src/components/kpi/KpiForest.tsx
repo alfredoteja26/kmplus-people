@@ -1,18 +1,18 @@
 "use client";
 
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/product/Badge";
 import { cn } from "@/lib/cn";
 import { validateDirectCascade } from "@/lib/direct";
-import { openCycle } from "@/lib/domain";
+import { isKpiAdmin, openCycle } from "@/lib/domain";
 import type { KpiForest as KpiForestData, KpiTreeNode } from "@/lib/kpi-tree";
 import { canViewKpiSet } from "@/lib/kpi-tree";
 import { useStore } from "@/lib/store";
 import type { CascadeMode } from "@/lib/types";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 export function KpiTreeLegend() {
   return (
-    <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0 text-sm text-ink" aria-label="Cascade legend">
+    <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0 text-sm text-ink" aria-label="Line types">
       <li className="flex items-center gap-2">
         <span className="h-0.5 w-8 bg-accent" aria-hidden />
         Direct
@@ -23,7 +23,7 @@ export function KpiTreeLegend() {
       </li>
       <li className="flex items-center gap-2">
         <span className="h-0 w-8 border-t-2 border-dashed border-warning" aria-hidden />
-        Direct break
+        Direct link blocked
       </li>
     </ul>
   );
@@ -82,12 +82,21 @@ export function KpiForest({
       .sort((left, right) => (nodeById.get(left)?.name ?? left).localeCompare(nodeById.get(right)?.name ?? right));
   }, [forest.edges, forest.nodes, nodeById]);
 
+  // On narrow screens the forest is wider than the viewport; start scrolled so the top KPIs are in view.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const hasNodes = forest.nodes.length > 0;
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+  }, [hasNodes, roots.length]);
+
   if (forest.nodes.length === 0) {
     return (
       <div className="space-y-4">
         <KpiTreeLegend />
-        <p className="rounded-[16px] border-[1.5px] border-line bg-paper px-4 py-8 text-sm text-muted">
-          No KPIs in this scope for the current KPI year. Add KPIs and a parent on My KPI, or widen the scope.
+        <p className="rounded-[16px] bg-paper px-4 py-8 text-sm text-muted shadow-[var(--shadow)]">
+          No KPIs in this scope yet. Choose a wider scope, or give your KPIs a parent KPI on My KPI.
         </p>
       </div>
     );
@@ -96,7 +105,7 @@ export function KpiForest({
   return (
     <div className="space-y-4">
       <KpiTreeLegend />
-      <div className="overflow-x-auto rounded-[16px] border-[1.5px] border-line bg-bg px-6 py-8">
+      <div ref={scrollerRef} className="overflow-x-auto rounded-[16px] border border-line bg-bg px-6 py-8">
         <div className="flex min-w-min items-start justify-center gap-10">
           {roots.map((rootId) => (
             <OrgBranch
@@ -106,7 +115,7 @@ export function KpiForest({
               childrenByParent={children}
               edgeByChild={edgeByChild}
               directBreakByNodeId={directBreakByNodeId}
-              canOpen={(kpiSetId) => canViewKpiSet(state, kpiSetId)}
+              canOpen={(kpiSetId) => canViewKpiSet(state, kpiSetId) || isKpiAdmin(state)}
               onOpen={onOpen}
             />
           ))}
@@ -148,7 +157,7 @@ function OrgBranch({
       />
       {kids.length > 0 ? (
         <>
-          <div className="h-6 w-px bg-line" aria-hidden />
+          <div className="h-6 w-px bg-line-strong" aria-hidden />
           <div className="flex items-start">
             {kids.map((kid, index) => (
               <div key={kid} className="flex flex-col items-center px-3">
@@ -200,7 +209,7 @@ function ChildLink({
       {only ? null : (
         <span
           className={cn(
-            "absolute top-0 h-px bg-line",
+            "absolute top-0 h-px bg-line-strong",
             first ? "left-1/2 right-0" : last ? "left-0 right-1/2" : "inset-x-0",
           )}
           aria-hidden
@@ -223,7 +232,7 @@ function NodeCard({
   onOpen?: (kpiSetId: string, kpiItemId: string) => void;
 }) {
   const actualLabel = node.actual === null ? "—" : String(node.actual);
-  const relation = directBreakReason ? "Direct break" : node.linkMode === "direct" ? "Direct" : node.linkMode === "indirect" ? "Indirect" : "Root";
+  const relation = node.linkMode === "direct" ? "Direct" : node.linkMode === "indirect" ? "Indirect" : "Top";
   const body = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -234,28 +243,38 @@ function NodeCard({
           </div>
         </div>
         {directBreakReason ? (
-          <span title={directBreakReason}>
-            <Badge tone="warning">Break</Badge>
-          </span>
+          <Badge tone="warning">Blocked</Badge>
         ) : (
-          <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-faint">{relation}</span>
+          <span className="shrink-0 text-xs font-medium text-muted">{relation}</span>
         )}
       </div>
       <div className="mt-2 text-xs tabular-nums text-muted">
         {actualLabel} / {node.target} {node.unit}
       </div>
+      {directBreakReason ? (
+        <p className="mt-2 mb-0 border-t border-line pt-2 text-xs leading-snug text-warning-foreground">
+          {directBreakReason}
+        </p>
+      ) : null}
+      {!linkable ? <p className="mt-1 mb-0 text-xs text-muted">Not in your view</p> : null}
     </>
   );
 
-  const className =
-    "w-56 rounded-[12px] border-[1.5px] border-line bg-paper px-3 py-2.5 text-left shadow-[var(--shadow)] transition hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const base = "w-56 rounded-[12px] bg-paper px-3 py-2.5 text-left shadow-[var(--shadow)]";
 
   if (!linkable || !onOpen) {
-    return <div className={cn(className, "cursor-default opacity-80")}>{body}</div>;
+    return <div className={cn(base, "cursor-default bg-wash shadow-none")}>{body}</div>;
   }
 
   return (
-    <button type="button" className={className} title={directBreakReason ?? `Open ${node.name}`} onClick={() => onOpen(node.kpiSetId, node.kpiItemId)}>
+    <button
+      type="button"
+      className={cn(
+        base,
+        "cursor-pointer transition-colors hover:bg-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+      )}
+      onClick={() => onOpen(node.kpiSetId, node.kpiItemId)}
+    >
       {body}
     </button>
   );

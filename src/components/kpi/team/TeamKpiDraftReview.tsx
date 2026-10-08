@@ -2,8 +2,8 @@
 
 import { CascadeFields } from "@/components/kpi/CascadeFields";
 import { DirectMixField } from "@/components/kpi/DirectMixField";
-import { Callout } from "@/components/ui/Card";
-import { Td, Th } from "@/components/ui/Table";
+import { Callout } from "@/components/product/Card";
+import { Table, Td, Th } from "@/components/product/Table";
 import { isRootAssignment } from "@/lib/cascade";
 import type { AppState, KpiItem, KpiSet } from "@/lib/types";
 
@@ -22,56 +22,56 @@ export function TeamKpiDraftReview({ state, cycleId, kpiSet, assignmentId, items
   return (
     <div className="space-y-3 py-1">
       {kpiSet.status === "returned" && kpiSet.returnComment ? (
-        <Callout tone="warning">Return comment: {kpiSet.returnComment}</Callout>
+        <Callout tone="warning">
+          <span className="font-medium">Returned:</span> {kpiSet.returnComment}
+        </Callout>
       ) : null}
-      <div className="overflow-x-auto rounded-[8px] border border-line bg-canvas">
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
+      <Table>
+        <thead>
+          <tr>
+            <Th>KPI</Th>
+            <Th>Weight</Th>
+            <Th>Parent KPI</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
             <tr>
-              <Th className="text-[10px]">KPI</Th>
-              <Th className="text-[10px]">Weight</Th>
-              <Th className="text-[10px]">Parent & cascade</Th>
+              <Td colSpan={3} className="text-sm text-muted">
+                No KPIs on this KPI Portfolio yet.
+              </Td>
             </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="border-b border-line px-3 py-2.5 text-[13px] text-muted">
-                  No items on this KPI portfolio yet.
-                </td>
+          ) : (
+            items.map((item) => (
+              <tr key={item.id} className="border-b border-line last:border-0">
+                <Td className="min-w-56 whitespace-normal align-top leading-normal">
+                  <div className="text-sm font-medium">{item.name}</div>
+                  {item.definition ? <div className="text-sm text-muted">{item.definition}</div> : null}
+                  <DirectMixField
+                    state={state}
+                    item={item}
+                    canEdit
+                    onChange={(directMix) => onSaveItem({ ...item, directMix })}
+                  />
+                </Td>
+                <Td className="align-top text-sm tabular-nums">{item.weight}%</Td>
+                <Td className="min-w-56 whitespace-normal align-top leading-normal">
+                  <CascadeFields
+                    state={state}
+                    cycleId={cycleId}
+                    item={item}
+                    rootAssignment={rootAssignment}
+                    canChangeParent
+                    canChangeCascadeMode
+                    onParentChange={(parentId) => onSaveItem({ ...item, parentKpiItemId: parentId })}
+                    onCascadeModeChange={(cascadeMode) => onSaveItem({ ...item, cascadeMode })}
+                  />
+                </Td>
               </tr>
-            ) : (
-              items.map((item) => (
-                <tr key={item.id}>
-                  <Td>
-                    <div className="font-medium">{item.name}</div>
-                    {item.definition ? <div className="text-muted">{item.definition}</div> : null}
-                    <DirectMixField
-                      state={state}
-                      item={item}
-                      canEdit
-                      onChange={(directMix) => onSaveItem({ ...item, directMix })}
-                    />
-                  </Td>
-                  <Td>{item.weight}%</Td>
-                  <Td>
-                    <CascadeFields
-                      state={state}
-                      cycleId={cycleId}
-                      item={item}
-                      rootAssignment={rootAssignment}
-                      canChangeParent
-                      canChangeCascadeMode
-                      onParentChange={(parentId) => onSaveItem({ ...item, parentKpiItemId: parentId })}
-                      onCascadeModeChange={(cascadeMode) => onSaveItem({ ...item, cascadeMode })}
-                    />
-                  </Td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            ))
+          )}
+        </tbody>
+      </Table>
     </div>
   );
 }
