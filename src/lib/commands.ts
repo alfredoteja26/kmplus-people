@@ -48,7 +48,15 @@ import type {
 } from "./types";
 import { TENANT_ID } from "./types";
 
-export type CommandResult<T = object> = { state: AppState } & T;
+/** Every command returns the next state. A set `error` means the command was refused and `state` is unchanged. */
+export type CommandResult<T = object> = { state: AppState; error?: string | null } & T;
+
+const HR_ONLY = "Only HR can change people, positions, and CV reviews";
+
+/** People, Organization, and CV writes belong to HR (and the Tenant admin login), not the Admin grant. */
+function hrDenied(state: AppState): string | null {
+  return isHrLike(state.currentRole) ? null : HR_ONLY;
+}
 
 export type CreatePersonInput = {
   legalName: string;
@@ -84,6 +92,8 @@ function audit(state: AppState, action: string, entity: string, entityId: string
 }
 
 export function createPerson(state: AppState, input: CreatePersonInput): CommandResult<{ personId: string }> {
+  const denied = hrDenied(state);
+  if (denied) return { state, personId: "", error: denied };
   const personId = nid("person");
   const employmentId = nid("emp");
   const next: AppState = {
@@ -123,6 +133,8 @@ export function createPerson(state: AppState, input: CreatePersonInput): Command
 }
 
 export function updatePerson(state: AppState, personId: string, patch: Partial<Person>): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const next: AppState = {
     ...state,
     people: state.people.map((row) => (row.id === personId ? { ...row, ...patch, id: row.id, tenantId: row.tenantId } : row)),
@@ -131,6 +143,8 @@ export function updatePerson(state: AppState, personId: string, patch: Partial<P
 }
 
 export function confirmHire(state: AppState, personId: string): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const person = state.people.find((row) => row.id === personId);
   if (!person) return { state };
 
@@ -238,6 +252,8 @@ function draftPortfolioForActiveYear(state: AppState, assignmentId: string): App
 }
 
 export function assignPosition(state: AppState, personId: string, positionId: string, startDate: string): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const occupied = state.assignments.find((row) => row.positionId === positionId && row.endDate === null);
   if (occupied && occupied.personId !== personId) {
     return { state };
@@ -266,6 +282,8 @@ export function assignPosition(state: AppState, personId: string, positionId: st
 
 /** Second (or further) current Assignment. Does not end existing seats. */
 export function addAssignment(state: AppState, personId: string, positionId: string, startDate: string): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const occupied = state.assignments.find((row) => row.positionId === positionId && row.endDate === null);
   if (occupied) {
     return { state };
@@ -295,6 +313,8 @@ export function addAssignment(state: AppState, personId: string, positionId: str
 }
 
 export function createPosition(state: AppState, input: Omit<Position, "id" | "tenantId">): CommandResult<{ positionId: string }> {
+  const denied = hrDenied(state);
+  if (denied) return { state, positionId: "", error: denied };
   const positionId = nid("pos");
   const next: AppState = {
     ...state,
@@ -308,6 +328,8 @@ export function updatePosition(
   positionId: string,
   patch: Partial<Omit<Position, "id" | "tenantId">>,
 ): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const next: AppState = {
     ...state,
     positions: state.positions.map((row) => (row.id === positionId ? { ...row, ...patch } : row)),
@@ -322,6 +344,9 @@ export function requestCorrection(
   currentValue: string,
   proposedValue: string,
 ): CommandResult {
+  if (personId !== state.currentPersonId && !isHrLike(state.currentRole)) {
+    return { state, error: "You can only request corrections to your own profile" };
+  }
   const row: CorrectionRequest = {
     id: nid("corr"),
     tenantId: TENANT_ID,
@@ -336,6 +361,8 @@ export function requestCorrection(
 }
 
 export function resolveCorrection(state: AppState, id: string, status: "accepted" | "rejected"): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const found = state.corrections.find((row) => row.id === id);
   if (!found) return { state };
   let people = state.people;
@@ -357,6 +384,8 @@ export function resolveCorrection(state: AppState, id: string, status: "accepted
 }
 
 export function addCv(state: AppState, cv: Omit<CurriculumVitae, "id" | "tenantId">): CommandResult<{ cvId: string }> {
+  const denied = hrDenied(state);
+  if (denied) return { state, cvId: "", error: denied };
   const cvId = nid("cv");
   const next: AppState = {
     ...state,
@@ -372,6 +401,8 @@ export function decideCvField(
   decision: FieldDecision,
   editedValue?: string,
 ): CommandResult {
+  const denied = hrDenied(state);
+  if (denied) return { state, error: denied };
   const next: AppState = {
     ...state,
     cvs: state.cvs.map((cv) =>
@@ -893,6 +924,9 @@ export function removeKpiItem(state: AppState, id: string): CommandResult<{ erro
 }
 
 export function submitKpiSet(state: AppState, kpiSetId: string): CommandResult<{ error: string | null }> {
+  if (!canDraftKpiPortfolio(state, kpiSetId)) {
+    return { state, error: "Only the person, their line manager, or an admin may submit this KPI portfolio" };
+  }
   const closed = closedYearErrorForSet(state, kpiSetId);
   if (closed) return { state, error: closed };
   const items = itemsForSet(state, kpiSetId);

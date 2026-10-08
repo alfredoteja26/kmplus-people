@@ -72,7 +72,7 @@ describe("Project Admin commands", () => {
   });
 
   it("refuses a Project code that differs only by case", () => {
-    let state = openSampleProject(createInitialState()).state;
+    const state = openSampleProject(createInitialState()).state;
     const again = openProject(asAlfredo(state), {
       code: "kmp",
       name: "Other",
