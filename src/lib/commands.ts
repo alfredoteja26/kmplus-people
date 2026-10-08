@@ -389,7 +389,10 @@ export function decideCvField(
   return { state: audit(next, "update", "CurriculumVitae", cvId, `${decision} ${key}`) };
 }
 
-export function applyCv(state: AppState, cvId: string, mode: ApplyCvMode): CommandResult<{ personId: string | null }> {
+export function applyCv(state: AppState, cvId: string, mode: ApplyCvMode): CommandResult<{ personId: string | null; error?: string | null }> {
+  if (!isHrLike(state.currentRole)) {
+    return { state, personId: null, error: "Only HR may confirm a Curriculum Vitae" };
+  }
   const cv = state.cvs.find((row) => row.id === cvId);
   if (!cv) return { state, personId: null };
   const accepted = cv.fields.filter((field) => field.decision === "accepted" || field.decision === "edited");
@@ -598,6 +601,7 @@ function approvedPortfolioEditBlocked(state: AppState, kpiSetId: string): string
   if (!kpiSet || kpiSet.status !== "approved") return null;
   const cycle = findKpiYear(state, kpiSet.cycleId);
   if (!cycle || cycle.adjustmentOpen) return null;
+  if (normalizeKpiYearPhase(cycle) !== "monitoring") return null;
   return "Open the adjustment window to change a KPI portfolio that is already approved";
 }
 
@@ -845,6 +849,9 @@ export function upsertKpiItem(
   if (closed) return { state, error: closed };
   const adjustmentBlocked = approvedPortfolioEditBlocked(state, item.kpiSetId);
   if (adjustmentBlocked) return { state, error: adjustmentBlocked };
+  if (!canDraftKpiPortfolio(state, item.kpiSetId)) {
+    return { state, error: "Only the person, their line manager, or an admin may draft this KPI portfolio" };
+  }
   const id = item.id ?? nid("ki");
   const exists = state.kpiItems.some((row) => row.id === id);
   const existing = state.kpiItems.find((row) => row.id === id);
@@ -1186,3 +1193,55 @@ export function returnCheckIn(
   };
   return { state: audit(next, "update", "CheckIn", checkInId, `Returned: ${comment}`), error: null };
 }
+
+export {
+  openProject,
+  updateProject,
+  addStaffing,
+  updateStaffing,
+  deleteStaffing,
+  upsertWorkItem,
+  deleteWorkItem,
+  addDeliverable,
+  updateDeliverable,
+  deleteDeliverable,
+  addDeliverableStatus,
+  renameDeliverableStatus,
+  reorderDeliverableStatuses,
+  removeDeliverableStatus,
+  addDeliverableCategory,
+  renameDeliverableCategory,
+  reorderDeliverableCategories,
+  removeDeliverableCategory,
+  fileLeaveRequest,
+  decideLeaveRequest,
+  addLeaveType,
+  renameLeaveType,
+  reorderLeaveTypes,
+  removeLeaveType,
+  addPublicHoliday,
+  renamePublicHoliday,
+  removePublicHoliday,
+  applyIndonesiaHolidayFeed,
+  addTimeBlockType,
+  renameTimeBlockType,
+  reorderTimeBlockTypes,
+  removeTimeBlockType,
+  upsertTimeBlock,
+  deleteTimeBlock,
+  respondToInvite,
+  setWeekGrid,
+  updatePersonContact,
+} from "./work-delivery-commands";
+
+export type {
+  OpenProjectInput,
+  UpdateProjectInput,
+  AddStaffingInput,
+  UpsertWorkItemInput,
+  AddDeliverableInput,
+  FileLeaveInput,
+  IndonesiaHolidayFeedItem,
+  UpsertTimeBlockInput,
+  ContactPatch,
+} from "./work-delivery-commands";
