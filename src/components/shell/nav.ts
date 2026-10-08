@@ -1,7 +1,20 @@
 import { isHrLike } from "@/lib/domain";
 import type { Role } from "@/lib/types";
 
-export type NavIconId = "home" | "people" | "org" | "cv" | "kpi" | "team" | "cycle" | "tree";
+export type NavIconId =
+  | "home"
+  | "people"
+  | "org"
+  | "cv"
+  | "kpi"
+  | "team"
+  | "cycle"
+  | "tree"
+  | "projects"
+  | "timesheet"
+  | "leave"
+  | "leave-decide"
+  | "project-admin";
 
 export type NavItem = {
   href: string;
@@ -26,9 +39,19 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Performance",
     items: [
       { href: "/kpi", label: "My KPI", icon: "kpi" },
-      { href: "/kpi/team", label: "Team", icon: "team" },
+      { href: "/kpi/team", label: "Team KPIs", icon: "team" },
       { href: "/kpi/cycle", label: "KPI Admin", icon: "cycle" },
       { href: "/kpi/tree", label: "KPI Tree", icon: "tree" },
+    ],
+  },
+  {
+    label: "Work",
+    items: [
+      { href: "/projects", label: "Projects", icon: "projects" },
+      { href: "/timesheet", label: "Timesheet", icon: "timesheet" },
+      { href: "/leave/file", label: "Leave", icon: "leave" },
+      { href: "/leave/decide", label: "Leave requests", icon: "leave-decide" },
+      { href: "/project-admin", label: "Project Admin", icon: "project-admin" },
     ],
   },
 ];
@@ -36,6 +59,8 @@ export const NAV_GROUPS: NavGroup[] = [
 function canSeeNavItem(href: string, role: Role, kpiAdmin: boolean): boolean {
   if (href === "/kpi/team") return role === "manager" || isHrLike(role);
   if (href === "/kpi/cycle") return kpiAdmin;
+  if (href === "/project-admin") return kpiAdmin;
+  if (href === "/leave/decide") return kpiAdmin;
   return true;
 }
 
