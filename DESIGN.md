@@ -7,9 +7,15 @@ colors:
   paper: "#FFFFFF"
   ink: "#222222"
   muted: "#5E5E5E"
-  faint: "#757575"
+  faint: "#6A6A6A"
   line: "#DEDEDE"
-  accent: "#1E857C"
+  accent: "#1A7870"
+  accent-hover: "#145F59"
+  line-strong: "#949494"
+  brand-deep: "#0A706D"
+  brand-deeper: "#0B5A56"
+  brand-deepest: "#0A4643"
+  brand-wave: "#8FE6DD"
   accent-2: "#009D9A"
   tint: "#EDFFFE"
   success: "#12A864"
@@ -19,32 +25,32 @@ colors:
   on-accent: "#FFFFFF"
 typography:
   display:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 42px
     fontWeight: 500
     lineHeight: 1.1
   heading-1:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 30px
     fontWeight: 500
     lineHeight: 1.2
   heading-2:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 22px
     fontWeight: 500
     lineHeight: 1.3
   body-md:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.55
   body-sm:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 14px
     fontWeight: 400
     lineHeight: 1.5
   caption:
-    fontFamily: Inter
+    fontFamily: Plus Jakarta Sans
     fontSize: 12px
     fontWeight: 500
     letterSpacing: 0.06em
@@ -69,7 +75,7 @@ components:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.on-accent}"
     rounded: "{rounded.md}"
-    height: 36px
+    height: 44px
     padding: 0 16px
   button-secondary:
     backgroundColor: "{colors.paper}"
@@ -95,7 +101,7 @@ components:
 
 ## Overview
 
-KMPlus People follows the internal KMPlus kit at [design-system/kmplus.html](design-system/kmplus.html) (source: kmplusconsulting.com computed styles, 14 Sep 2026). Quiet sage SaaS. Light surfaces. Inter. Sage buttons.
+KMPlus People follows the internal KMPlus kit at [design-system/kmplus.html](design-system/kmplus.html) (source: kmplusconsulting.com computed styles, 14 Sep 2026). Quiet sage SaaS. Light surfaces. Plus Jakarta Sans. Sage buttons.
 
 **Logo:** stacked **KM / PLUS** with five radiating bars. Use [brand/kmplus-logo-dark.svg](brand/kmplus-logo-dark.svg) on the light header. Do not invent a replacement mark.
 
@@ -104,7 +110,9 @@ KMPlus People follows the internal KMPlus kit at [design-system/kmplus.html](des
 - **Canvas** `--bg` `#FAFAFA`: page background.
 - **Paper** `--paper` `#FFFFFF`: cards, tables, inputs.
 - **Ink** `--ink` `#222222`: body text.
-- **Accent** `--accent` `#1E857C`: primary actions, links, selected nav.
+- **Accent** `--accent` `#1A7870`: primary actions, links, selected nav. One step darker than the kit's `#1E857C`, which failed WCAG AA with white text (4.47:1). Hover darkens to `--accent-hover` `#145F59`; it never lightens.
+- **Brand deep** `--brand-deep` / `--brand-deeper` / `--brand-deepest` (`#0A706D` → `#0A4643`) and `--brand-wave` `#8FE6DD`: the sign-in brand panel gradient and its fine-line wave. Never on work surfaces.
+- **Line strong** `--line-strong` `#949494`: input borders and tree connectors (3:1). `--line` stays for dividers.
 - **Accent 2** `--accent-2` `#009D9A`: text accents, progress fill.
 - **Tint** `--tint` `#EDFFFE`: mint wash, selected row, badge-neutral wash.
 - Semantic: success `#12A864`, warning `#C9891A`, danger `#C4353A`, info `#0673C0`.
@@ -113,15 +121,17 @@ Do not use Pelindo navy, Portaverse blue, or dark `#0B2131` chrome on product sc
 
 ## Typography
 
-Inter for all UI (display, headings, body). IBM Plex Mono for hex labels and code only. No Fraunces, Lora, or other display serifs in the app.
+Plus Jakarta Sans for all UI (display, headings, body). IBM Plex Mono for hex labels and code only. No Fraunces, Lora, or other display serifs in the app.
 
 ## Layout
 
 Collapsible left sidebar on `--paper` with 1.5px `--line`. Expanded: icon + label, sage filled pill for the active item. Collapsed: icon rail (~72px), tooltips. Default expanded on desktop, collapsed on small viewports. User can pin collapsed. Quiet sage SaaS — not navy chrome, not a heavy dashboard shell.
 
-**Top bar:** official KM/PLUS mark, product name People, tenant `kmplus`, role switcher. No Project or payslip.
+**Top bar:** official KM/PLUS mark, product name People, the signed-in Person and their access (e.g. "Employee · Admin"), Reminders. No payslip.
 
-**Sidebar groups:** Home, People, Organization, then Performance (My KPI, Team, KPI Admin, KPI tree). CV review is a People subpage, not a top-level item.
+**Sidebar groups:** Home, People, Organization; Performance (My KPI, Team KPIs, KPI Admin, KPI Tree); Work (Projects, Timesheet, Leave, and for Admin: Leave requests, Project Admin). CV review is a People subpage, not a top-level item. See ADR-0010.
+
+**Sign-in:** the sign-in pages are not a work surface. On desktop they split into a deep-sage brand panel (mark, "KMPlus People", tagline, the brand-kit wave) and a light form panel; on mobile the brand panel becomes a short band above the form. Still no navy.
 
 Main column is `--bg` with one paper work surface. Performance pages keep that surface, and the stat gauges above it, inside a 64rem column so a status or a button does not sit on the opposite edge of a wide window. The page title and its status sit on one line. Actions inside a panel sit together at the start of the panel footer.
 
@@ -133,7 +143,7 @@ Phase screens: home worklist, Person list/profile plus CV review subpage, Organi
 
 ## Elevation and Depth
 
-Cards and panels: 1.5px `--line` border, radius 16px, optional `--shadow` (`0 10px 28px -14px rgba(34,34,34,.16)`). No glassmorphism.
+Cards and panels: radius 16px, `--shadow` (`0 10px 28px -14px rgba(34,34,34,.16)`), no hard outline. No glassmorphism. A detail sheet floats inset from the screen edge, with the same radius and shadow.
 
 ## Shapes
 
@@ -141,14 +151,16 @@ Controls radius 12px. Panels 16px. Status badges are pills. Org nodes use 12px r
 
 ## Components
 
-- **Primary button:** sage fill, white label, height 36px.
+- **Primary button:** sage fill, white label, height 44px.
 - **Secondary:** paper, ink, 1.5px line border.
 - **Ghost:** transparent, muted text.
 - **Input:** paper, 38px, focus ring sage 18% mix.
-- **Badge:** draft = tint/muted; in review = accent wash; done = success; blocked = warning; risk = danger.
+- **Badge:** pill, 32px tall, soft shadow so a wash still separates from the canvas. Draft = tint/muted; in review = accent wash; done = success; blocked = warning; risk = danger.
 - **Table:** paper, faint uppercase headers, teal for selected row and links.
 - **Review queue:** each parsed field is a row with Accept / Edit / Reject.
-- **Stat gauge:** paper card, 16px radius, 1.5px line. An open ring with the gap at the bottom. Sage when the fact is on track, warning when it is short, danger when it is overdue. The number sits in the ring. One target line and one detail sentence sit under it.
+- **Stat gauge:** paper card, 16px radius, shadow, no outline. An open ring with the gap at the bottom. Sage when the fact is on track, warning when it is short, danger when it is overdue. The number sits in the ring. One target line and one detail sentence sit under it.
+
+The living specimen is `/design-system`. It shows the coss-ui set used by this app: buttons, fields, selects, badges, cards, tables, dialogs, floating sheets, and the rest of the installed primitives (accordion, alert, menu, tabs, toast, calendar, and the others in `src/components/coss`). Hover washes use the mint tint. `--accent` stays sage.
 
 ## Do's and Don'ts
 
@@ -156,7 +168,7 @@ Controls radius 12px. Panels 16px. Status badges are pills. Org nodes use 12px r
 
 - Use the official KMPlus stacked mark in the top bar, with a collapsible sage sidebar.
 - Keep people, org, CV, and KPI on light canvas.
-- Copy CTA green `#1E857C` for primary actions.
+- Use `--accent` (`#1A7870`) for primary actions.
 
 **Don't**
 

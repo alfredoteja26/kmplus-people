@@ -14,8 +14,8 @@ People at KMPlus Optima Internasional (tenant `kmplus`, about 20–30 people). T
 | --- | --- |
 | **Employee** (Person with User) | Own Person profile, draft own **KpiPortfolio**, submit **KpiCheckIns** when allowed |
 | **Manager** (as **LineManager**) | Team queue: draft/agree/return reports’ portfolios and Check-Ins |
-| **HR** | Person, Employment, OrgUnit, Position, Grade; CV review queue; create a User and change the login email. Does **not** imply **Admin** |
-| **Admin** | User grant for **KPI Admin** (start **KpiPlanning** / **KpiMonitoring**, open **KpiAdjustmentWindow**, close **KpiYear**) and for opening a **Project** (code, name, optional client, required start, optional end) and for **Staffing**. Any Admin may edit those Project fields and who is on the Project. A Person’s Loads may sum past 100, and that overload stays visible. Stacks with Employee or Manager. Does not create Users |
+| **HR** | Person, Employment, OrgUnit, Position, Grade; CV review queue; create a User and change the login email. Confirms **CurriculumVitae** facts. Does **not** imply **Admin** |
+| **Admin** | User grant for **KPI Admin** (start **KpiPlanning** / **KpiMonitoring**, open **KpiAdjustmentWindow**, close **KpiYear**) and for opening a **Project** (code, name, optional client, required start, optional end) and for **Staffing**. Any Admin may edit those Project fields and who is on the Project. A Person’s Loads may sum past 100, and that overload stays visible. The same grant reads organization and per-person project and timesheet reports, and every Person’s approved leave. Those reports are read-only. Stacks with Employee or Manager. Does not create Users |
 | **Finance** | Phase 2 payslips. Not a Phase 1 persona. Opening a Project is the **Admin** grant, not a separate project-owner role |
 
 ## Product Purpose
@@ -34,11 +34,11 @@ Internal tool for one company, KMPlus Optima Internasional. English UI. The work
 
 ## Capabilities and Constraints
 
-**Phase 1 (ship):** Person + Employment; Organization (OrgUnit, Position, Grade, Assignments); CV import with human review before Person writes; KPI planning / monitoring / Check-In / score at year close (see [CONTEXT.md](CONTEXT.md) Performance terms and `docs/adr/`). Sign-in uses the corporate login email. Passwords are not stored in this app.
+**Phase 1 (ship):** Person + Employment; Organization (OrgUnit, Position, Grade, Assignments); CV import with human review before Person writes; KPI planning / monitoring / Check-In / score at year close, with navbar **KpiReminder**s (see [CONTEXT.md](CONTEXT.md) Performance terms and `docs/adr/`). Sign-in uses the corporate login email. Passwords are not stored in this app.
 
-**Phase 2 (specified, not built):** Compensation/payslip (Grade → band → document; Finance ACL); Project + Staffing + ProjectUpdate (no task board). “Assignment” in project talk is **Staffing**, not org **Assignment**.
+**Phase 2 (specified, not built):** Compensation/payslip (Grade → band → document; Finance ACL); Project, a flat **WorkItem** list, **Deliverable** files and links, Staffing, **LeaveRequest** (cuti, sick, or remote), **PublicHoliday**, and **TimeBlock**. Signed-in Users land on **Home**. A Project has no health note. “Assignment” in project talk is **Staffing**, not org **Assignment**.
 
-**Later / out:** Leave, ATS, LMS, 360, calibration committee, bonus formula, task management.
+**Later / out:** Leave balances, ATS, LMS, 360, calibration committee, bonus formula, task management.
 
 Seed-SaaS constraints:
 
@@ -61,7 +61,7 @@ Do not use:
 - Pelindo / Portaverse / InJourney / Rinjani colors or marks
 - Dark navy chrome (`#0B2131`) on product work surfaces (the marketing site may be dark; this app is light)
 - Generic purple AI glow, rainbow dashboards, heavy serif display
-- Project, Staffing, or payslip navigation in Phase 1
+- Payslip navigation (Project, Timesheet, and Leave live in the Work group; see ADR-0010)
 - Portaverse PMS as a visual or domain clone (three-level KPI trees, calibration committees, TW1/TW2 portfolio copies)
 
 The visual contract is [DESIGN.md](DESIGN.md) and [design-system/kmplus.html](design-system/kmplus.html).
