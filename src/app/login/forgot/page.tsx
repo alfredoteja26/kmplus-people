@@ -2,12 +2,15 @@
 
 import { AuthFrame, BackToSignIn, CheckMark } from "@/components/auth/AuthFrame";
 import { FORGOT_PASSWORD_MESSAGE } from "@/lib/auth-policy";
-import { Button } from "@/components/ui/Button";
-import { Callout } from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Input";
-import { useState, type FormEvent } from "react";
+import { Button } from "@/components/coss/button";
+import { Callout } from "@/components/product/Card";
+import { Field } from "@/components/product/Field";
+import { Input } from "@/components/coss/input";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
+  const firstTime = useSearchParams().get("first") === "1";
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState("");
   const [error, setError] = useState("");
@@ -24,12 +27,12 @@ export default function ForgotPasswordPage() {
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(payload.error || "Could not send the email.");
+        setError(payload.error || "We couldn’t send the email. Try again in a moment.");
         return;
       }
       setSentTo(address);
     } catch {
-      setError("Could not send the email.");
+      setError("We couldn’t reach KMPlus People. Check your connection and try again.");
     } finally {
       setPending(false);
     }
@@ -45,25 +48,26 @@ export default function ForgotPasswordPage() {
       <AuthFrame title="Check your inbox">
         <CheckMark />
         <p className="mt-0 mb-2 text-sm text-muted">
-          {FORGOT_PASSWORD_MESSAGE} We used <span className="font-medium text-ink">{sentTo}</span>.
+          {FORGOT_PASSWORD_MESSAGE} We sent it to <span className="font-medium text-ink">{sentTo}</span>.
         </p>
-        <p className="mt-0 mb-5 text-sm text-muted">The link expires in 1 hour. If it is not there, check spam.</p>
+        <p className="mt-0 mb-5 text-sm text-muted">The link works for 1 hour. Not there? Check your spam folder.</p>
         {error ? <Callout tone="danger">{error}</Callout> : null}
         <div className="mt-4 grid gap-3">
           <Button type="button" className="w-full" disabled={pending} onClick={() => void send(sentTo)}>
             {pending ? "Sending…" : "Resend link"}
           </Button>
-          <button
+          <Button
             type="button"
-            className="text-sm text-muted hover:text-ink"
+            variant="ghost"
+            className="w-full"
             onClick={() => {
               setSentTo("");
               setEmail("");
               setError("");
             }}
           >
-            Try a different email
-          </button>
+            Use a different email
+          </Button>
           <BackToSignIn />
         </div>
       </AuthFrame>
@@ -71,23 +75,41 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthFrame title="Forgot password" description="Enter your KMPlus email and we will send a link to set a password.">
+    <AuthFrame
+      title={firstTime ? "Set your password" : "Reset your password"}
+      description={
+        firstTime
+          ? "Enter your @kmplus.co.id work email. We’ll send a link to choose your password."
+          : "Enter your @kmplus.co.id work email. We’ll send a link to choose a new password."
+      }
+    >
       <form className="grid gap-4" onSubmit={onSubmit}>
-        <Field label="Email">
+        <Field label="Work email">
           <Input
             type="email"
             autoComplete="username"
+            inputMode="email"
+            placeholder="name@kmplus.co.id"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
+            autoFocus
           />
         </Field>
         {error ? <Callout tone="danger">{error}</Callout> : null}
-        <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "Sending…" : "Send reset link"}
+        <Button type="submit" size="lg" className="w-full" disabled={pending}>
+          {pending ? "Sending…" : "Send link"}
         </Button>
         <BackToSignIn />
       </form>
     </AuthFrame>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordForm />
+    </Suspense>
   );
 }
