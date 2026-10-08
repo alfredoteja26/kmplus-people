@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/coss/button";
 import { Card, PageColumn } from "@/components/product/Card";
 
-export const metadata = { title: "Page not found" };
+export const metadata = { title: { absolute: "Page not found · KMPlus People" } };
 
 export default function NotFound() {
   return (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-export const metadata: Metadata = { title: "KPI Admin" };
+export const metadata: Metadata = { title: { absolute: "KPI Admin · KMPlus People" } };
 
 export default function Layout({ children }: { children: ReactNode }) {
   return children;

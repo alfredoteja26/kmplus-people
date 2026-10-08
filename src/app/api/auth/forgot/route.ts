@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { FORGOT_PASSWORD_MESSAGE, shouldSendPasswordEmail } from "@/lib/auth-policy";
-import { firebaseAuthConfigured, sendPasswordReset } from "@/lib/server/firebase-auth";
+import { supabaseAuthConfigured, sendPasswordReset } from "@/lib/server/supabase-auth";
 import { getPrisma } from "@/lib/server/prisma";
 import { TENANT_ID } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (!firebaseAuthConfigured()) {
+  if (!supabaseAuthConfigured()) {
     return NextResponse.json({ error: "Password email is not available yet." }, { status: 503 });
   }
 

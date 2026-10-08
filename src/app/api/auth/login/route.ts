@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { evaluateLogin, rejectPassword } from "@/lib/server/login";
-import { firebaseAuthConfigured, signInWithPassword } from "@/lib/server/firebase-auth";
+import { supabaseAuthConfigured, signInWithPassword } from "@/lib/server/supabase-auth";
 import { verifyPassword } from "@/lib/server/password";
 import { getPrisma } from "@/lib/server/prisma";
 import { writeSession } from "@/lib/server/session";
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   const localOk = record?.passwordHash ? verifyPassword(password, record.passwordHash) : false;
   let remoteOk = false;
-  if (firebaseAuthConfigured()) {
+  if (supabaseAuthConfigured()) {
     try {
       await signInWithPassword(result.user.email, password);
       remoteOk = true;
