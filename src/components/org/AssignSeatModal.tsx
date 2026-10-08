@@ -1,8 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
-import { Field, Select } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/coss/button";
+import { Field } from "@/components/product/Field";
+import { Select } from "@/components/product/Select";
+import { AppDialog } from "@/components/product/AppDialog";
 import { assignmentForPosition, currentAssignment, personById, positionById, todayIso } from "@/lib/domain";
 import { useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
@@ -38,14 +39,14 @@ export function AssignSeatModal({
   const occupied = assignmentForPosition(state, positionId);
 
   return (
-    <Modal title="Assign to seat" onClose={onClose}>
+    <AppDialog title="Assign person" onClose={onClose}>
       <p className="mt-0 mb-4 text-sm text-muted">
-        Seat: <strong className="font-medium text-ink">{position.title}</strong>
+        Position: <strong className="font-medium text-ink">{position.title}</strong>
       </p>
       {occupied ? (
-        <p className="text-sm text-warning">
-          This seat is already filled by {personById(state, occupied.personId)?.legalName}. End that assignment from
-          their profile before reassigning here.
+        <p className="text-sm text-warning-foreground">
+          {personById(state, occupied.personId)?.legalName} already holds this position. Assign them to another
+          position from their profile first.
         </p>
       ) : (
         <form
@@ -61,7 +62,7 @@ export function AssignSeatModal({
             <Select value={personId} onChange={(event) => setPersonId(event.target.value)} required>
               <option value="">Select a person</option>
               {unassigned.length > 0 ? (
-                <optgroup label="No current assignment">
+                <optgroup label="No current position">
                   {unassigned.map((person) => (
                     <option key={person.id} value={person.id}>
                       {person.legalName}
@@ -70,7 +71,7 @@ export function AssignSeatModal({
                 </optgroup>
               ) : null}
               {assigned.length > 0 ? (
-                <optgroup label="Has a seat (moves on assign)">
+                <optgroup label="Has a position (will move here)">
                   {assigned.map((person) => (
                     <option key={person.id} value={person.id}>
                       {person.legalName}
@@ -80,19 +81,19 @@ export function AssignSeatModal({
               ) : null}
             </Select>
           </Field>
-          <p className="m-0 text-[13px] text-muted">
-            Assigning ends the person&apos;s current assignment and opens this seat.
+          <p className="m-0 text-sm text-muted">
+            Assigning ends the person&apos;s current position and moves them here.
           </p>
           <div className="flex gap-2">
             <Button type="submit" disabled={!personId}>
               Assign
             </Button>
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
           </div>
         </form>
       )}
-    </Modal>
+    </AppDialog>
   );
 }

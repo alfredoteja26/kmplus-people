@@ -231,6 +231,32 @@ function parseAdditionalSkills(text: string): SkillRecord[] {
   return rows;
 }
 
+const CV_KIND_LABELS: Record<string, string> = {
+  work: "Work",
+  organization: "Organization",
+  volunteer: "Volunteer",
+  technical: "Technical",
+  language: "Language",
+  personal: "Personal",
+};
+
+function cvKindLabel(kind: string | undefined): string {
+  return kind ? (CV_KIND_LABELS[kind] ?? kind) : "";
+}
+
+/** "2022", "2026" → "2022–2026"; one side only → that side; neither → "". */
+function cvDateSpan(start: string | null | undefined, end: string | null | undefined): string {
+  const from = start?.trim() ?? "";
+  const to = end?.trim() ?? "";
+  if (from && to) return from === to ? from : `${from}–${to}`;
+  return from || to;
+}
+
+/** Joins the non-empty parts and wraps a non-empty suffix in parentheses. Never shows "@ ", "()", or "[]". */
+function withParen(main: string, paren: string): string {
+  return paren ? `${main} (${paren})` : main;
+}
+
 export function formatCvFieldValue(key: string, value: string): string {
   if (!value.trim()) return "";
   try {
@@ -238,19 +264,30 @@ export function formatCvFieldValue(key: string, value: string): string {
     if (!Array.isArray(parsed)) return value;
     if (key === "education") {
       return (parsed as EducationRecord[])
-        .map((row) => [row.credential, row.institution, row.startDate, row.endDate, row.gpa].filter(Boolean).join(" · "))
+        .map((row) =>
+          [row.credential, row.institution, cvDateSpan(row.startDate, row.endDate), row.gpa ? `GPA ${row.gpa}` : ""]
+            .filter(Boolean)
+            .join(" · "),
+        )
         .join("\n");
     }
     if (key === "experience") {
       return (parsed as ExperienceRecord[])
-        .map((row) => `[${row.kind}] ${row.title} @ ${row.organization} (${row.startDate}–${row.endDate})`)
+        .map((row) => {
+          const role = [row.title, row.organization].map((part) => part?.trim()).filter(Boolean).join(", ");
+          const kind = cvKindLabel(row.kind);
+          const main = [kind, role].filter(Boolean).join(": ");
+          return withParen(main, cvDateSpan(row.startDate, row.endDate));
+        })
         .join("\n");
     }
     if (key === "certifications") {
-      return (parsed as CertificationRecord[]).map((row) => `${row.name} — ${row.issuer} (${row.date})`).join("\n");
+      return (parsed as CertificationRecord[])
+        .map((row) => withParen([row.name, row.issuer].map((part) => part?.trim()).filter(Boolean).join(" — "), row.date?.trim() ?? ""))
+        .join("\n");
     }
     if (key === "skills") {
-      return (parsed as SkillRecord[]).map((row) => `${row.name} (${row.kind})`).join(", ");
+      return (parsed as SkillRecord[]).map((row) => withParen(row.name, cvKindLabel(row.kind))).join(", ");
     }
   } catch {
     return value;

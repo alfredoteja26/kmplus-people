@@ -1,10 +1,12 @@
 "use client";
 
 import { OrgTree } from "@/components/org/OrgTree";
-import { Button } from "@/components/ui/Button";
-import { Callout, PageHeader } from "@/components/ui/Card";
-import { Field, Input, Select } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/coss/button";
+import { PageHeader } from "@/components/product/Card";
+import { Field } from "@/components/product/Field";
+import { Input } from "@/components/coss/input";
+import { Select } from "@/components/product/Select";
+import { AppDialog } from "@/components/product/AppDialog";
 import { isHrLike } from "@/lib/domain";
 import { useStore } from "@/lib/store";
 import type { Position } from "@/lib/types";
@@ -19,18 +21,16 @@ export default function OrgPage() {
   return (
     <div>
       <PageHeader
-        kicker="Seats, not people-as-org"
         title="Organization"
-        description="The chart is Positions. A current Assignment fills the seat. Empty seats stay visible."
+        description="Positions and who holds them. Empty positions are shown so you can fill them."
         actions={
           hr ? (
             <Button type="button" onClick={() => setCreateOpen(true)}>
-              Create Position
+              Add position
             </Button>
           ) : null
         }
       />
-      <Callout>Reporting line comes from Position reports-to, not a manager field on Person.</Callout>
       <OrgTree
         hr={hr}
         onEdit={hr ? setEditing : undefined}
@@ -38,7 +38,7 @@ export default function OrgPage() {
       />
       {createOpen ? (
         <PositionForm
-          title="Create Position"
+          title="Add position"
           onClose={() => setCreateOpen(false)}
           onSave={(input) => {
             createPosition(input);
@@ -48,7 +48,7 @@ export default function OrgPage() {
       ) : null}
       {editing ? (
         <PositionForm
-          title="Edit Position"
+          title="Edit position"
           initial={editing}
           onClose={() => setEditing(null)}
           onSave={(input) => {
@@ -79,7 +79,7 @@ function PositionForm({
   const [reportsToPositionId, setReportsTo] = useState(initial?.reportsToPositionId ?? "");
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <AppDialog title={title} onClose={onClose}>
       <form
         className="grid gap-3"
         onSubmit={(event) => {
@@ -104,7 +104,7 @@ function PositionForm({
             ))}
           </Select>
         </Field>
-        <Field label="Organization">
+        <Field label="Unit">
           <Select value={orgUnitId} onChange={(event) => setOrgUnitId(event.target.value)}>
             {state.orgUnits.map((unit) => (
               <option key={unit.id} value={unit.id}>
@@ -113,9 +113,9 @@ function PositionForm({
             ))}
           </Select>
         </Field>
-        <Field label="Reports to Position">
+        <Field label="Reports to">
           <Select value={reportsToPositionId} onChange={(event) => setReportsTo(event.target.value)}>
-            <option value="">None (root)</option>
+            <option value="">No one (top of the chart)</option>
             {state.positions
               .filter((row) => row.id !== initial?.id)
               .map((row) => (
@@ -126,12 +126,12 @@ function PositionForm({
           </Select>
         </Field>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit">Save Position</Button>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="submit">Save position</Button>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
         </div>
       </form>
-    </Modal>
+    </AppDialog>
   );
 }

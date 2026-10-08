@@ -25,7 +25,7 @@ export function PeopleSubnav() {
       <Link
         href="/people"
         className={cn(
-          "rounded-full border-[1.5px] px-3 py-1.5 text-sm font-medium no-underline transition-colors",
+          "rounded-full border px-3 py-1.5 text-sm font-medium no-underline transition-colors",
           onRoster
             ? "border-accent bg-accent text-on-accent"
             : "border-line bg-paper text-muted hover:text-ink",
@@ -38,7 +38,7 @@ export function PeopleSubnav() {
         <Link
           href="/cv"
           className={cn(
-            "rounded-full border-[1.5px] px-3 py-1.5 text-sm font-medium no-underline transition-colors",
+            "rounded-full border px-3 py-1.5 text-sm font-medium no-underline transition-colors",
             onCv
               ? "border-accent bg-accent text-on-accent"
               : "border-line bg-paper text-muted hover:text-ink",

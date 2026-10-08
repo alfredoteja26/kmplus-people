@@ -3,7 +3,7 @@
 import { CvDocumentQueue } from "@/components/cv/CvDocumentQueue";
 import { CvReviewPanel } from "@/components/cv/CvReviewPanel";
 import { CvUploadStrip } from "@/components/cv/CvUploadStrip";
-import { Callout, PageHeader } from "@/components/ui/Card";
+import { Callout, PageHeader } from "@/components/product/Card";
 import { isHrLike } from "@/lib/domain";
 import { useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
@@ -45,7 +45,7 @@ export default function CvPage() {
         fields?: { key: string; label: string; value: string }[];
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? "Upload could not be parsed");
+        throw new Error(payload.error ?? "We couldn't read that file");
       }
       const id = addCv({
         personId: null,
@@ -60,7 +60,7 @@ export default function CvPage() {
       });
       setSelectedId(id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Parse failed");
+      setError(caught instanceof Error ? caught.message : "We couldn't read that file");
     } finally {
       setBusy(false);
     }
@@ -70,11 +70,10 @@ export default function CvPage() {
     return (
       <div>
         <PageHeader
-          kicker="Review queue is the product"
-          title="Curriculum Vitae"
-          description="You can see your applied CV after HR completes review. Upload and field decisions stay with HR."
+          title="CV"
+          description="Your CV appears here after HR reviews it and saves it to your profile."
         />
-        <Callout>No applied CV on your Person yet. When HR applies a reviewed document, it will appear here read-only.</Callout>
+        <Callout>No CV on your profile yet. Once HR saves a reviewed CV, you can view it here.</Callout>
       </div>
     );
   }
@@ -82,9 +81,12 @@ export default function CvPage() {
   return (
     <div>
       <PageHeader
-        kicker="Review queue is the product"
         title="CV review"
-        description="Parser proposes fields. Nothing writes to Person until HR accepts, edits, or rejects each one."
+        description={
+          hr
+            ? "Check each detail we read from the CV. Nothing changes on a profile until you accept it."
+            : "Your CV as saved to your profile by HR."
+        }
       />
 
       {hr ? <CvUploadStrip busy={busy} error={error} onFile={(file) => void onUpload(file)} /> : null}
@@ -96,8 +98,8 @@ export default function CvPage() {
           onSelect={setSelectedId}
           emptyMessage={
             hr
-              ? "No CVs in the queue yet. Upload a .pdf or .docx above to start field review."
-              : "No applied CV on your Person yet."
+              ? "No CVs to review yet. Upload a CV above to start."
+              : "No CV on your profile yet."
           }
         />
         <div>
@@ -120,7 +122,7 @@ export default function CvPage() {
               onReject={() => rejectCv(selected.id)}
             />
           ) : (
-            <Callout>{hr ? "Select a document from the queue, or upload one to begin." : "Select an applied CV from the list."}</Callout>
+            <Callout>{hr ? "Select a CV from the list, or upload one to start." : "Select a CV from the list."}</Callout>
           )}
         </div>
       </div>
