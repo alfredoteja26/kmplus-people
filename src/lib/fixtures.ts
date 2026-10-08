@@ -1,3 +1,4 @@
+import { CORPORATE_LOGIN_DOMAIN } from "@/lib/auth-policy";
 import type {
   AppState,
   Assignment,
@@ -17,6 +18,12 @@ import type {
 import { DZAKY_CV_EXTRACTED_TEXT, DZAKY_CV_PROPOSED } from "./fixtures/dzaky-cv-extracted";
 import { emptyPersonEvidence } from "./person-evidence";
 import { TENANT_ID } from "./types";
+import {
+  seedDeliverableCategories,
+  seedDeliverableStatuses,
+  seedLeaveTypes,
+  seedTimeBlockTypes,
+} from "./work-delivery-seed";
 
 const t = TENANT_ID;
 
@@ -190,7 +197,7 @@ const cycles: KpiCycle[] = [
   {
     id: "cycle-2025",
     tenantId: t,
-    name: "2025 annual",
+    name: "KPI year 2025",
     year: 2025,
     status: "closed",
     phase: "closed",
@@ -206,7 +213,7 @@ const cycles: KpiCycle[] = [
   {
     id: "cycle-2026",
     tenantId: t,
-    name: "2026 annual",
+    name: "KPI year 2026",
     year: 2026,
     status: "open",
     phase: "monitoring",
@@ -222,7 +229,7 @@ const cycles: KpiCycle[] = [
   {
     id: "cycle-2027",
     tenantId: t,
-    name: "2027 annual",
+    name: "KPI year 2027",
     year: 2027,
     status: "draft",
     phase: null,
@@ -547,7 +554,7 @@ export function seedTenantUsers(): TenantUser[] {
       id: `user-${demo.personId.replace("person-", "")}`,
       tenantId: t,
       personId: demo.personId,
-      email: row.email,
+      email: `${row.email.split("@")[0]}@${CORPORATE_LOGIN_DOMAIN}`,
       role: demo.role,
       adminGrant: demo.personId === "person-alfredo",
       mustSetPassword: false,
@@ -586,5 +593,17 @@ export function createInitialState(): AppState {
         detail: "Fixture tenant kmplus loaded from KMPlus Organization Structure",
       },
     ],
+    projects: [],
+    staffings: [],
+    workItems: [],
+    deliverables: [],
+    deliverableStatuses: seedDeliverableStatuses(),
+    deliverableCategories: seedDeliverableCategories(),
+    leaveRequests: [],
+    leaveTypes: seedLeaveTypes(),
+    publicHolidays: [],
+    timeBlockTypes: seedTimeBlockTypes(),
+    timeBlocks: [],
+    invites: [],
   };
 }
