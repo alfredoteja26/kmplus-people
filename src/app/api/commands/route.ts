@@ -19,12 +19,14 @@ export async function POST(request: Request) {
 
   try {
     return await withTenantLock(async () => {
-      const outcome = executeCommand(await loadTenantState(), sessionUser, body);
+      const loaded = await loadTenantState();
+      const before = structuredClone(loaded); // a command must not be able to hide its change by mutating
+      const outcome = executeCommand(loaded, sessionUser, body);
       if (outcome.kind === "invalid") return NextResponse.json({ error: outcome.error }, { status: 400 });
       if (outcome.kind === "refused") {
         return NextResponse.json({ error: outcome.error, state: outcome.view }, { status: 403 });
       }
-      await saveTenantState(outcome.next);
+      await saveTenantState(outcome.next, before);
       return NextResponse.json({ result: outcome.result, state: outcome.view });
     });
   } catch (error) {

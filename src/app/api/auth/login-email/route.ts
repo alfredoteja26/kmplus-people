@@ -24,13 +24,15 @@ export async function POST(request: Request) {
 
   try {
     return await withTenantLock(async () => {
-      const state = overlaySessionIdentity(await loadTenantState(), {
+      const loaded = await loadTenantState();
+      const before = structuredClone(loaded);
+      const state = overlaySessionIdentity(loaded, {
         personId: sessionUser.personId,
         role: sessionUser.role,
       });
       const result = setLoginEmail(state, personId, email);
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
-      await saveTenantState(result.state);
+      await saveTenantState(result.state, before);
       return NextResponse.json({ ok: true });
     });
   } catch (error) {

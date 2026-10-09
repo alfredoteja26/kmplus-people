@@ -548,21 +548,65 @@ export async function loadTenantState(): Promise<AppState> {
 // database is across a network (Supabase). Keep the Vercel region next to the Supabase region.
 const SAVE_TRANSACTION = { maxWait: 10_000, timeout: 30_000 };
 
-export async function saveTenantState(state: AppState): Promise<void> {
+/**
+ * Writes the tenant. Given `previous` (the state the change started from), only new and changed rows are
+ * written and a table is pruned only when rows left it, so a command costs a few round-trips instead of one
+ * per tenant row. Without it every row is rewritten (seed, scripts).
+ */
+export async function saveTenantState(state: AppState, previous?: AppState): Promise<void> {
   const prisma = getPrisma();
   const tenantId = TENANT_ID;
-  const previous = await prisma.user.findMany({
+  const savedLogins = await prisma.user.findMany({
     where: { tenantId },
     select: { personId: true, email: true },
   });
-  const changes = loginEmailChanges(previous, state.users ?? []);
+  const changes = loginEmailChanges(savedLogins, state.users ?? []);
   if (changes.length > 0) {
     const { applyLoginEmailChanges, supabaseAuthConfigured } = await import("./supabase-auth");
     if (!supabaseAuthConfigured()) throw new Error("Supabase Auth is not configured");
     await applyLoginEmailChanges(changes);
   }
 
+  const rows = <T extends { id: string }>(pick: (from: AppState) => T[] | undefined): T[] => {
+    const next = pick(state) ?? [];
+    if (!previous) return next;
+    const before = new Map((pick(previous) ?? []).map((row) => [row.id, JSON.stringify(row)]));
+    return next.filter((row) => before.get(row.id) !== JSON.stringify(row));
+  };
+  const pruned = <T extends { id: string }>(pick: (from: AppState) => T[] | undefined): boolean => {
+    if (!previous) return true;
+    const kept = new Set((pick(state) ?? []).map((row) => row.id));
+    return (pick(previous) ?? []).some((row) => !kept.has(row.id));
+  };
+
   await prisma.$transaction(async (tx) => {
+    const assignmentsRows = rows((from) => from.assignments);
+    const auditRows = rows((from) => from.audit);
+    const checkInsRows = rows((from) => from.checkIns);
+    const correctionsRows = rows((from) => from.corrections);
+    const cvsRows = rows((from) => from.cvs);
+    const cyclesRows = rows((from) => from.cycles);
+    const deliverableCategoriesRows = rows((from) => from.deliverableCategories);
+    const deliverableStatusesRows = rows((from) => from.deliverableStatuses);
+    const deliverablesRows = rows((from) => from.deliverables);
+    const employmentsRows = rows((from) => from.employments);
+    const gradesRows = rows((from) => from.grades);
+    const invitesRows = rows((from) => from.invites);
+    const kpiItemsRows = rows((from) => from.kpiItems);
+    const kpiSetsRows = rows((from) => from.kpiSets);
+    const leaveRequestsRows = rows((from) => from.leaveRequests);
+    const leaveTypesRows = rows((from) => from.leaveTypes);
+    const orgUnitsRows = rows((from) => from.orgUnits);
+    const peopleRows = rows((from) => from.people);
+    const positionsRows = rows((from) => from.positions);
+    const projectsRows = rows((from) => from.projects);
+    const publicHolidaysRows = rows((from) => from.publicHolidays);
+    const staffingsRows = rows((from) => from.staffings);
+    const timeBlockTypesRows = rows((from) => from.timeBlockTypes);
+    const timeBlocksRows = rows((from) => from.timeBlocks);
+    const usersRows = rows((from) => from.users);
+    const workItemsRows = rows((from) => from.workItems);
+
     await tx.tenant.upsert({
       where: { id: tenantId },
       create: {
@@ -576,7 +620,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       },
     });
 
-    for (const row of state.people) {
+    for (const row of peopleRows) {
       await tx.person.upsert({
         where: { id: row.id },
         create: {
@@ -620,7 +664,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.users ?? []) {
+    for (const row of usersRows) {
       const existing = await tx.user.findFirst({
         where: {
           tenantId,
@@ -659,7 +703,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       }
     }
 
-    for (const row of state.employments) {
+    for (const row of employmentsRows) {
       await tx.employment.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -673,7 +717,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of topo(state.orgUnits)) {
+    for (const row of topo(orgUnitsRows)) {
       await tx.orgUnit.upsert({
         where: { id: row.id },
         create: { ...row, tenantId, parentId: row.parentId },
@@ -681,7 +725,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.grades) {
+    for (const row of gradesRows) {
       await tx.grade.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -689,9 +733,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of topo(
-      state.positions.map((row) => ({ ...row, parentId: row.reportsToPositionId })),
-    )) {
+    for (const row of topo(positionsRows.map((row) => ({ ...row, parentId: row.reportsToPositionId })))) {
       await tx.position.upsert({
         where: { id: row.id },
         create: {
@@ -711,7 +753,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.assignments) {
+    for (const row of assignmentsRows) {
       await tx.assignment.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -724,7 +766,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.cvs) {
+    for (const row of cvsRows) {
       await tx.curriculumVitae.upsert({
         where: { id: row.id },
         create: {
@@ -748,7 +790,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.corrections) {
+    for (const row of correctionsRows) {
       await tx.correctionRequest.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -762,7 +804,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.cycles) {
+    for (const row of cyclesRows) {
       const phase = normalizeKpiYearPhase(row);
       let status = row.status;
       if (phase === "closed") status = "closed";
@@ -795,7 +837,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.kpiSets) {
+    for (const row of kpiSetsRows) {
       await tx.kpiSet.upsert({
         where: { id: row.id },
         create: {
@@ -823,7 +865,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.kpiItems) {
+    for (const row of kpiItemsRows) {
       await tx.kpiItem.upsert({
         where: { id: row.id },
         create: {
@@ -856,14 +898,14 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.kpiItems) {
+    for (const row of kpiItemsRows) {
       await tx.kpiItem.update({
         where: { id: row.id },
         data: { parentKpiItemId: row.parentKpiItemId ?? null },
       });
     }
 
-    for (const row of state.checkIns) {
+    for (const row of checkInsRows) {
       await tx.checkIn.upsert({
         where: { id: row.id },
         create: {
@@ -885,7 +927,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.audit) {
+    for (const row of auditRows) {
       await tx.auditEntry.upsert({
         where: { id: row.id },
         create: {
@@ -911,7 +953,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.deliverableStatuses ?? []) {
+    for (const row of deliverableStatusesRows) {
       await tx.deliverableStatus.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -924,7 +966,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.deliverableCategories ?? []) {
+    for (const row of deliverableCategoriesRows) {
       await tx.deliverableCategory.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -932,7 +974,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.leaveTypes ?? []) {
+    for (const row of leaveTypesRows) {
       await tx.leaveType.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -940,7 +982,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.timeBlockTypes ?? []) {
+    for (const row of timeBlockTypesRows) {
       await tx.timeBlockType.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -952,7 +994,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.projects ?? []) {
+    for (const row of projectsRows) {
       await tx.project.upsert({
         where: { id: row.id },
         create: {
@@ -974,7 +1016,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.staffings ?? []) {
+    for (const row of staffingsRows) {
       await tx.staffing.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -988,7 +1030,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.workItems ?? []) {
+    for (const row of workItemsRows) {
       await tx.workItem.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -1003,7 +1045,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.deliverables ?? []) {
+    for (const row of deliverablesRows) {
       await tx.deliverable.upsert({
         where: { id: row.id },
         create: {
@@ -1031,7 +1073,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.leaveRequests ?? []) {
+    for (const row of leaveRequestsRows) {
       await tx.leaveRequest.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -1053,7 +1095,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.publicHolidays ?? []) {
+    for (const row of publicHolidaysRows) {
       await tx.publicHoliday.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -1067,7 +1109,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.timeBlocks ?? []) {
+    for (const row of timeBlocksRows) {
       await tx.timeBlock.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -1083,7 +1125,7 @@ export async function saveTenantState(state: AppState): Promise<void> {
       });
     }
 
-    for (const row of state.invites ?? []) {
+    for (const row of invitesRows) {
       await tx.invite.upsert({
         where: { id: row.id },
         create: { ...row, tenantId },
@@ -1123,44 +1165,52 @@ export async function saveTenantState(state: AppState): Promise<void> {
       invites: (state.invites ?? []).map((row) => row.id),
     };
 
-    await tx.invite.deleteMany({ where: { tenantId, id: { notIn: keep.invites } } });
-    await tx.timeBlock.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlocks } } });
-    await tx.leaveRequest.deleteMany({ where: { tenantId, id: { notIn: keep.leaveRequests } } });
-    await tx.deliverable.deleteMany({ where: { tenantId, id: { notIn: keep.deliverables } } });
-    await tx.workItem.deleteMany({ where: { tenantId, id: { notIn: keep.workItems } } });
-    await tx.staffing.deleteMany({ where: { tenantId, id: { notIn: keep.staffings } } });
-    await tx.project.deleteMany({ where: { tenantId, id: { notIn: keep.projects } } });
-    await tx.publicHoliday.deleteMany({ where: { tenantId, id: { notIn: keep.publicHolidays } } });
-    await tx.deliverableStatus.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableStatuses } } });
-    await tx.deliverableCategory.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableCategories } } });
-    await tx.leaveType.deleteMany({ where: { tenantId, id: { notIn: keep.leaveTypes } } });
-    await tx.timeBlockType.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlockTypes } } });
+    if (pruned((from) => from.invites)) await tx.invite.deleteMany({ where: { tenantId, id: { notIn: keep.invites } } });
+    if (pruned((from) => from.timeBlocks)) await tx.timeBlock.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlocks } } });
+    if (pruned((from) => from.leaveRequests)) await tx.leaveRequest.deleteMany({ where: { tenantId, id: { notIn: keep.leaveRequests } } });
+    if (pruned((from) => from.deliverables)) await tx.deliverable.deleteMany({ where: { tenantId, id: { notIn: keep.deliverables } } });
+    if (pruned((from) => from.workItems)) await tx.workItem.deleteMany({ where: { tenantId, id: { notIn: keep.workItems } } });
+    if (pruned((from) => from.staffings)) await tx.staffing.deleteMany({ where: { tenantId, id: { notIn: keep.staffings } } });
+    if (pruned((from) => from.projects)) await tx.project.deleteMany({ where: { tenantId, id: { notIn: keep.projects } } });
+    if (pruned((from) => from.publicHolidays)) await tx.publicHoliday.deleteMany({ where: { tenantId, id: { notIn: keep.publicHolidays } } });
+    if (pruned((from) => from.deliverableStatuses)) await tx.deliverableStatus.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableStatuses } } });
+    if (pruned((from) => from.deliverableCategories)) await tx.deliverableCategory.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableCategories } } });
+    if (pruned((from) => from.leaveTypes)) await tx.leaveType.deleteMany({ where: { tenantId, id: { notIn: keep.leaveTypes } } });
+    if (pruned((from) => from.timeBlockTypes)) await tx.timeBlockType.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlockTypes } } });
 
-    await tx.checkIn.deleteMany({ where: { tenantId, id: { notIn: keep.checkIns } } });
-    await tx.kpiItem.updateMany({
-      where: { tenantId, id: { notIn: keep.kpiItems } },
-      data: { parentKpiItemId: null },
-    });
-    await tx.kpiItem.deleteMany({ where: { tenantId, id: { notIn: keep.kpiItems } } });
-    await tx.kpiSet.deleteMany({ where: { tenantId, id: { notIn: keep.kpiSets } } });
-    await tx.curriculumVitae.deleteMany({ where: { tenantId, id: { notIn: keep.cvs } } });
-    await tx.correctionRequest.deleteMany({ where: { tenantId, id: { notIn: keep.corrections } } });
-    await tx.auditEntry.deleteMany({ where: { tenantId, id: { notIn: keep.audit } } });
-    await tx.assignment.deleteMany({ where: { tenantId, id: { notIn: keep.assignments } } });
-    await tx.employment.deleteMany({ where: { tenantId, id: { notIn: keep.employments } } });
-    await tx.position.updateMany({
-      where: { tenantId, id: { notIn: keep.positions } },
-      data: { reportsToPositionId: null },
-    });
-    await tx.position.deleteMany({ where: { tenantId, id: { notIn: keep.positions } } });
-    await tx.orgUnit.updateMany({
-      where: { tenantId, id: { notIn: keep.orgUnits } },
-      data: { parentId: null },
-    });
-    await tx.orgUnit.deleteMany({ where: { tenantId, id: { notIn: keep.orgUnits } } });
-    await tx.grade.deleteMany({ where: { tenantId, id: { notIn: keep.grades } } });
-    await tx.kpiCycle.deleteMany({ where: { tenantId, id: { notIn: keep.cycles } } });
-    await tx.user.deleteMany({ where: { tenantId, personId: { notIn: keep.people } } });
-    await tx.person.deleteMany({ where: { tenantId, id: { notIn: keep.people } } });
+    if (pruned((from) => from.checkIns)) await tx.checkIn.deleteMany({ where: { tenantId, id: { notIn: keep.checkIns } } });
+    if (pruned((from) => from.kpiItems)) {
+      await tx.kpiItem.updateMany({
+        where: { tenantId, id: { notIn: keep.kpiItems } },
+        data: { parentKpiItemId: null },
+      });
+      await tx.kpiItem.deleteMany({ where: { tenantId, id: { notIn: keep.kpiItems } } });
+    }
+    if (pruned((from) => from.kpiSets)) await tx.kpiSet.deleteMany({ where: { tenantId, id: { notIn: keep.kpiSets } } });
+    if (pruned((from) => from.cvs)) await tx.curriculumVitae.deleteMany({ where: { tenantId, id: { notIn: keep.cvs } } });
+    if (pruned((from) => from.corrections)) await tx.correctionRequest.deleteMany({ where: { tenantId, id: { notIn: keep.corrections } } });
+    if (pruned((from) => from.audit)) await tx.auditEntry.deleteMany({ where: { tenantId, id: { notIn: keep.audit } } });
+    if (pruned((from) => from.assignments)) await tx.assignment.deleteMany({ where: { tenantId, id: { notIn: keep.assignments } } });
+    if (pruned((from) => from.employments)) await tx.employment.deleteMany({ where: { tenantId, id: { notIn: keep.employments } } });
+    if (pruned((from) => from.positions)) {
+      await tx.position.updateMany({
+        where: { tenantId, id: { notIn: keep.positions } },
+        data: { reportsToPositionId: null },
+      });
+      await tx.position.deleteMany({ where: { tenantId, id: { notIn: keep.positions } } });
+    }
+    if (pruned((from) => from.orgUnits)) {
+      await tx.orgUnit.updateMany({
+        where: { tenantId, id: { notIn: keep.orgUnits } },
+        data: { parentId: null },
+      });
+      await tx.orgUnit.deleteMany({ where: { tenantId, id: { notIn: keep.orgUnits } } });
+    }
+    if (pruned((from) => from.grades)) await tx.grade.deleteMany({ where: { tenantId, id: { notIn: keep.grades } } });
+    if (pruned((from) => from.cycles)) await tx.kpiCycle.deleteMany({ where: { tenantId, id: { notIn: keep.cycles } } });
+    if (pruned((from) => from.people)) {
+      await tx.user.deleteMany({ where: { tenantId, personId: { notIn: keep.people } } });
+      await tx.person.deleteMany({ where: { tenantId, id: { notIn: keep.people } } });
+    }
   }, SAVE_TRANSACTION);
 }
