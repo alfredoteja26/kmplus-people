@@ -1,5 +1,6 @@
 import { GoTrueClient } from "@supabase/auth-js";
 import type { LoginEmailChange } from "@/lib/auth-policy";
+import { mailerConfigured, sendPasswordEmail } from "./mailer";
 
 // Auth only: the full supabase-js client also starts Realtime, which needs a native WebSocket (Node 22+).
 function authClient(key: string): GoTrueClient {
@@ -43,9 +44,22 @@ function redirectUrl(): string {
   return `${origin}/login/password`;
 }
 
+/**
+ * Mails a set-password link. With SMTP configured the app sends it; Supabase only mints the token.
+ * Otherwise Supabase's own mailer sends it, using the recovery template in supabase/config.toml.
+ */
 export async function sendPasswordReset(email: string): Promise<void> {
-  const { error } = await publicClient().auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+  if (!mailerConfigured()) {
+    const { error } = await publicClient().auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+    if (error) throw error;
+    return;
+  }
+  const { data, error } = await adminClient().auth.admin.generateLink({ type: "recovery", email });
   if (error) throw error;
+  const link = new URL(redirectUrl());
+  link.searchParams.set("token_hash", data.properties.hashed_token);
+  link.searchParams.set("type", "recovery");
+  await sendPasswordEmail(email, link.toString());
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<void> {

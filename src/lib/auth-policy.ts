@@ -1,5 +1,6 @@
 export const CORPORATE_LOGIN_DOMAIN = "kmplus.co.id";
 export const MIN_PASSWORD_LENGTH = 8;
+export const PASSWORD_EMAIL_COOLDOWN_MS = 60_000;
 export const FORGOT_PASSWORD_MESSAGE =
   "If an active login uses that email, we sent a link to set a password.";
 

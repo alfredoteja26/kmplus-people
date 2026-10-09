@@ -112,15 +112,22 @@ Password disimpan di Supabase Auth (ADR-0011). Sekali per project Supabase:
 3. **Authentication → URL Configuration**: Site URL = `APP_ORIGIN`; tambahkan
    `https://internal.kmplus.co.id/login/password` (dan
    `http://localhost:3000/login/password` untuk lokal) ke Redirect URLs.
-4. **Authentication → Emails → Reset Password**: ganti link di template menjadi
+4. **Email set-password dikirim oleh app sendiri** lewat `mail.kmplus.co.id`
+   (ADR-0011). Mail server itu tidak pernah menyelesaikan koneksi dari mailer
+   Supabase (timeout di 465 dan 587), tapi menerima koneksi dari Vercel. Isi di
+   env app (Vercel / `.env.production`):
 
-   ```html
-   <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">Set password</a>
+   ```
+   SMTP_HOST=mail.kmplus.co.id
+   SMTP_PORT=465
+   SMTP_USER=noreply@kmplus.co.id
+   SMTP_PASS=<password mailbox noreply>
+   SMTP_FROM="KMPlus People <noreply@kmplus.co.id>"
    ```
 
-5. **Authentication → Emails → SMTP Settings**: isi SMTP sendiri (mis. Google
-   Workspace atau Resend). Mailer bawaan Supabase hanya mengirim ke anggota tim
-   project dan dibatasi beberapa email per jam.
+   Tanpa `SMTP_*` (dev lokal) app memakai mailer Supabase dengan template di
+   `supabase/config.toml`; template itu hanya bisa di-push kalau SMTP custom
+   Supabase aktif.
 
 Cutover dari Firebase (sekali): password tidak ikut pindah. Buat login Supabase
 untuk semua User aktif, lalu kirim link set-password:

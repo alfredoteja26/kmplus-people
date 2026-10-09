@@ -4,6 +4,6 @@ Supersedes ADR-0005. The app moves to Vercel with Supabase as its backend, so pa
 
 Only the server talks to Supabase Auth. It uses the publishable key for sign-in and the recovery link, and the secret key to create and rename logins. The browser never holds a Supabase key or session. The set-password email links to `/login/password?token_hash=…`, and the server redeems that hash.
 
-Supabase's built-in mailer only reaches the project's team members and allows a few emails per hour, so production needs custom SMTP. Public sign-up stays off: a login exists only because HR set a login email.
+The app sends the set-password email itself, through the company mail server (`mail.kmplus.co.id`). Supabase only mints the recovery token (`generateLink`). That server never completes a connection from Supabase's mailer, on 465 or 587, but it accepts Vercel. Since Supabase no longer rate-limits these emails, the public forgot-password route sends at most one a minute per User. Without SMTP settings (local dev) the app falls back to Supabase's mailer. Public sign-up stays off: a login exists only because HR set a login email.
 
-We rejected `@supabase/ssr` sessions in the browser. The app reads data through Prisma on the server, not through Supabase's Data API, so a second session would only add a second thing to revoke.
+We rejected a third-party email service; the company keeps sending from its own server. We rejected `@supabase/ssr` sessions in the browser. The app reads data through Prisma on the server, not through Supabase's Data API, so a second session would only add a second thing to revoke.

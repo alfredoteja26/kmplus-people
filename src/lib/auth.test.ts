@@ -10,6 +10,7 @@ import { applyCv, confirmHire, decideCvField, setLoginEmail } from "./commands";
 import { createInitialState, DEMO_PASSWORD, seedTenantUsers } from "./fixtures";
 import { overlaySessionIdentity } from "./session-identity";
 import { evaluateLogin, rejectPassword } from "./server/login";
+import { passwordEmail } from "./server/mailer";
 import { hashPassword, verifyPassword } from "./server/password";
 import { createSessionToken, verifySessionToken } from "./server/session-token";
 import { employmentFor } from "./domain";
@@ -160,5 +161,16 @@ describe("session-owned role", () => {
     expect(session?.userId).toBe("user-alfredo");
     expect(session?.authEpoch).toBe(2);
     expect(await verifySessionToken("not-a-token")).toBeNull();
+  });
+});
+
+describe("passwordEmail", () => {
+  it("links to the set-password page and escapes what it prints", () => {
+    const link = "https://kmplus-people.vercel.app/login/password?token_hash=abc&type=recovery";
+    const mail = passwordEmail("a<b>@kmplus.co.id", link);
+    expect(mail.subject).toBe("Set your KMPlus People password");
+    expect(mail.text).toContain(link);
+    expect(mail.html).toContain('href="https://kmplus-people.vercel.app/login/password?token_hash=abc&amp;type=recovery"');
+    expect(mail.html).toContain("a&lt;b&gt;@kmplus.co.id");
   });
 });

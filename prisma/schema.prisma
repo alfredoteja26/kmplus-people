@@ -62,6 +62,8 @@ model User {
   adminGrant      Boolean  @default(false)
   mustSetPassword Boolean  @default(true)
   authEpoch       Int      @default(0)
+  // Last forgot-password email; the public route sends at most one a minute per User.
+  passwordEmailSentAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   person          Person   @relation(fields: [personId], references: [id], onDelete: Cascade)

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FORGOT_PASSWORD_MESSAGE, shouldSendPasswordEmail } from "@/lib/auth-policy";
+import { FORGOT_PASSWORD_MESSAGE, PASSWORD_EMAIL_COOLDOWN_MS, shouldSendPasswordEmail } from "@/lib/auth-policy";
 import { supabaseAuthConfigured, sendPasswordReset } from "@/lib/server/supabase-auth";
 import { getPrisma } from "@/lib/server/prisma";
 import { TENANT_ID } from "@/lib/types";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     include: { person: { include: { employments: true } } },
   });
   const employmentStatus = record?.person.employments.some((row) => row.status === "active") ? "active" : null;
-  if (record && shouldSendPasswordEmail(record, employmentStatus)) {
+  if (record && shouldSendPasswordEmail(record, employmentStatus) && (await claimPasswordEmail(record.id))) {
     try {
       await sendPasswordReset(record.email);
     } catch (error) {
@@ -35,4 +35,20 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true, message: FORGOT_PASSWORD_MESSAGE });
+}
+
+/** Atomically takes this minute's slot, so repeated requests can't flood a person's inbox. */
+async function claimPasswordEmail(userId: string): Promise<boolean> {
+  const now = new Date();
+  const { count } = await getPrisma().user.updateMany({
+    where: {
+      id: userId,
+      OR: [
+        { passwordEmailSentAt: null },
+        { passwordEmailSentAt: { lt: new Date(now.getTime() - PASSWORD_EMAIL_COOLDOWN_MS) } },
+      ],
+    },
+    data: { passwordEmailSentAt: now },
+  });
+  return count === 1;
 }
