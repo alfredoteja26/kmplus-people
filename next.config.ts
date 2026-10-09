@@ -2,9 +2,9 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Emit a self-contained server build so the Docker runtime image
-  // only needs Node + the standalone output (small image, no dev deps).
-  output: "standalone",
+  // Docker: emit a self-contained server build (Node + standalone output only).
+  // Vercel builds its own functions, so skip it there.
+  output: process.env.VERCEL ? undefined : "standalone",
   outputFileTracingRoot: path.join(__dirname),
   turbopack: {
     root: path.join(__dirname),

@@ -66,8 +66,9 @@ Prisma tetap dipakai; hanya database-nya yang pindah ke Supabase.
 1. **Connect** (tombol di atas dashboard project) → *ORMs → Prisma*. Isi:
 
    ```
-   # Transaction pooler, port 6543 — untuk app (serverless/Vercel)
-   DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+   # Transaction pooler, port 6543 — untuk app (serverless/Vercel).
+   # connection_limit minimal 2: tenant lock memegang satu koneksi, load/save memakai yang lain.
+   DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=3"
    # Session pooler, port 5432 — untuk prisma db push (IPv4)
    DIRECT_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres"
    ```
