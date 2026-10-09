@@ -1,9 +1,9 @@
 # Production deployment for kmplus-people (internal.kmplus.co.id)
 #
-# Runs on the same server as injourney-rinjani2.0 (which uses host port 86).
-# This stack publishes the app on host port 88 to avoid a clash.
+# The app runs here; Supabase is the backend (Postgres, Auth, Storage). No database container.
+# Runs on the same server as injourney-rinjani2.0 (host port 86); this stack publishes host port 88.
 #
-#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 #
 services:
   app:
@@ -13,55 +13,23 @@ services:
     image: kmplus-people:latest
     container_name: kmplus-people-app
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      # Talks to the db service on the compose network
-      DATABASE_URL: "postgresql://kmplus:${POSTGRES_PASSWORD:-kmplus}@db:5432/kmplus_people?schema=public"
-      DIRECT_URL: "postgresql://kmplus:${POSTGRES_PASSWORD:-kmplus}@db:5432/kmplus_people?schema=public"
+      # Supabase transaction pooler (app) and session pooler (prisma db push). See README-DEPLOY.md.
+      DATABASE_URL: "${DATABASE_URL:?set DATABASE_URL in .env.production}"
+      DIRECT_URL: "${DIRECT_URL:?set DIRECT_URL in .env.production}"
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in .env.production}"
       APP_ORIGIN: "${APP_ORIGIN:-https://internal.kmplus.co.id}"
       SUPABASE_URL: "${SUPABASE_URL:?set SUPABASE_URL in .env.production}"
       SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in .env.production}"
       SUPABASE_SECRET_KEY: "${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in .env.production}"
-      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_HOST: "${SMTP_HOST:?set SMTP_HOST in .env.production}"
       SMTP_PORT: "${SMTP_PORT:-465}"
-      SMTP_USER: "${SMTP_USER:-}"
-      SMTP_PASS: "${SMTP_PASS:-}"
-      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_USER: "${SMTP_USER:?set SMTP_USER in .env.production}"
+      SMTP_PASS: "${SMTP_PASS:?set SMTP_PASS in .env.production}"
+      SMTP_FROM: "${SMTP_FROM:?set SMTP_FROM in .env.production}"
       NODE_ENV: "production"
-      # First boot pushes schema + seeds. Set to false after initial launch.
-      RUN_DB_PUSH: "${RUN_DB_PUSH:-true}"
-      RUN_DB_SEED: "${RUN_DB_SEED:-true}"
+      # Schema changes only: one boot with RUN_DB_PUSH=true, then back to false. Never seed production.
+      RUN_DB_PUSH: "${RUN_DB_PUSH:-false}"
     ports:
       # host:container -> reachable as http://<server-ip>:88
       - "88:3000"
-    networks:
-      - kmplus
-
-  db:
-    image: postgres:16-alpine
-    container_name: kmplus-people-db-prod
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: kmplus
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-kmplus}"
-      POSTGRES_DB: kmplus_people
-    volumes:
-      - kmplus_people_pg_prod:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kmplus -d kmplus_people"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-    networks:
-      - kmplus
-    # DB is only used internally by the app; no host port published.
-
-volumes:
-  kmplus_people_pg_prod:
-
-networks:
-  kmplus:
-    driver: bridge

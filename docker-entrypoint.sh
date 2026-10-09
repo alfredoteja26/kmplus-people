@@ -1,18 +1,13 @@
 #!/bin/sh
 set -e
 
-echo "[entrypoint] Waiting for database to be reachable..."
-
-# Push the Prisma schema to the database (idempotent, no migrations dir needed).
-# RUN_DB_PUSH / RUN_DB_SEED can be set to "false" to skip on subsequent boots.
-if [ "${RUN_DB_PUSH:-true}" = "true" ]; then
+# Schema changes only: boot once with RUN_DB_PUSH=true (uses DIRECT_URL), then set it back to false.
+# Production is never seeded from here; seeding mails a set-password link to every seeded login.
+if [ "${RUN_DB_PUSH:-false}" = "true" ]; then
   echo "[entrypoint] prisma db push"
-  npx prisma db push --skip-generate --accept-data-loss
-fi
-
-if [ "${RUN_DB_SEED:-true}" = "true" ]; then
-  echo "[entrypoint] prisma db seed"
-  npx prisma db seed || echo "[entrypoint] seed skipped/failed (continuing)"
+  npx prisma db push --skip-generate
+  echo "[entrypoint] lock down the Supabase Data API (RLS on every table)"
+  npx prisma db execute --schema prisma/schema.prisma --file prisma/supabase-lockdown.sql
 fi
 
 echo "[entrypoint] Starting app: $*"
