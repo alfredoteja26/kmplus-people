@@ -11,7 +11,7 @@ import { useSearchParams } from "next/navigation";
 
 function FillPasswordForm() {
   const params = useSearchParams();
-  const oobCode = params.get("oobCode") ?? "";
+  const tokenHash = params.get("token_hash") ?? "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -26,7 +26,7 @@ function FillPasswordForm() {
       const response = await fetch("/api/auth/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oobCode, password, confirm }),
+        body: JSON.stringify({ tokenHash, password, confirm }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
@@ -41,7 +41,7 @@ function FillPasswordForm() {
     }
   }
 
-  if (!oobCode) {
+  if (!tokenHash) {
     return (
       <AuthFrame title="This link has expired" description="Password links work for 1 hour, and each one works once. Request a new one.">
         <div className="grid gap-3">

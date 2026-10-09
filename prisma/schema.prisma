@@ -4,7 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  // Supabase: DATABASE_URL is the transaction pooler (serverless); DIRECT_URL the session pooler (db push).
+  directUrl = env("DIRECT_URL")
 }
 
 model Tenant {

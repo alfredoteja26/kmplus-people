@@ -1,6 +1,9 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
-import { firebaseAuthConfigured } from "./firebase-auth";
+
+function firebaseStorageConfigured(): boolean {
+  return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+}
 
 function ensureFirebaseApp(): void {
   if (getApps().length) return;
@@ -27,7 +30,7 @@ export async function uploadTenantFile(
   storagePath: string,
   contentType?: string,
 ): Promise<string> {
-  if (!firebaseAuthConfigured()) {
+  if (!firebaseStorageConfigured()) {
     return storagePath;
   }
   ensureFirebaseApp();

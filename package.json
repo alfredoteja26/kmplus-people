@@ -10,12 +10,14 @@
     "test": "vitest run",
     "postinstall": "prisma generate",
     "db:up": "docker compose up -d",
-    "db:setup": "prisma generate && prisma db push && prisma db seed"
+    "db:setup": "prisma generate && prisma db push && prisma db seed",
+    "db:lockdown": "prisma db execute --schema prisma/schema.prisma --file prisma/supabase-lockdown.sql"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@daypicker/react": "^10.0.1",
     "@prisma/client": "^6.16.2",
+    "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase-admin": "^13.10.0",

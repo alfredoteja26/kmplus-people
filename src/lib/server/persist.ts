@@ -541,6 +541,10 @@ export async function loadTenantState(): Promise<AppState> {
   };
 }
 
+// A save rewrites every tenant row, one round-trip each; the 5s Prisma default is too tight once the
+// database is across a network (Supabase). Keep the Vercel region next to the Supabase region.
+const SAVE_TRANSACTION = { maxWait: 10_000, timeout: 30_000 };
+
 export async function saveTenantState(state: AppState): Promise<void> {
   const prisma = getPrisma();
   const tenantId = TENANT_ID;
@@ -550,8 +554,8 @@ export async function saveTenantState(state: AppState): Promise<void> {
   });
   const changes = loginEmailChanges(previous, state.users ?? []);
   if (changes.length > 0) {
-    const { applyLoginEmailChanges, firebaseAuthConfigured } = await import("./firebase-auth");
-    if (!firebaseAuthConfigured()) throw new Error("Firebase Auth is not configured");
+    const { applyLoginEmailChanges, supabaseAuthConfigured } = await import("./supabase-auth");
+    if (!supabaseAuthConfigured()) throw new Error("Supabase Auth is not configured");
     await applyLoginEmailChanges(changes);
   }
 
@@ -1155,5 +1159,5 @@ export async function saveTenantState(state: AppState): Promise<void> {
     await tx.kpiCycle.deleteMany({ where: { tenantId, id: { notIn: keep.cycles } } });
     await tx.user.deleteMany({ where: { tenantId, personId: { notIn: keep.people } } });
     await tx.person.deleteMany({ where: { tenantId, id: { notIn: keep.people } } });
-  });
+  }, SAVE_TRANSACTION);
 }

@@ -6,7 +6,7 @@ Seed-SaaS people + KPI product for tenant `kmplus`. English UI. Design system: s
 
 Always-on local loop: Postgres + Next.js on the laptop. Prod is a different machine and database.
 
-1. Copy `.env.example` → `.env` if missing (`DATABASE_URL`, `SESSION_SECRET`).
+1. Copy `.env.example` → `.env` if missing (`DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`).
 2. Start Postgres: `npm run db:up` (uses `docker-compose.yml`, host port 5432).
 3. First clone only: `npm run db:setup` (generate + `db push` + seed).
 4. Run the app: `npm run dev` → http://localhost:3000.
