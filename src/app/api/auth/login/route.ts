@@ -55,17 +55,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const localOk = record?.passwordHash ? verifyPassword(password, record.passwordHash) : false;
-  let remoteOk = false;
+  // Seeded demo hashes are for local dev. Once Supabase Auth is configured it alone checks passwords,
+  // so a database copied from a seeded server never accepts the demo password.
+  let passwordOk = false;
   if (supabaseAuthConfigured()) {
     try {
       await signInWithPassword(result.user.email, password);
-      remoteOk = true;
+      passwordOk = true;
     } catch {
-      remoteOk = false;
+      passwordOk = false;
     }
+  } else {
+    passwordOk = record?.passwordHash ? verifyPassword(password, record.passwordHash) : false;
   }
-  if (!localOk && !remoteOk) {
+  if (!passwordOk) {
     const rejected = rejectPassword(result.user.mustSetPassword);
     return NextResponse.json(
       { error: rejected.error, needsPasswordEmail: rejected.needsPasswordEmail === true },

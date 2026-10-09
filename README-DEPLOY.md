@@ -100,6 +100,21 @@ Prisma tetap dipakai; hanya database-nya yang pindah ke Supabase.
    (mis. Supabase `ap-southeast-1` ↔ Vercel `sin1`). Satu save menulis ulang
    semua baris tenant, satu round-trip per baris; lintas benua akan timeout.
 
+## Supabase Storage (file upload)
+
+File Deliverable dan surat dokter disimpan di bucket privat `tenant-files`
+(ADR-0012). Buat sekali per project:
+
+```bash
+curl -s "$SUPABASE_URL/storage/v1/bucket" -H "apikey: $SUPABASE_SECRET_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H 'Content-Type: application/json' \
+  -d '{"id":"tenant-files","name":"tenant-files","public":false,"file_size_limit":20971520}'
+```
+
+Browser upload langsung ke Supabase lewat signed URL dari `/api/storage/upload`,
+jadi limit body 4.5 MB Vercel tidak berlaku. Tanpa `SUPABASE_*` (lokal) hanya
+path yang disimpan.
+
 ## Supabase Auth (password login)
 
 Password disimpan di Supabase Auth (ADR-0011). Sekali per project Supabase:
