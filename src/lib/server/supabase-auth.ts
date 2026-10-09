@@ -1,7 +1,16 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { GoTrueClient } from "@supabase/auth-js";
 import type { LoginEmailChange } from "@/lib/auth-policy";
 
-const SERVER_AUTH = { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false };
+// Auth only: the full supabase-js client also starts Realtime, which needs a native WebSocket (Node 22+).
+function authClient(key: string): GoTrueClient {
+  return new GoTrueClient({
+    url: `${supabaseUrl()}/auth/v1`,
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  });
+}
 
 export function supabaseAuthConfigured(): boolean {
   return Boolean(
@@ -16,17 +25,17 @@ function supabaseUrl(): string {
 }
 
 /** Acts as an anonymous visitor: password sign-in, recovery email, recovery link. */
-function publicClient(): SupabaseClient {
+function publicClient(): { auth: GoTrueClient } {
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!key) throw new Error("Supabase Auth is not configured");
-  return createClient(supabaseUrl(), key, { auth: SERVER_AUTH });
+  return { auth: authClient(key) };
 }
 
 /** Acts as the project admin: create, look up, and change logins. Server only. */
-function adminClient(): SupabaseClient {
+function adminClient(): { auth: GoTrueClient } {
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!key) throw new Error("Supabase Auth is not configured");
-  return createClient(supabaseUrl(), key, { auth: SERVER_AUTH });
+  return { auth: authClient(key) };
 }
 
 function redirectUrl(): string {
