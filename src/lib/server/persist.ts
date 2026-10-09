@@ -181,6 +181,9 @@ export async function loadTenantState(): Promise<AppState> {
   const prisma = getPrisma();
   const tenant = await prisma.tenant.findUnique({ where: { id: TENANT_ID } });
   if (!tenant) {
+    // Seeding saves the demo Users, which would mail every seeded address once Supabase Auth is on.
+    const { supabaseAuthConfigured } = await import("./supabase-auth");
+    if (supabaseAuthConfigured()) throw new Error("Tenant kmplus is not seeded");
     const seeded = createInitialState();
     await saveTenantState(seeded);
     await seedDemoUserPasswords();
