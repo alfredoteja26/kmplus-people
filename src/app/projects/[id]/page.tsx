@@ -12,6 +12,7 @@ import { personLoadOverload } from "@/lib/work-delivery-query";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { storedFileHref } from "@/lib/file-access";
 import { uploadWorkDeliveryFile } from "@/lib/upload-work-delivery";
 import { useMemo, useState } from "react";
 
@@ -251,7 +252,15 @@ export default function ProjectDetailPage() {
                       )}
                       {row.kind === "file" && latestVersion ? (
                         <p className="m-0 mt-1 text-xs text-muted">
-                          {latestVersion.fileName} · {plural(row.versions.length, "version")}
+                          <a
+                            href={storedFileHref(latestVersion.storagePath)}
+                            className="text-ink hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {latestVersion.fileName}
+                          </a>{" "}
+                          · {plural(row.versions.length, "version")}
                         </p>
                       ) : null}
                     </Td>

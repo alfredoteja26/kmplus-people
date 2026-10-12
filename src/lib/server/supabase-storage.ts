@@ -23,6 +23,13 @@ export function storagePathForUpload(folder: "deliverables" | "leave-letters", f
   return `tenants/kmplus/${folder}/${Date.now()}-${safe}`;
 }
 
+/** A link that downloads the file under its original name and expires after a minute. */
+export async function createDownloadUrl(storagePath: string, fileName: string): Promise<string> {
+  const { data, error } = await bucket().createSignedUrl(storagePath, 60, { download: fileName });
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 /** A one-time URL the browser PUTs the file to; it cannot overwrite an existing path. */
 export async function createUploadUrl(storagePath: string): Promise<string> {
   const { data, error } = await bucket().createSignedUploadUrl(storagePath);

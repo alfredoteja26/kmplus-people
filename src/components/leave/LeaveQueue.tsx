@@ -13,6 +13,7 @@ import { formatDate, formatDateRange } from "@/lib/labels";
 import { uploadWorkDeliveryFile } from "@/lib/upload-work-delivery";
 import { useStore } from "@/lib/store";
 import type { LeaveDecision, LeaveKind, LeaveRequest, LeaveSpanMode } from "@/lib/types";
+import { storedFileHref } from "@/lib/file-access";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -150,7 +151,19 @@ export function LeaveQueue({ mode }: { mode: LeaveQueueMode }) {
                     <p className="m-0 mt-1 text-sm text-muted">
                       {whenLabel(row)}
                       {cover ? ` · Covered by ${cover}` : ""}
-                      {row.doctorLetterPath ? " · Doctor's letter attached" : ""}
+                      {row.doctorLetterPath ? (
+                        <>
+                          {" · "}
+                          <a
+                            href={storedFileHref(row.doctorLetterPath)}
+                            className="text-ink hover:underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Doctor&apos;s letter
+                          </a>
+                        </>
+                      ) : null}
                     </p>
                     {row.note ? <p className="m-0 mt-1 text-sm">{row.note}</p> : null}
                     <p className={`m-0 mt-1 text-sm font-medium ${decisionTone(row)}`}>{decisionLabel(row)}</p>
