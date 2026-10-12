@@ -18,9 +18,9 @@ Done when the app serves on `:3000` against local Postgres and tests pass for th
 
 There is **no CI/CD**. Pushing `main` to GitHub does **not** update https://internal.kmplus.co.id.
 
-Prod is Docker Compose on the KMPlus server (app on host port **88**, nginx → `internal.kmplus.co.id`). After code lands on `main`, a human with SSH must pull and rebuild. Full steps, env flags, and nginx notes: [README-DEPLOY.md](README-DEPLOY.md).
+Prod is the app container on the KMPlus server (Docker Compose, host port **88**, nginx → `internal.kmplus.co.id`) with **Supabase** as the backend: Postgres, Auth (passwords), Storage (files), project `kmplus-people` in `ap-southeast-1`. Password email goes out through `mail.kmplus.co.id`. After code lands on `main`, a human with SSH pulls and rebuilds. Steps and env: [README-DEPLOY.md](README-DEPLOY.md).
 
-Schema changes: one prod boot with `RUN_DB_PUSH=true` (or `prisma db push` in the app container), then set `RUN_DB_PUSH` / `RUN_DB_SEED` back to `false`. Local `docker-compose.yml` and prod `docker-compose.prod.yml` are separate stacks — never point local `.env` at prod.
+Schema changes: one prod boot with `RUN_DB_PUSH=true` (pushes, then re-runs the RLS lockdown), then back to `false`. **Never seed production**: saving seeded Users mails each one a set-password link; `prisma/seed.ts` refuses when Supabase Auth is configured. Never point local `.env` at Supabase production.
 
 ## Product and design (read before coding)
 
