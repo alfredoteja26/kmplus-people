@@ -103,6 +103,7 @@ export function SheetPopup({
             className,
           )}
           data-slot="sheet-popup"
+          data-variant={variant}
           {...props}
         >
           {children}
@@ -153,7 +154,8 @@ export function SheetFooter({
   const defaultProps = {
     className: cn(
       "flex flex-col-reverse gap-2 px-6 sm:flex-row sm:justify-end",
-      variant === "default" && "border-t bg-wash py-4",
+      // The inset popup is rounded; the footer's wash would otherwise paint square corners over it.
+      variant === "default" && "border-t bg-wash py-4 in-data-[variant=inset]:rounded-b-2xl",
       variant === "bare" &&
         "in-[[data-slot=sheet-popup]:has([data-slot=sheet-panel])]:pt-3 pt-4 pb-6",
       className,

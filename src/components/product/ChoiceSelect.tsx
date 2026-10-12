@@ -10,6 +10,12 @@ import {
 
 export type Choice = { value: string; label: string };
 
+// The select primitive reads an empty value as "nothing chosen" and shows the placeholder, which hid
+// real options such as "No project". Empty values travel under a sentinel inside this component only.
+const EMPTY = "\u0000empty";
+const encode = (value: string) => (value === "" ? EMPTY : value);
+const decode = (value: string) => (value === EMPTY ? "" : value);
+
 export function ChoiceSelect({
   value,
   onValueChange,
@@ -27,22 +33,23 @@ export function ChoiceSelect({
   id?: string;
   className?: string;
 }) {
-  const selected = items.find((item) => item.value === value) ?? null;
+  const choices = items.map((item) => ({ ...item, value: encode(item.value) }));
+  const selected = choices.find((item) => item.value === encode(value)) ?? null;
   return (
     <Select
-      items={items}
+      items={choices}
       value={selected}
       disabled={disabled}
       isItemEqualToValue={(item, current) => item.value === current.value}
       onValueChange={(next) => {
-        if (next) onValueChange(next.value);
+        if (next) onValueChange(decode(next.value));
       }}
     >
       <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectPopup>
-        {items.map((item) => (
+        {choices.map((item) => (
           <SelectItem key={item.value} value={item}>
             {item.label}
           </SelectItem>
