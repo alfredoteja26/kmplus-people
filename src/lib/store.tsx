@@ -49,7 +49,13 @@ type Store = {
   openProject: (input: commands.OpenProjectInput) => { projectId: string | null; error: string | null };
   updateProject: (projectId: string, input: commands.UpdateProjectInput) => { error: string | null };
   addStaffing: (input: commands.AddStaffingInput) => { staffingId: string | null; overload: number; error: string | null };
+  updateStaffing: (
+    staffingId: string,
+    patch: Parameters<typeof commands.updateStaffing>[2],
+  ) => { overload: number; error: string | null };
+  deleteStaffing: (staffingId: string) => { error: string | null };
   upsertWorkItem: (input: commands.UpsertWorkItemInput) => { workItemId: string | null; error: string | null };
+  deleteWorkItem: (workItemId: string) => { error: string | null };
   addDeliverable: (input: commands.AddDeliverableInput) => { deliverableId: string | null; error: string | null };
   updateDeliverable: (
     deliverableId: string,
@@ -295,8 +301,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addStaffing(input) {
         return commit("addStaffing", [input]);
       },
+      updateStaffing(staffingId, patch) {
+        return commit("updateStaffing", [staffingId, patch]);
+      },
+      deleteStaffing(staffingId) {
+        return commit("deleteStaffing", [staffingId]);
+      },
       upsertWorkItem(input) {
         return commit("upsertWorkItem", [input]);
+      },
+      deleteWorkItem(workItemId) {
+        return commit("deleteWorkItem", [workItemId]);
       },
       addDeliverable(input) {
         return commit("addDeliverable", [input]);
