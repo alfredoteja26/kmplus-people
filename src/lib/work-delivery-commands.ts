@@ -317,6 +317,13 @@ export function upsertWorkItem(
   input: UpsertWorkItemInput,
 ): CommandResult<{ workItemId: string | null; error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
+  // An update stays on the WorkItem's own Project, so permission and validation below check that Project.
+  if (input.id) {
+    const existing = state.workItems.find((row) => row.id === input.id);
+    if (!existing || existing.projectId !== input.projectId) {
+      return { state, workItemId: null, error: "WorkItem not found" };
+    }
+  }
   const project = projectById(state, input.projectId);
   if (!project) return { state, workItemId: null, error: "Project not found" };
   if (!canEditProjectWork(state, input.projectId)) {
@@ -334,9 +341,6 @@ export function upsertWorkItem(
   }
 
   if (input.id) {
-    if (!state.workItems.some((row) => row.id === input.id)) {
-      return { state, workItemId: null, error: "WorkItem not found" };
-    }
     const next = {
       ...state,
       workItems: state.workItems.map((row) =>

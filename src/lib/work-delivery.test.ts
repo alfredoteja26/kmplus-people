@@ -155,6 +155,41 @@ describe("Staffing", () => {
 });
 
 describe("WorkItem and Deliverable", () => {
+  it("refuses an edit that names another Project than the WorkItem's own", () => {
+    let state = openSampleProject(createInitialState()).state;
+    const projectA = state.projects[0]!.id;
+    const openedB = openProject(asAlfredo(state), {
+      code: "KMB",
+      name: "Other client",
+      clientName: null,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+    });
+    state = openedB.state;
+    const projectB = openedB.projectId!;
+    state = addStaffing(asAlfredo(state), { personId: "person-digit", projectId: projectA, startDate: "2026-01-01", load: 50 }).state;
+    state = addStaffing(asAlfredo(state), { personId: "person-alfredo", projectId: projectB, startDate: "2026-01-01", load: 50 }).state;
+    state = upsertWorkItem(asAlfredo(state), {
+      projectId: projectB,
+      name: "Client B plan",
+      picPersonId: "person-alfredo",
+      startDate: "2026-02-01",
+      endDate: "2026-03-01",
+    }).state;
+    const itemB = state.workItems.find((row) => row.projectId === projectB)!;
+
+    const hijack = upsertWorkItem(asDigit(state), {
+      id: itemB.id,
+      projectId: projectA,
+      name: "Renamed by someone on A",
+      picPersonId: "person-digit",
+      startDate: "2026-02-01",
+      endDate: "2026-03-01",
+    });
+    expect(hijack.error).toBe("WorkItem not found");
+    expect(hijack.state.workItems.find((row) => row.id === itemB.id)).toEqual(itemB);
+  });
+
   it("refuses a WorkItem outside Project dates and keeps file versions while overwriting link URLs", () => {
     let state = openSampleProject(createInitialState()).state;
     const projectId = state.projects[0]!.id;
