@@ -5,5 +5,5 @@ import { useStore } from "@/lib/store";
 
 export function HomeView() {
   const { state, respondToInvite } = useStore();
-  return <Home state={state} onRespondInvite={(inviteId, status) => respondToInvite(inviteId, status)} />;
+  return <Home state={state} onRespondInvite={(inviteId, status) => respondToInvite(inviteId, status).error} />;
 }
