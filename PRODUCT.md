@@ -70,7 +70,7 @@ The visual contract is [DESIGN.md](DESIGN.md) and [design-system/kmplus.html](de
 
 - Glossary: [CONTEXT.md](CONTEXT.md)
 - Locked decisions: `docs/adr/`
-- Official KM/PLUS mark: `brand/kmplus-logo-dark.svg`
+- Official KM/PLUS mark: `brand/kmplus-logo-official.png` (use unaltered)
 - A seeded roster used for local development. It is demonstration data, not a customer proof.
 - No testimonials, case studies, or press quotes. Do not invent them.
 

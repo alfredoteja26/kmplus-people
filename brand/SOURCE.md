@@ -10,8 +10,9 @@ Identity is **KMPlus Optima Internasional**. Never Akasia.
 
 Files in this folder:
 
+- `kmplus-logo-official.png` — **official logo, supplied by KMPlus (12 Oct 2026). Use this one, unaltered.** Black KM/PLUS, teal bars, transparent background
 - `kmplus-logo.png` — crop of the live site header mark (light on dark)
 - `kmplus-logo-dark.png` — same crop, navy on `#FAFAFA`
-- `kmplus-logo.svg` / `kmplus-logo-dark.svg` — reconstructed from live-site geometry
+- `kmplus-logo.svg` / `kmplus-logo-dark.svg` — reconstructed from live-site geometry; superseded, do not use in the app
 - `kmplus-site-hero.png` — homepage capture used for palette and chrome
 - `kmplus-people-brand-kit.png` — 3×3 identity board for KMPlus People

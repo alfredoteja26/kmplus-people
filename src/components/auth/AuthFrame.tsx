@@ -22,7 +22,9 @@ export function AuthFrame({
         <BrandWave className="pointer-events-none absolute inset-0 -z-10 h-full w-full" />
         <div className="flex w-full flex-col justify-between gap-8 px-6 py-6 sm:px-10 lg:px-14 lg:py-12">
           <div className="flex items-center gap-4">
-            <Image src="/brand/kmplus-logo.svg" alt="KMPlus" width={64} height={55} priority unoptimized className="h-12 w-auto lg:h-14" />
+            <span className="rounded-xl bg-white px-4 py-3">
+              <Image src="/brand/kmplus-logo-official.png" alt="KMPlus" width={695} height={350} priority unoptimized className="block h-8 w-auto lg:h-10" />
+            </span>
             <span className="text-lg font-medium leading-tight lg:hidden">People</span>
           </div>
           <div className="max-lg:hidden">

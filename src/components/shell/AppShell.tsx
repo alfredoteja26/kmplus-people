@@ -35,7 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <MobileNav role={role} kpiAdmin={adminGrant} />
             <Link href="/" className="flex items-center gap-3 rounded-md text-ink no-underline" aria-label="KMPlus People, Home">
-              <Image src="/brand/kmplus-logo-dark.svg" alt="" width={48} height={41} priority unoptimized className="h-9 w-auto sm:h-[41px]" />
+              <Image src="/brand/kmplus-logo-official.png" alt="" width={695} height={350} priority unoptimized className="h-7 w-auto sm:h-8" />
               <span className="text-[16px] font-medium leading-tight max-sm:sr-only">People</span>
             </Link>
           </div>
