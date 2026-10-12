@@ -246,6 +246,22 @@ export async function loadTenantState(): Promise<AppState> {
     prisma.invite.findMany({ where: { tenantId: TENANT_ID } }),
   ]);
 
+  // An empty label table falls back to the defaults below. Write them now: a diff save only writes rows that
+  // changed, so defaults kept only in memory never reach the database, and the first Deliverable, leave
+  // request, or TimeBlock pointing at one would break its foreign key.
+  if (deliverableStatuses.length === 0) {
+    await prisma.deliverableStatus.createMany({ data: seedDeliverableStatuses(), skipDuplicates: true });
+  }
+  if (deliverableCategories.length === 0) {
+    await prisma.deliverableCategory.createMany({ data: seedDeliverableCategories(), skipDuplicates: true });
+  }
+  if (leaveTypes.length === 0) {
+    await prisma.leaveType.createMany({ data: seedLeaveTypes(), skipDuplicates: true });
+  }
+  if (timeBlockTypes.length === 0) {
+    await prisma.timeBlockType.createMany({ data: seedTimeBlockTypes(), skipDuplicates: true });
+  }
+
   const statuses =
     deliverableStatuses.length > 0
       ? deliverableStatuses.map(
