@@ -224,10 +224,10 @@ export function Home({
         ) : null}
       </header>
 
-      {/* One grid, three panels: phones read Needs you, Today, This week; wide screens put Today in its own column. */}
+      {/* One grid, three panels: phones read This week, Needs you, Today; wide screens put Today in its own column. */}
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Panel
-            className="min-w-0 lg:col-start-1 lg:row-start-1"
+            className="min-w-0 lg:col-start-1 lg:row-start-2"
             title="Needs you"
             aside={actCount > 0 ? <span className="text-sm text-muted tabular-nums">{plural(actCount, "thing")} to do</span> : null}
           >
@@ -235,7 +235,7 @@ export function Home({
           </Panel>
 
           <Panel
-            className="min-w-0 lg:col-start-1 lg:row-start-2"
+            className="min-w-0 max-lg:order-first lg:col-start-1 lg:row-start-1"
             title="This week"
             aside={
               <Link href="/timesheet" className="text-sm font-medium text-accent no-underline hover:underline">
@@ -313,7 +313,7 @@ export function Home({
           </Panel>
 
         <Panel
-          className="min-w-0 max-lg:row-start-2 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+          className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1"
           title="Today"
           aside={<span className="text-sm text-muted tabular-nums">{agenda.length ? plural(agenda.length, "entry", "entries") : "Nothing yet"}</span>}
         >
