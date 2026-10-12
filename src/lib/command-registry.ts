@@ -61,6 +61,7 @@ export const COMMANDS = {
   removeDeliverableCategory: commands.removeDeliverableCategory,
   fileLeaveRequest: commands.fileLeaveRequest,
   decideLeaveRequest: commands.decideLeaveRequest,
+  withdrawLeaveRequest: commands.withdrawLeaveRequest,
   addLeaveType: commands.addLeaveType,
   renameLeaveType: commands.renameLeaveType,
   reorderLeaveTypes: commands.reorderLeaveTypes,

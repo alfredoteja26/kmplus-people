@@ -766,6 +766,9 @@ export function fileLeaveRequest(
     }
     coverPersonId = input.coverPersonId ?? null;
     if (!coverPersonId) return { state, leaveRequestId: null, error: "Cuti requires a covering Person" };
+    if (coverPersonId === personId) {
+      return { state, leaveRequestId: null, error: "Covering Person must be someone else" };
+    }
     if (!state.users.some((row) => row.personId === coverPersonId)) {
       return { state, leaveRequestId: null, error: "Covering Person must have a User" };
     }
@@ -788,6 +791,9 @@ export function fileLeaveRequest(
     endTime = input.endTime ?? null;
     if (!startTime || !endTime) {
       return { state, leaveRequestId: null, error: "Hours LeaveRequest requires start and end times" };
+    }
+    if (endTime <= startTime) {
+      return { state, leaveRequestId: null, error: "Hours LeaveRequest end must be after its start" };
     }
   }
 
@@ -840,6 +846,24 @@ export function decideLeaveRequest(
     state: audit(next, "update", "LeaveRequest", leaveRequestId, `Decided ${decision}`),
     error: null,
   };
+}
+
+/**
+ * The filer, or any Admin, takes back a request that has no decision yet. A decided request stays: its paid,
+ * unpaid, or refused outcome is part of the record.
+ */
+export function withdrawLeaveRequest(state: AppState, leaveRequestId: string): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  const existing = state.leaveRequests.find((row) => row.id === leaveRequestId);
+  if (!existing) return { state, error: "LeaveRequest not found" };
+  if (existing.personId !== state.currentPersonId && !hasAdminGrant(state)) {
+    return { state, error: "Only the Person or Admin may withdraw a LeaveRequest" };
+  }
+  if (existing.decision !== null) {
+    return { state, error: "A decided LeaveRequest cannot be withdrawn" };
+  }
+  const next = { ...state, leaveRequests: state.leaveRequests.filter((row) => row.id !== leaveRequestId) };
+  return { state: audit(next, "delete", "LeaveRequest", leaveRequestId, `Withdrew ${existing.kind}`), error: null };
 }
 
 export function addLeaveType(

@@ -1249,6 +1249,7 @@ export {
   removeDeliverableCategory,
   fileLeaveRequest,
   decideLeaveRequest,
+  withdrawLeaveRequest,
   addLeaveType,
   renameLeaveType,
   reorderLeaveTypes,

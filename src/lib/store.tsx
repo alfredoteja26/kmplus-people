@@ -64,6 +64,7 @@ type Store = {
   deleteDeliverable: (deliverableId: string) => { error: string | null };
   fileLeaveRequest: (input: commands.FileLeaveInput) => { leaveRequestId: string | null; error: string | null };
   decideLeaveRequest: (leaveRequestId: string, decision: import("./types").LeaveDecision) => { error: string | null };
+  withdrawLeaveRequest: (leaveRequestId: string) => { error: string | null };
   upsertTimeBlock: (input: commands.UpsertTimeBlockInput) => { timeBlockId: string | null; error: string | null };
   deleteTimeBlock: (timeBlockId: string) => { error: string | null };
   respondToInvite: (inviteId: string, status: "accepted" | "declined") => { error: string | null };
@@ -327,6 +328,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       decideLeaveRequest(leaveRequestId, decision) {
         return commit("decideLeaveRequest", [leaveRequestId, decision]);
+      },
+      withdrawLeaveRequest(leaveRequestId) {
+        return commit("withdrawLeaveRequest", [leaveRequestId]);
       },
       upsertTimeBlock(input) {
         return commit("upsertTimeBlock", [input]);

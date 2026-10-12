@@ -1,7 +1,7 @@
 "use client";
 
-import { LeaveQueue } from "@/components/leave/LeaveQueue";
+import { MyLeaveView } from "@/components/leave/MyLeaveView";
 
 export default function FileLeavePage() {
-  return <LeaveQueue mode="mine" />;
+  return <MyLeaveView />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { LeaveQueue } from "@/components/leave/LeaveQueue";
+import { LeaveDecideView } from "@/components/leave/LeaveDecideView";
 
 export default function LeaveDecidePage() {
-  return <LeaveQueue mode="decide" />;
+  return <LeaveDecideView />;
 }
