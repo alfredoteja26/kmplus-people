@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/coss/badge";
 import { Button } from "@/components/coss/button";
 import { Card, CardDescription, CardHeader, CardPanel, CardTitle } from "@/components/coss/card";
 import {
@@ -173,11 +172,11 @@ export default function DesignSystemPage() {
       <section className="flex flex-col gap-6">
         <h2 className="m-0 text-h2 font-medium">Badges</h2>
         <div className="flex flex-wrap gap-3">
-          <Badge variant="outline">neutral</Badge>
-          <Badge variant="secondary">in-review</Badge>
-          <Badge variant="success">agreed</Badge>
-          <Badge variant="warning">returned</Badge>
-          <Badge variant="error">rejected</Badge>
+          <StatusBadge status="draft" />
+          <StatusBadge status="in-review" />
+          <StatusBadge status="approved" />
+          <StatusBadge status="returned" />
+          <StatusBadge status="rejected" />
         </div>
       </section>
       <FeedbackCluster />

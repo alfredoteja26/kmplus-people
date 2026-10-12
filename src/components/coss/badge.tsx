@@ -7,7 +7,8 @@ import type React from "react";
 import { cn } from "@/lib/utils";
 
 export const badgeVariants = cva(
-  "relative inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-transparent font-medium shadow-[0_1px_2px_rgba(34,34,34,0.06),0_8px_18px_-8px_rgba(34,34,34,0.35)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-3.5 sm:[&_svg:not([class*='size-'])]:size-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [button&,a&]:cursor-pointer [button&,a&]:pointer-coarse:after:absolute [button&,a&]:pointer-coarse:after:size-full [button&,a&]:pointer-coarse:after:min-h-11 [button&,a&]:pointer-coarse:after:min-w-11",
+  // Status, not a control: flat wash plus a 1px inset ring in the tone's own hue. No shadow, no pill, so it never reads as a button.
+  "relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] font-medium leading-none tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-3.5 sm:[&_svg:not([class*='size-'])]:size-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [button&,a&]:cursor-pointer [button&,a&]:pointer-coarse:after:absolute [button&,a&]:pointer-coarse:after:size-full [button&,a&]:pointer-coarse:after:min-h-11 [button&,a&]:pointer-coarse:after:min-w-11",
   {
     defaultVariants: {
       size: "default",
@@ -15,9 +16,9 @@ export const badgeVariants = cva(
     },
     variants: {
       size: {
-        default: "h-8 min-w-8 px-3 text-sm",
-        lg: "h-6.5 min-w-6.5 px-[calc(--spacing(1.5)-1px)] text-base sm:h-5.5 sm:min-w-5.5 sm:text-sm",
-        sm: "h-5 min-w-5 rounded-[.25rem] px-[calc(--spacing(1)-1px)] text-xs sm:h-4 sm:min-w-4 sm:text-[.625rem]",
+        default: "h-6 min-w-6 px-2 text-label",
+        lg: "h-7 min-w-7 px-2.5 text-sm",
+        sm: "h-5 min-w-5 rounded-[4px] px-1.5 text-xs",
       },
       variant: {
         default:
@@ -25,14 +26,16 @@ export const badgeVariants = cva(
         destructive:
           "bg-destructive text-white [button&,a&]:hover:bg-destructive/90",
         error:
-          "bg-destructive/8 text-destructive-foreground dark:bg-destructive/16",
-        info: "bg-info/8 text-info-foreground dark:bg-info/16",
+          "bg-[color-mix(in_srgb,var(--danger)_8%,white)] text-destructive-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--danger)_22%,transparent)] [--badge-dot:var(--danger)]",
+        info: "bg-[color-mix(in_srgb,var(--info)_8%,white)] text-info-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--info)_22%,transparent)] [--badge-dot:var(--info)]",
         outline:
-          "border-input bg-background text-foreground dark:bg-input/32 [button&,a&]:hover:bg-tint dark:[button&,a&]:hover:bg-input/48",
+          "bg-wash text-muted shadow-[inset_0_0_0_1px_var(--line)] [--badge-dot:var(--line-strong)] [button&,a&]:hover:bg-tint",
         secondary:
-          "bg-secondary text-secondary-foreground [button&,a&]:hover:bg-secondary/90",
-        success: "bg-success/8 text-success-foreground dark:bg-success/16",
-        warning: "bg-warning/8 text-warning-foreground dark:bg-warning/16",
+          "bg-[color-mix(in_srgb,var(--accent)_9%,white)] text-accent-hover shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_24%,transparent)] [--badge-dot:var(--accent)] [button&,a&]:hover:bg-[color-mix(in_srgb,var(--accent)_14%,white)]",
+        success:
+          "bg-[color-mix(in_srgb,var(--success)_9%,white)] text-success-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--success)_24%,transparent)] [--badge-dot:var(--success)]",
+        warning:
+          "bg-[color-mix(in_srgb,var(--warning)_11%,white)] text-warning-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--warning)_30%,transparent)] [--badge-dot:var(--warning)]",
       },
     },
   },

@@ -11,6 +11,12 @@ const variant = {
   danger: "error",
 } as const;
 
+// The dot lets a status column scan by hue; the label still carries the meaning.
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: Tone }) {
-  return <CossBadge variant={variant[tone]}>{children}</CossBadge>;
+  return (
+    <CossBadge variant={variant[tone]}>
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-(--badge-dot)" />
+      {children}
+    </CossBadge>
+  );
 }
