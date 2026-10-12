@@ -5,7 +5,7 @@ project_id = "dprkreyvdefbaqlwnzsj"
 
 [auth]
 site_url = "https://internal.kmplus.co.id"
-additional_redirect_urls = ["https://internal.kmplus.co.id/login/password", "https://kmplus-people.vercel.app/login/password", "http://localhost:3000/login/password"]
+additional_redirect_urls = ["https://internal.kmplus.co.id/login/password", "http://localhost:3000/login/password"]
 enable_signup = false
 minimum_password_length = 8
 
