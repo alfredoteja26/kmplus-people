@@ -1270,9 +1270,11 @@ export {
 } from "./work-delivery-commands";
 
 export {
+  clearReimbursementPaid,
   decideReimbursementRequest,
   editReimbursementRequest,
   fileReimbursementRequest,
+  markReimbursementPaid,
   withdrawReimbursementRequest,
 } from "./reimbursement-commands";
 export type {

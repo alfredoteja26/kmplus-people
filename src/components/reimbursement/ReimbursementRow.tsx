@@ -36,6 +36,7 @@ export function ReimbursementRow({
   const person = state.people.find((item) => item.id === row.personId);
   const filer = row.filedByPersonId !== row.personId ? state.people.find((item) => item.id === row.filedByPersonId) : undefined;
   const decider = row.decidedByPersonId ? state.people.find((item) => item.id === row.decidedByPersonId) : undefined;
+  const payer = row.paidByPersonId ? state.people.find((item) => item.id === row.paidByPersonId) : undefined;
   const lowered = row.decision === "approved" && row.approvedAmount !== null && row.approvedAmount < row.amount;
   const evidence = evidenceFor(state, row.id);
 
@@ -94,6 +95,12 @@ export function ReimbursementRow({
               ) : (
                 "."
               )}
+            </p>
+          ) : null}
+          {row.paidOn ? (
+            <p className="m-0 text-sm font-medium text-success-foreground">
+              Paid on {formatDate(row.paidOn)}
+              {payer ? <span className="font-normal text-muted"> · marked by {personName(payer)}</span> : null}
             </p>
           ) : null}
         </div>

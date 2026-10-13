@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/coss/button";
+import { ConfirmAction } from "@/components/product/ConfirmAction";
 import { EmptyBlock } from "@/components/work-delivery/project/parts";
 import type { DecideReimbursementInput } from "@/lib/commands";
 import { hasAdminGrant } from "@/lib/domain-query";
@@ -13,13 +14,22 @@ import { InboxIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { PendingChangeActions } from "./PendingChangeActions";
+import { MarkPaidSheet } from "./MarkPaidSheet";
 import { ReimbursementDecideSheet } from "./ReimbursementDecideSheet";
 import { ReimbursementRequestSheet, plainReimbursementError } from "./ReimbursementRequestSheet";
 import { ReimbursementRow } from "./ReimbursementRow";
 
 export function ReimbursementDecideView() {
-  const { state, fileReimbursementRequest, editReimbursementRequest, withdrawReimbursementRequest, decideReimbursementRequest } =
-    useStore();
+  const {
+    state,
+    fileReimbursementRequest,
+    editReimbursementRequest,
+    withdrawReimbursementRequest,
+    decideReimbursementRequest,
+    markReimbursementPaid,
+    clearReimbursementPaid,
+  } = useStore();
+  const [paying, setPaying] = useState<ReimbursementRequest | null>(null);
   const [deciding, setDeciding] = useState<{ row: ReimbursementRequest; mode: "lower" | "reject" } | null>(null);
   const [editing, setEditing] = useState<ReimbursementRequest | null>(null);
   const [filing, setFiling] = useState(false);
@@ -46,10 +56,18 @@ export function ReimbursementDecideView() {
     .filter((row) => reimbursementState(row) === "pending")
     .sort((a, b) => a.filedOn.localeCompare(b.filedOn) || a.expenseDate.localeCompare(b.expenseDate) || a.id.localeCompare(b.id));
   const mineCount = waiting.filter((row) => row.personId === state.currentPersonId).length;
+  // Approved and not yet paid, longest-approved first; then the most recent payments, newest first.
+  const toPay = state.reimbursementRequests
+    .filter((row) => reimbursementState(row) === "approved")
+    .sort((a, b) => (a.decidedOn ?? "").localeCompare(b.decidedOn ?? "") || a.id.localeCompare(b.id));
+  const recentlyPaid = state.reimbursementRequests
+    .filter((row) => reimbursementState(row) === "paid")
+    .sort((a, b) => (b.paidOn ?? "").localeCompare(a.paidOn ?? "") || b.id.localeCompare(a.id))
+    .slice(0, 20);
   const decidable = waiting.length - mineCount;
 
   const label = (row: ReimbursementRequest) =>
-    `${personName(state.people.find((item) => item.id === row.personId))}, ${reimbursementTypeName(state, row)} ${formatRupiah(row.amount)}`;
+    `${personName(state.people.find((item) => item.id === row.personId))}, ${reimbursementTypeName(state, row)} ${formatRupiah(row.approvedAmount ?? row.amount)}`;
 
   function decide(row: ReimbursementRequest, input: DecideReimbursementInput): string | null {
     const message = decideReimbursementRequest(row.id, input).error;
@@ -68,6 +86,44 @@ export function ReimbursementDecideView() {
     setNotice(`${outcome}: ${label(row)}.`);
     return null;
   }
+
+  function report(message: string | null, success: string): string | null {
+    if (message) {
+      setNotice("");
+      setError(plainReimbursementError(message));
+      return message;
+    }
+    setError("");
+    setNotice(success);
+    return null;
+  }
+
+  const paidActions = (row: ReimbursementRequest) =>
+    row.personId === state.currentPersonId ? (
+      <p className="m-0 max-w-56 text-sm text-muted">Your own request. Another Admin marks it paid.</p>
+    ) : row.paidOn ? (
+      <>
+        <Button type="button" variant="outline" size="sm" onClick={() => setPaying(row)}>
+          Change date
+        </Button>
+        <ConfirmAction
+          tone="default"
+          trigger={
+            <Button type="button" variant="ghost" size="sm">
+              Clear Paid
+            </Button>
+          }
+          title="Clear the Paid date?"
+          description={`${label(row)}. It goes back to approved and waits to be paid.`}
+          confirmLabel="Clear Paid date"
+          onConfirm={() => report(clearReimbursementPaid(row.id).error, `Paid date cleared: ${label(row)}.`)}
+        />
+      </>
+    ) : (
+      <Button type="button" size="sm" onClick={() => setPaying(row)}>
+        Mark as paid
+      </Button>
+    );
 
   function withdraw(row: ReimbursementRequest) {
     const message = withdrawReimbursementRequest(row.id).error;
@@ -180,6 +236,53 @@ export function ReimbursementDecideView() {
           </ul>
         )}
       </section>
+
+      <section aria-label="To pay" className="@container overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+        <h2 className="m-0 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-3.5 text-base font-medium">
+          <span className="flex items-baseline gap-2">
+            To pay
+            <span className="text-sm font-normal text-muted tabular-nums">{toPay.length}</span>
+          </span>
+          {toPay.length ? (
+            <span className="text-sm tabular-nums">
+              <span className="font-normal text-muted">Total </span>
+              {formatRupiah(toPay.reduce((sum, row) => sum + (row.approvedAmount ?? row.amount), 0))}
+            </span>
+          ) : null}
+        </h2>
+        {toPay.length === 0 ? (
+          <p className="m-0 px-5 py-4 text-sm text-muted">Nothing approved is waiting to be paid.</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {toPay.map((row) => (
+              <ReimbursementRow key={row.id} state={state} row={row} showPerson actions={paidActions(row)} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {recentlyPaid.length > 0 ? (
+        <section aria-label="Recently paid" className="@container overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+          <h2 className="m-0 flex items-baseline gap-2 border-b border-line px-5 py-3.5 text-base font-medium">
+            Recently paid
+            <span className="text-sm font-normal text-muted tabular-nums">{recentlyPaid.length}</span>
+          </h2>
+          <ul className="m-0 list-none p-0">
+            {recentlyPaid.map((row) => (
+              <ReimbursementRow key={row.id} state={state} row={row} showPerson actions={paidActions(row)} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {paying ? (
+        <MarkPaidSheet
+          state={state}
+          row={paying}
+          onClose={() => setPaying(null)}
+          onMark={(paidOn) => report(markReimbursementPaid(paying.id, paidOn).error, `Marked paid: ${label(paying)}.`)}
+        />
+      ) : null}
 
       {deciding ? (
         <ReimbursementDecideSheet

@@ -320,3 +320,84 @@ describe("changing a pending reimbursement", () => {
     expect(withdraw(decided.next, DIGIT, id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/decided/) });
   });
 });
+
+function markPaid(state: AppState, session: { personId: string; role: Role }, id: string, paidOn: string) {
+  return executeCommand(state, session, { name: "markReimbursementPaid", args: [id, paidOn] });
+}
+
+function clearPaid(state: AppState, session: { personId: string; role: Role }, id: string) {
+  return executeCommand(state, session, { name: "clearReimbursementPaid", args: [id] });
+}
+
+function approved(session = DIGIT, decider = ALFREDO) {
+  const { state, id } = filedBy(session);
+  const outcome = decide(state, decider, id, { decision: "approved" });
+  if (outcome.kind !== "applied") throw new Error("not applied");
+  return { state: outcome.next, id };
+}
+
+describe("marking a reimbursement paid", () => {
+  it("marks an approved request Paid, corrects the date, and clears it again", () => {
+    const { state, id } = approved();
+    const paid = markPaid(state, ALFREDO, id, "2026-10-12");
+    if (paid.kind !== "applied") throw new Error(paid.kind === "refused" ? paid.error : "invalid");
+    expect(viewAs(paid.next, DIGIT).reimbursementRequests[0]).toMatchObject({
+      paidOn: "2026-10-12",
+      paidByPersonId: "person-alfredo",
+    });
+
+    const corrected = markPaid(paid.next, ALFREDO, id, "2026-10-13");
+    if (corrected.kind !== "applied") throw new Error("not applied");
+    expect(corrected.next.reimbursementRequests[0].paidOn).toBe("2026-10-13");
+
+    const cleared = clearPaid(corrected.next, ALFREDO, id);
+    if (cleared.kind !== "applied") throw new Error("not applied");
+    expect(cleared.next.reimbursementRequests[0]).toMatchObject({ paidOn: null, paidByPersonId: null, decision: "approved" });
+    expect(cleared.next.audit.slice(0, 3).map((row) => row.detail)).toEqual([
+      "Paid date cleared",
+      "Paid on 2026-10-13",
+      "Paid on 2026-10-12",
+    ]);
+  });
+
+  it("refuses a Paid date in the future or not a real date", () => {
+    const { state, id } = approved();
+    expect(markPaid(state, ALFREDO, id, "2026-10-14")).toMatchObject({ kind: "refused", error: expect.stringMatching(/future/) });
+    expect(markPaid(state, ALFREDO, id, "2026-02-30")).toMatchObject({ kind: "refused", error: expect.stringMatching(/date/) });
+  });
+
+  it("only pays approved requests", () => {
+    const pending = filedBy(DIGIT);
+    expect(markPaid(pending.state, ALFREDO, pending.id, "2026-10-13")).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/approved/),
+    });
+    const rejected = decide(pending.state, ALFREDO, pending.id, { decision: "rejected", note: "Personal trip" });
+    if (rejected.kind !== "applied") throw new Error("not applied");
+    expect(markPaid(rejected.next, ALFREDO, pending.id, "2026-10-13")).toMatchObject({ kind: "refused" });
+    const withdrawn = withdraw(pending.state, DIGIT, pending.id);
+    if (withdrawn.kind !== "applied") throw new Error("not applied");
+    expect(markPaid(withdrawn.next, ALFREDO, pending.id, "2026-10-13")).toMatchObject({ kind: "refused" });
+    expect(clearPaid(pending.state, ALFREDO, pending.id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/approved/) });
+    const unpaid = approved();
+    expect(clearPaid(unpaid.state, ALFREDO, unpaid.id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/not marked Paid/) });
+  });
+
+  it("refuses non-Admins and an Admin paying their own request", () => {
+    const { state, id } = approved();
+    expect(markPaid(state, DIGIT, id, "2026-10-13")).toMatchObject({ kind: "refused" });
+    expect(markPaid(state, RAYHAN, id, "2026-10-13")).toMatchObject({ kind: "refused" });
+
+    const own = filedBy(ALFREDO);
+    const second = withSecondAdmin(own.state, "person-rayhan");
+    const decided = decide(second, RAYHAN, own.id, { decision: "approved" });
+    if (decided.kind !== "applied") throw new Error("not applied");
+    expect(markPaid(decided.next, ALFREDO, own.id, "2026-10-13")).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/own/),
+    });
+    const paidBySecond = markPaid(decided.next, RAYHAN, own.id, "2026-10-13");
+    if (paidBySecond.kind !== "applied") throw new Error("not applied");
+    expect(clearPaid(paidBySecond.next, ALFREDO, own.id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/own/) });
+  });
+});

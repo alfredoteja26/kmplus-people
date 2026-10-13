@@ -77,6 +77,8 @@ type Store = {
     reimbursementRequestId: string,
     input: commands.DecideReimbursementInput,
   ) => { error: string | null };
+  markReimbursementPaid: (reimbursementRequestId: string, paidOn: string) => { error: string | null };
+  clearReimbursementPaid: (reimbursementRequestId: string) => { error: string | null };
   upsertTimeBlock: (input: commands.UpsertTimeBlockInput) => { timeBlockId: string | null; error: string | null };
   deleteTimeBlock: (timeBlockId: string) => { error: string | null };
   respondToInvite: (inviteId: string, status: "accepted" | "declined") => { error: string | null };
@@ -355,6 +357,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       decideReimbursementRequest(reimbursementRequestId, input) {
         return commit("decideReimbursementRequest", [reimbursementRequestId, input]);
+      },
+      markReimbursementPaid(reimbursementRequestId, paidOn) {
+        return commit("markReimbursementPaid", [reimbursementRequestId, paidOn]);
+      },
+      clearReimbursementPaid(reimbursementRequestId) {
+        return commit("clearReimbursementPaid", [reimbursementRequestId]);
       },
       upsertTimeBlock(input) {
         return commit("upsertTimeBlock", [input]);

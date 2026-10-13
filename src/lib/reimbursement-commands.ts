@@ -286,3 +286,53 @@ export function decideReimbursementRequest(
         : `Approved ${approvedAmount} of ${row.amount}`;
   return { state: audit(next, "update", "ReimbursementRequest", row.id, detail), error: null };
 }
+
+/** Paid changes are Admin work, never on one's own request, and only on an approved one (ADR-0013). */
+function paidChangeRefusal(state: AppState, row: ReimbursementRequest | undefined): string | null {
+  if (!hasAdminGrant(state)) return "Admin grant required";
+  if (!row) return "Reimbursement not found";
+  if (row.personId === state.currentPersonId) return "An Admin cannot mark their own reimbursement Paid";
+  if (row.withdrawnOn || row.decision !== "approved") return "Only an approved reimbursement can be Paid";
+  return null;
+}
+
+/** Records the day the money went out; marking again corrects the date. Payment itself happens outside the app. */
+export function markReimbursementPaid(
+  state: AppState,
+  reimbursementRequestId: string,
+  paidOn: string,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
+  const denied = paidChangeRefusal(state, row);
+  if (denied || !row) return { state, error: denied };
+  const date = String(paidOn ?? "");
+  if (!isCalendarDate(date)) return { state, error: "Paid date is required" };
+  if (date > jakartaTodayIso()) return { state, error: "Paid date cannot be in the future" };
+  const next = {
+    ...state,
+    reimbursementRequests: state.reimbursementRequests.map((item) =>
+      item.id === row.id ? { ...item, paidOn: date, paidByPersonId: state.currentPersonId } : item,
+    ),
+  };
+  return { state: audit(next, "update", "ReimbursementRequest", row.id, `Paid on ${date}`), error: null };
+}
+
+/** Takes back a Paid date set by mistake; the request is approved again. */
+export function clearReimbursementPaid(
+  state: AppState,
+  reimbursementRequestId: string,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
+  const denied = paidChangeRefusal(state, row);
+  if (denied || !row) return { state, error: denied };
+  if (!row.paidOn) return { state, error: "This reimbursement is not marked Paid" };
+  const next = {
+    ...state,
+    reimbursementRequests: state.reimbursementRequests.map((item) =>
+      item.id === row.id ? { ...item, paidOn: null, paidByPersonId: null } : item,
+    ),
+  };
+  return { state: audit(next, "update", "ReimbursementRequest", row.id, "Paid date cleared"), error: null };
+}

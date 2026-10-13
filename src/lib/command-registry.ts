@@ -70,6 +70,8 @@ export const COMMANDS = {
   editReimbursementRequest: commands.editReimbursementRequest,
   withdrawReimbursementRequest: commands.withdrawReimbursementRequest,
   decideReimbursementRequest: commands.decideReimbursementRequest,
+  markReimbursementPaid: commands.markReimbursementPaid,
+  clearReimbursementPaid: commands.clearReimbursementPaid,
   addPublicHoliday: commands.addPublicHoliday,
   renamePublicHoliday: commands.renamePublicHoliday,
   removePublicHoliday: commands.removePublicHoliday,
