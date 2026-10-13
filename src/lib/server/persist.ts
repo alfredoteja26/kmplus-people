@@ -18,6 +18,9 @@ import type {
   KpiSet,
   LeaveRequest,
   LeaveType,
+  ReimbursementEvidence,
+  ReimbursementRequest,
+  ReimbursementType,
   OrgUnit,
   Person,
   Position,
@@ -41,6 +44,7 @@ import {
   seedDeliverableCategories,
   seedDeliverableStatuses,
   seedLeaveTypes,
+  seedReimbursementTypes,
   seedTimeBlockTypes,
 } from "@/lib/work-delivery-seed";
 
@@ -213,6 +217,9 @@ export async function loadTenantState(): Promise<AppState> {
     deliverableCategories,
     leaveRequests,
     leaveTypes,
+    reimbursementRequests,
+    reimbursementEvidence,
+    reimbursementTypes,
     publicHolidays,
     timeBlockTypes,
     timeBlocks,
@@ -240,6 +247,9 @@ export async function loadTenantState(): Promise<AppState> {
     prisma.deliverableCategory.findMany({ where: { tenantId: TENANT_ID } }),
     prisma.leaveRequest.findMany({ where: { tenantId: TENANT_ID } }),
     prisma.leaveType.findMany({ where: { tenantId: TENANT_ID } }),
+    prisma.reimbursementRequest.findMany({ where: { tenantId: TENANT_ID } }),
+    prisma.reimbursementEvidence.findMany({ where: { tenantId: TENANT_ID } }),
+    prisma.reimbursementType.findMany({ where: { tenantId: TENANT_ID } }),
     prisma.publicHoliday.findMany({ where: { tenantId: TENANT_ID } }),
     prisma.timeBlockType.findMany({ where: { tenantId: TENANT_ID } }),
     prisma.timeBlock.findMany({ where: { tenantId: TENANT_ID } }),
@@ -257,6 +267,9 @@ export async function loadTenantState(): Promise<AppState> {
   }
   if (leaveTypes.length === 0) {
     await prisma.leaveType.createMany({ data: seedLeaveTypes(), skipDuplicates: true });
+  }
+  if (reimbursementTypes.length === 0) {
+    await prisma.reimbursementType.createMany({ data: seedReimbursementTypes(), skipDuplicates: true });
   }
   if (timeBlockTypes.length === 0) {
     await prisma.timeBlockType.createMany({ data: seedTimeBlockTypes(), skipDuplicates: true });
@@ -297,6 +310,17 @@ export async function loadTenantState(): Promise<AppState> {
           }),
         )
       : seedLeaveTypes();
+  const reimbursementTypeRows =
+    reimbursementTypes.length > 0
+      ? reimbursementTypes.map(
+          (row): ReimbursementType => ({
+            id: row.id,
+            tenantId: row.tenantId,
+            name: row.name,
+            sortOrder: row.sortOrder,
+          }),
+        )
+      : seedReimbursementTypes();
   const timeBlockTypeRows =
     timeBlockTypes.length > 0
       ? timeBlockTypes.map(
@@ -523,6 +547,41 @@ export async function loadTenantState(): Promise<AppState> {
       }),
     ),
     leaveTypes: leaveTypeRows,
+    reimbursementRequests: reimbursementRequests.map(
+      (row): ReimbursementRequest => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        personId: row.personId,
+        filedByPersonId: row.filedByPersonId,
+        filedOn: row.filedOn,
+        expenseDate: row.expenseDate,
+        amount: row.amount,
+        reimbursementTypeId: row.reimbursementTypeId,
+        description: row.description,
+        projectId: row.projectId,
+        withdrawnOn: row.withdrawnOn,
+        decision: (row.decision as ReimbursementRequest["decision"]) ?? null,
+        approvedAmount: row.approvedAmount,
+        decisionNote: row.decisionNote,
+        decidedByPersonId: row.decidedByPersonId,
+        decidedOn: row.decidedOn,
+        paidOn: row.paidOn,
+        paidByPersonId: row.paidByPersonId,
+      }),
+    ),
+    reimbursementEvidence: reimbursementEvidence.map(
+      (row): ReimbursementEvidence => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        reimbursementRequestId: row.reimbursementRequestId,
+        storagePath: row.storagePath,
+        fileName: row.fileName,
+        contentType: row.contentType,
+        size: row.size,
+        sortOrder: row.sortOrder,
+      }),
+    ),
+    reimbursementTypes: reimbursementTypeRows,
     publicHolidays: publicHolidays.map(
       (row): PublicHoliday => ({
         id: row.id,
@@ -612,6 +671,9 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
     const kpiSetsRows = rows((from) => from.kpiSets);
     const leaveRequestsRows = rows((from) => from.leaveRequests);
     const leaveTypesRows = rows((from) => from.leaveTypes);
+    const reimbursementRequestsRows = rows((from) => from.reimbursementRequests);
+    const reimbursementEvidenceRows = rows((from) => from.reimbursementEvidence);
+    const reimbursementTypesRows = rows((from) => from.reimbursementTypes);
     const orgUnitsRows = rows((from) => from.orgUnits);
     const peopleRows = rows((from) => from.people);
     const positionsRows = rows((from) => from.positions);
@@ -998,6 +1060,14 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
       });
     }
 
+    for (const row of reimbursementTypesRows) {
+      await tx.reimbursementType.upsert({
+        where: { id: row.id },
+        create: { ...row, tenantId },
+        update: { name: row.name, sortOrder: row.sortOrder },
+      });
+    }
+
     for (const row of timeBlockTypesRows) {
       await tx.timeBlockType.upsert({
         where: { id: row.id },
@@ -1111,6 +1181,39 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
       });
     }
 
+    for (const row of reimbursementRequestsRows) {
+      await tx.reimbursementRequest.upsert({
+        where: { id: row.id },
+        create: { ...row, tenantId },
+        update: {
+          personId: row.personId,
+          filedByPersonId: row.filedByPersonId,
+          filedOn: row.filedOn,
+          expenseDate: row.expenseDate,
+          amount: row.amount,
+          reimbursementTypeId: row.reimbursementTypeId,
+          description: row.description,
+          projectId: row.projectId,
+          withdrawnOn: row.withdrawnOn,
+          decision: row.decision,
+          approvedAmount: row.approvedAmount,
+          decisionNote: row.decisionNote,
+          decidedByPersonId: row.decidedByPersonId,
+          decidedOn: row.decidedOn,
+          paidOn: row.paidOn,
+          paidByPersonId: row.paidByPersonId,
+        },
+      });
+    }
+
+    for (const row of reimbursementEvidenceRows) {
+      await tx.reimbursementEvidence.upsert({
+        where: { id: row.id },
+        create: { ...row, tenantId },
+        update: { fileName: row.fileName, sortOrder: row.sortOrder },
+      });
+    }
+
     for (const row of publicHolidaysRows) {
       await tx.publicHoliday.upsert({
         where: { id: row.id },
@@ -1175,6 +1278,9 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
       deliverableCategories: (state.deliverableCategories ?? []).map((row) => row.id),
       leaveRequests: (state.leaveRequests ?? []).map((row) => row.id),
       leaveTypes: (state.leaveTypes ?? []).map((row) => row.id),
+      reimbursementRequests: (state.reimbursementRequests ?? []).map((row) => row.id),
+      reimbursementEvidence: (state.reimbursementEvidence ?? []).map((row) => row.id),
+      reimbursementTypes: (state.reimbursementTypes ?? []).map((row) => row.id),
       publicHolidays: (state.publicHolidays ?? []).map((row) => row.id),
       timeBlockTypes: (state.timeBlockTypes ?? []).map((row) => row.id),
       timeBlocks: (state.timeBlocks ?? []).map((row) => row.id),
@@ -1183,6 +1289,8 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
 
     if (pruned((from) => from.invites)) await tx.invite.deleteMany({ where: { tenantId, id: { notIn: keep.invites } } });
     if (pruned((from) => from.timeBlocks)) await tx.timeBlock.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlocks } } });
+    if (pruned((from) => from.reimbursementEvidence)) await tx.reimbursementEvidence.deleteMany({ where: { tenantId, id: { notIn: keep.reimbursementEvidence } } });
+    if (pruned((from) => from.reimbursementRequests)) await tx.reimbursementRequest.deleteMany({ where: { tenantId, id: { notIn: keep.reimbursementRequests } } });
     if (pruned((from) => from.leaveRequests)) await tx.leaveRequest.deleteMany({ where: { tenantId, id: { notIn: keep.leaveRequests } } });
     if (pruned((from) => from.deliverables)) await tx.deliverable.deleteMany({ where: { tenantId, id: { notIn: keep.deliverables } } });
     if (pruned((from) => from.workItems)) await tx.workItem.deleteMany({ where: { tenantId, id: { notIn: keep.workItems } } });
@@ -1192,6 +1300,7 @@ export async function saveTenantState(state: AppState, previous?: AppState): Pro
     if (pruned((from) => from.deliverableStatuses)) await tx.deliverableStatus.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableStatuses } } });
     if (pruned((from) => from.deliverableCategories)) await tx.deliverableCategory.deleteMany({ where: { tenantId, id: { notIn: keep.deliverableCategories } } });
     if (pruned((from) => from.leaveTypes)) await tx.leaveType.deleteMany({ where: { tenantId, id: { notIn: keep.leaveTypes } } });
+    if (pruned((from) => from.reimbursementTypes)) await tx.reimbursementType.deleteMany({ where: { tenantId, id: { notIn: keep.reimbursementTypes } } });
     if (pruned((from) => from.timeBlockTypes)) await tx.timeBlockType.deleteMany({ where: { tenantId, id: { notIn: keep.timeBlockTypes } } });
 
     if (pruned((from) => from.checkIns)) await tx.checkIn.deleteMany({ where: { tenantId, id: { notIn: keep.checkIns } } });

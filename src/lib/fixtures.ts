@@ -22,6 +22,7 @@ import {
   seedDeliverableCategories,
   seedDeliverableStatuses,
   seedLeaveTypes,
+  seedReimbursementTypes,
   seedTimeBlockTypes,
 } from "./work-delivery-seed";
 
@@ -601,6 +602,9 @@ export function createInitialState(): AppState {
     deliverableCategories: seedDeliverableCategories(),
     leaveRequests: [],
     leaveTypes: seedLeaveTypes(),
+    reimbursementRequests: [],
+    reimbursementEvidence: [],
+    reimbursementTypes: seedReimbursementTypes(),
     publicHolidays: [],
     timeBlockTypes: seedTimeBlockTypes(),
     timeBlocks: [],

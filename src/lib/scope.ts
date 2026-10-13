@@ -19,6 +19,12 @@ export function scopeStateForViewer(full: AppState): AppState {
   const reports = new Set(lineManagerReportPersonIds(full, me));
   const canSeeProfile = (personId: string) => personId === me || hr || reports.has(personId) || canReadPerson(full, personId);
 
+  // A ReimbursementRequest and its receipts reach the Person it is for, the Admin who filed it, and every Admin.
+  const myReimbursements = full.reimbursementRequests.filter(
+    (row) => row.personId === me || row.filedByPersonId === me,
+  );
+  const myReimbursementIds = new Set(myReimbursements.map((row) => row.id));
+
   const myBlockIds = new Set(full.timeBlocks.filter((row) => row.personId === me).map((row) => row.id));
   const myInvites = full.invites.filter((row) => row.personId === me);
   const invitedBlockIds = new Set(myInvites.map((row) => row.timeBlockId));
@@ -32,6 +38,10 @@ export function scopeStateForViewer(full: AppState): AppState {
     corrections: hr ? full.corrections : full.corrections.filter((row) => row.personId === me),
     audit: hr || admin ? full.audit : [],
     leaveRequests: admin ? full.leaveRequests : full.leaveRequests.filter((row) => row.personId === me),
+    reimbursementRequests: admin ? full.reimbursementRequests : myReimbursements,
+    reimbursementEvidence: admin
+      ? full.reimbursementEvidence
+      : full.reimbursementEvidence.filter((row) => myReimbursementIds.has(row.reimbursementRequestId)),
     timeBlocks: admin
       ? full.timeBlocks
       : full.timeBlocks.filter((row) => row.personId === me || invitedBlockIds.has(row.id)),

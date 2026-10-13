@@ -14,6 +14,7 @@ export type NavIconId =
   | "timesheet"
   | "leave"
   | "leave-decide"
+  | "reimbursement"
   | "project-admin";
 
 export type NavItem = {
@@ -50,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/projects", label: "Projects", icon: "projects" },
       { href: "/timesheet", label: "Timesheet", icon: "timesheet" },
       { href: "/leave/file", label: "Leave", icon: "leave" },
+      { href: "/reimbursement", label: "Reimbursement", icon: "reimbursement" },
       { href: "/leave/decide", label: "Leave requests", icon: "leave-decide" },
       { href: "/project-admin", label: "Project Admin", icon: "project-admin" },
     ],

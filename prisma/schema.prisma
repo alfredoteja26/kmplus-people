@@ -45,6 +45,7 @@ model Person {
   staffings    Staffing[]
   leaveRequests LeaveRequest[] @relation("LeaveSubject")
   leaveCovers   LeaveRequest[] @relation("LeaveCover")
+  reimbursementRequests ReimbursementRequest[]
   timeBlocks   TimeBlock[]
   invites      Invite[]
   workItemPics WorkItem[]
@@ -272,6 +273,7 @@ model Project {
   workItems  WorkItem[]
   deliverables Deliverable[]
   timeBlocks TimeBlock[]
+  reimbursementRequests ReimbursementRequest[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -360,6 +362,59 @@ model LeaveType {
   leaveRequests LeaveRequest[]
 
   @@index([tenantId])
+}
+
+model ReimbursementType {
+  id                    String @id
+  tenantId              String
+  name                  String
+  sortOrder             Int
+  reimbursementRequests ReimbursementRequest[]
+
+  @@index([tenantId])
+}
+
+model ReimbursementRequest {
+  id                  String  @id
+  tenantId            String
+  personId            String
+  filedByPersonId     String
+  filedOn             String
+  expenseDate         String
+  amount              Int
+  reimbursementTypeId String
+  description         String
+  projectId           String?
+  withdrawnOn         String?
+  decision            String?
+  approvedAmount      Int?
+  decisionNote        String?
+  decidedByPersonId   String?
+  decidedOn           String?
+  paidOn              String?
+  paidByPersonId      String?
+  person              Person            @relation(fields: [personId], references: [id], onDelete: Cascade)
+  reimbursementType   ReimbursementType @relation(fields: [reimbursementTypeId], references: [id], onDelete: Restrict)
+  project             Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  evidence            ReimbursementEvidence[]
+
+  @@index([tenantId])
+  @@index([personId])
+}
+
+model ReimbursementEvidence {
+  id                     String               @id
+  tenantId               String
+  reimbursementRequestId String
+  storagePath            String
+  fileName               String
+  contentType            String
+  size                   Int
+  sortOrder              Int
+  request                ReimbursementRequest @relation(fields: [reimbursementRequestId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([reimbursementRequestId])
 }
 
 model LeaveRequest {

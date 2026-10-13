@@ -6,10 +6,11 @@ import {
   storageConfigured,
   storagePathForUpload,
 } from "@/lib/server/supabase-storage";
+import { EVIDENCE_TYPE_REFUSAL, reimbursementEvidenceAllowed, uploadFolderFor } from "@/lib/upload-rules";
 
 export const runtime = "nodejs";
 
-type UploadBody = { purpose?: string; fileName?: string; size?: number };
+type UploadBody = { purpose?: string; fileName?: string; size?: number; contentType?: string };
 
 /**
  * Hands out a storage path and a signed upload URL; the browser sends the bytes to Supabase itself.
@@ -30,7 +31,8 @@ export async function POST(request: Request) {
   const { purpose } = body;
   const fileName = String(body.fileName ?? "").trim() || "upload";
   const size = Number(body.size);
-  if (purpose !== "deliverable" && purpose !== "doctor-letter") {
+  const folder = uploadFolderFor(purpose);
+  if (!folder) {
     return NextResponse.json({ error: "Invalid upload purpose" }, { status: 400 });
   }
   if (!Number.isFinite(size) || size <= 0) {
@@ -40,7 +42,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File is too large" }, { status: 400 });
   }
 
-  const folder = purpose === "doctor-letter" ? "leave-letters" : "deliverables";
+  if (purpose === "reimbursement-evidence" && !reimbursementEvidenceAllowed(String(body.contentType ?? ""), fileName)) {
+    return NextResponse.json({ error: EVIDENCE_TYPE_REFUSAL }, { status: 400 });
+  }
+
   const storagePath = storagePathForUpload(folder, fileName);
   if (!storageConfigured()) {
     return NextResponse.json({ storagePath, fileName });

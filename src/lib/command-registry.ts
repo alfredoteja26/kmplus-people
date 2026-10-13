@@ -66,6 +66,7 @@ export const COMMANDS = {
   renameLeaveType: commands.renameLeaveType,
   reorderLeaveTypes: commands.reorderLeaveTypes,
   removeLeaveType: commands.removeLeaveType,
+  fileReimbursementRequest: commands.fileReimbursementRequest,
   addPublicHoliday: commands.addPublicHoliday,
   renamePublicHoliday: commands.renamePublicHoliday,
   removePublicHoliday: commands.removePublicHoliday,
