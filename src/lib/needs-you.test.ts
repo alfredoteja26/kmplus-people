@@ -41,4 +41,44 @@ describe("needsYou", () => {
     const own = needsYou(as("person-alfredo", "employee"), TODAY).filter((row) => row.hat === "self");
     expect(own.some((row) => row.tone === "wait" && row.title.includes("waiting for approval"))).toBe(true);
   });
+
+  it("tells an Admin how many reimbursements they may decide, leaving out their own", () => {
+    const pending = (id: string, personId: string, patch = {}) => ({
+      id,
+      tenantId: "kmplus",
+      personId,
+      filedByPersonId: personId,
+      filedOn: "2026-09-10",
+      expenseDate: "2026-09-08",
+      amount: 50000,
+      reimbursementTypeId: "reimbursement-type-1",
+      description: "Taxi",
+      projectId: null,
+      withdrawnOn: null,
+      decision: null,
+      approvedAmount: null,
+      decisionNote: null,
+      decidedByPersonId: null,
+      decidedOn: null,
+      paidOn: null,
+      paidByPersonId: null,
+      ...patch,
+    });
+    const state: AppState = {
+      ...as("person-alfredo", "employee"),
+      reimbursementRequests: [
+        pending("r1", "person-digit"),
+        pending("r2", "person-eka"),
+        pending("r3", "person-alfredo"),
+        pending("r4", "person-setyo", { withdrawnOn: "2026-09-11" }),
+        pending("r5", "person-puti", { decision: "approved", approvedAmount: 50000 }),
+      ],
+    };
+    const item = needsYou(state, TODAY).find((row) => row.id === "admin-reimbursements");
+    expect(item).toMatchObject({ count: 2, title: "2 reimbursements to decide", href: "/reimbursement/decide" });
+
+    const onlyOwn = { ...state, reimbursementRequests: [pending("r3", "person-alfredo")] };
+    expect(needsYou(onlyOwn, TODAY).some((row) => row.id === "admin-reimbursements")).toBe(false);
+    expect(needsYou({ ...state, currentPersonId: "person-digit" }, TODAY).some((row) => row.id === "admin-reimbursements")).toBe(false);
+  });
 });

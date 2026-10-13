@@ -190,6 +190,21 @@ export function needsYou(state: AppState, today: string): NeedsYouItem[] {
         action: "Decide",
       });
     }
+    // An Admin never decides their own reimbursement (ADR-0013), so those are not waiting on them.
+    const reimbursements = (state.reimbursementRequests ?? []).filter(
+      (row) => row.decision === null && row.withdrawnOn === null && row.personId !== state.currentPersonId,
+    ).length;
+    if (reimbursements > 0) {
+      items.push({
+        id: "admin-reimbursements",
+        hat: "admin",
+        tone: "act",
+        count: reimbursements,
+        title: `${reimbursements} ${plural(reimbursements, "reimbursement")} to decide`,
+        href: "/reimbursement/decide",
+        action: "Decide",
+      });
+    }
   }
 
   if (isHrLike(state.currentRole)) {
