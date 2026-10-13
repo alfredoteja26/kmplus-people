@@ -498,3 +498,46 @@ describe("a Line Manager reading the team's reimbursements", () => {
     expect(markPaid(paidReady, MARCELINO, approvedId, "2026-10-13")).toMatchObject({ kind: "refused" });
   });
 });
+
+function run(state: AppState, session: { personId: string; role: Role }, name: string, args: unknown[]) {
+  return executeCommand(state, session, { name, args });
+}
+
+describe("configuring reimbursement types", () => {
+  it("lets an Admin add, rename, and reorder types, and refuses everyone else", () => {
+    const added = run(createInitialState(), ALFREDO, "addReimbursementType", ["Parking"]);
+    if (added.kind !== "applied") throw new Error("not applied");
+    const parkingId = added.result.reimbursementTypeId as string;
+    expect(added.next.reimbursementTypes.at(-1)).toMatchObject({ name: "Parking", sortOrder: 5 });
+
+    const renamed = run(added.next, ALFREDO, "renameReimbursementType", [parkingId, "Parking & tolls"]);
+    if (renamed.kind !== "applied") throw new Error("not applied");
+    const order = [parkingId, ...renamed.next.reimbursementTypes.filter((row) => row.id !== parkingId).map((row) => row.id)];
+    const reordered = run(renamed.next, ALFREDO, "reorderReimbursementTypes", [order]);
+    if (reordered.kind !== "applied") throw new Error("not applied");
+    const first = [...reordered.next.reimbursementTypes].sort((a, b) => a.sortOrder - b.sortOrder)[0];
+    expect(first).toMatchObject({ id: parkingId, name: "Parking & tolls" });
+    expect(reordered.next.audit[0]).toMatchObject({ entity: "ReimbursementType" });
+
+    expect(run(createInitialState(), DIGIT, "addReimbursementType", ["Parking"])).toMatchObject({ kind: "refused" });
+    expect(run(createInitialState(), ALFREDO, "addReimbursementType", ["  "])).toMatchObject({ kind: "refused" });
+    expect(run(createInitialState(), ALFREDO, "reorderReimbursementTypes", [["reimbursement-type-1"]])).toMatchObject({ kind: "refused" });
+  });
+
+  it("refuses removing a type any request uses, even a withdrawn one, or the last type", () => {
+    const { state, id } = filedBy(DIGIT);
+    const gone = withdraw(state, DIGIT, id);
+    if (gone.kind !== "applied") throw new Error("not applied");
+    expect(run(gone.next, ALFREDO, "removeReimbursementType", ["reimbursement-type-1"])).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/in use/),
+    });
+    expect(run(gone.next, ALFREDO, "removeReimbursementType", ["reimbursement-type-5"]).kind).toBe("applied");
+
+    const onlyOne = { ...createInitialState(), reimbursementTypes: createInitialState().reimbursementTypes.slice(0, 1) };
+    expect(run(onlyOne, ALFREDO, "removeReimbursementType", ["reimbursement-type-1"])).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/At least one/),
+    });
+  });
+});

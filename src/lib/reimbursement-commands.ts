@@ -1,6 +1,6 @@
 import { nid } from "./domain";
 import { hasAdminGrant } from "./domain-query";
-import type { AppState, ReimbursementDecision, ReimbursementEvidence, ReimbursementRequest } from "./types";
+import type { AppState, ReimbursementDecision, ReimbursementEvidence, ReimbursementRequest, ReimbursementType } from "./types";
 import { TENANT_ID } from "./types";
 import {
   EVIDENCE_TYPE_REFUSAL,
@@ -9,7 +9,7 @@ import {
   reimbursementEvidenceAllowed,
   storagePathPrefix,
 } from "./upload-rules";
-import { audit, ensureWorkDeliveryCollections, type CommandResult } from "./work-delivery-commands";
+import { audit, ensureWorkDeliveryCollections, reorderLabels, type CommandResult } from "./work-delivery-commands";
 import { addDaysIso, isStaffedOnProject, jakartaTodayIso } from "./work-delivery-query";
 
 export type ReimbursementEvidenceInput = {
@@ -346,4 +346,79 @@ export function clearReimbursementPaid(
     ),
   };
   return { state: audit(next, "update", "ReimbursementRequest", row.id, "Paid date cleared"), error: null };
+}
+
+// ReimbursementType labels follow the LeaveType pattern: Admin adds, renames, and reorders; a label in use or the
+// last label stays.
+
+export function addReimbursementType(
+  state: AppState,
+  name: string,
+): CommandResult<{ reimbursementTypeId: string | null; error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  if (!hasAdminGrant(state)) return { state, reimbursementTypeId: null, error: "Admin grant required" };
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) return { state, reimbursementTypeId: null, error: "Reimbursement type name is required" };
+  const reimbursementTypeId = nid("reimbursement-type");
+  const row: ReimbursementType = {
+    id: reimbursementTypeId,
+    tenantId: TENANT_ID,
+    name: trimmed,
+    sortOrder: state.reimbursementTypes.length,
+  };
+  const next = { ...state, reimbursementTypes: [...state.reimbursementTypes, row] };
+  return {
+    state: audit(next, "create", "ReimbursementType", reimbursementTypeId, trimmed),
+    reimbursementTypeId,
+    error: null,
+  };
+}
+
+export function renameReimbursementType(
+  state: AppState,
+  reimbursementTypeId: string,
+  name: string,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) return { state, error: "Reimbursement type name is required" };
+  if (!state.reimbursementTypes.some((row) => row.id === reimbursementTypeId)) {
+    return { state, error: "Reimbursement type not found" };
+  }
+  const next = {
+    ...state,
+    reimbursementTypes: state.reimbursementTypes.map((row) =>
+      row.id === reimbursementTypeId ? { ...row, name: trimmed } : row,
+    ),
+  };
+  return { state: audit(next, "update", "ReimbursementType", reimbursementTypeId, trimmed), error: null };
+}
+
+export function reorderReimbursementTypes(state: AppState, orderedIds: string[]): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  const reordered = reorderLabels(state.reimbursementTypes, Array.isArray(orderedIds) ? orderedIds : []);
+  if (!reordered) return { state, error: "Reimbursement type order must include every label once" };
+  return {
+    state: audit({ ...state, reimbursementTypes: reordered }, "update", "ReimbursementType", "order", "Reordered"),
+    error: null,
+  };
+}
+
+export function removeReimbursementType(
+  state: AppState,
+  reimbursementTypeId: string,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  if (state.reimbursementTypes.length <= 1) return { state, error: "At least one reimbursement type is required" };
+  if (state.reimbursementRequests.some((row) => row.reimbursementTypeId === reimbursementTypeId)) {
+    return { state, error: "A label still in use cannot be removed" };
+  }
+  const next = {
+    ...state,
+    reimbursementTypes: state.reimbursementTypes.filter((row) => row.id !== reimbursementTypeId),
+  };
+  return { state: audit(next, "delete", "ReimbursementType", reimbursementTypeId, "Removed"), error: null };
 }
