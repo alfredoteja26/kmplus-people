@@ -1269,6 +1269,25 @@ export {
   updatePersonContact,
 } from "./work-delivery-commands";
 
+export {
+  addReimbursementType,
+  clearReimbursementPaid,
+  decideReimbursementRequest,
+  editReimbursementRequest,
+  fileReimbursementRequest,
+  markReimbursementPaid,
+  removeReimbursementType,
+  renameReimbursementType,
+  reorderReimbursementTypes,
+  withdrawReimbursementRequest,
+} from "./reimbursement-commands";
+export type {
+  DecideReimbursementInput,
+  EditReimbursementInput,
+  FileReimbursementInput,
+  ReimbursementEvidenceInput,
+} from "./reimbursement-commands";
+
 export type {
   OpenProjectInput,
   UpdateProjectInput,

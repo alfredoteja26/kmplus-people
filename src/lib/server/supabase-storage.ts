@@ -1,9 +1,11 @@
 import { StorageClient } from "@supabase/storage-js";
 
-// Deliverable and doctor's-letter bytes live in a private Supabase Storage bucket (ADR-0012).
+// Deliverable, doctor's-letter, and reimbursement evidence bytes live in a private Supabase Storage bucket (ADR-0012).
 // The browser uploads straight to a signed URL, so files skip Vercel's 4.5 MB request limit.
 export const TENANT_FILES_BUCKET = "tenant-files";
-export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+import { storagePathPrefix, type UploadFolder } from "@/lib/upload-rules";
+
+export { MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 
 export function storageConfigured(): boolean {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
@@ -18,9 +20,9 @@ function bucket() {
   );
 }
 
-export function storagePathForUpload(folder: "deliverables" | "leave-letters", fileName: string): string {
+export function storagePathForUpload(folder: UploadFolder, fileName: string): string {
   const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
-  return `tenants/kmplus/${folder}/${Date.now()}-${safe}`;
+  return `${storagePathPrefix(folder)}${Date.now()}-${safe}`;
 }
 
 /** A link that downloads the file under its original name and expires after a minute. */

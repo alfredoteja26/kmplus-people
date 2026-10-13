@@ -1,9 +1,9 @@
 import type { AppState } from "./types";
 
 /**
- * A stored file the viewer may open: one that a Deliverable version or a LeaveRequest in their scoped view
- * points at. Reading follows the same rules as seeing the record (see scope.ts), so a doctor's letter reaches
- * only its Person and the Admin grant.
+ * A stored file the viewer may open: one that a Deliverable version, a LeaveRequest, or a ReimbursementRequest's
+ * evidence in their scoped view points at. Reading follows the same rules as seeing the record (see scope.ts), so
+ * a doctor's letter or an evidence file reaches only the people who may see that request.
  */
 export function readableStoredFile(view: AppState, storagePath: string): { fileName: string } | null {
   if (!storagePath) return null;
@@ -15,6 +15,8 @@ export function readableStoredFile(view: AppState, storagePath: string): { fileN
     const stored = storagePath.split("/").pop() ?? "";
     return { fileName: stored.replace(/^\d+-/, "") || "doctor-letter" };
   }
+  const evidence = (view.reimbursementEvidence ?? []).find((row) => row.storagePath === storagePath);
+  if (evidence) return { fileName: evidence.fileName };
   return null;
 }
 

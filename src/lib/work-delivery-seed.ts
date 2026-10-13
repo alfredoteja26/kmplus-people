@@ -2,6 +2,7 @@ import type {
   DeliverableCategory,
   DeliverableStatus,
   LeaveType,
+  ReimbursementType,
   TimeBlockType,
 } from "./types";
 import { TENANT_ID } from "./types";
@@ -50,4 +51,14 @@ export function seedTimeBlockTypes(): TimeBlockType[] {
     { id: "tbtype-meeting", tenantId: t, name: "Meeting", sortOrder: 0, allowsInvites: true },
     { id: "tbtype-activity", tenantId: t, name: "Activity", sortOrder: 1, allowsInvites: false },
   ];
+}
+
+export function seedReimbursementTypes(): ReimbursementType[] {
+  const names = ["Transport", "Meals", "Accommodation", "Communication", "Other"];
+  return names.map((name, sortOrder) => ({
+    id: `reimbursement-type-${sortOrder + 1}`,
+    tenantId: t,
+    name,
+    sortOrder,
+  }));
 }
