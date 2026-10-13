@@ -11,7 +11,7 @@ import { EmptyBlock } from "@/components/work-delivery/project/parts";
 import { ProjectAdminSubnav } from "@/components/work-delivery/ProjectAdminSubnav";
 import type { IndonesiaHolidayFeedItem } from "@/lib/commands";
 import { hasAdminGrant } from "@/lib/domain-query";
-import { formatDate, plural } from "@/lib/labels";
+import { formatDate, formatUtcWithShortMonth, plural } from "@/lib/labels";
 import { useStore } from "@/lib/store";
 import type { PublicHoliday, PublicHolidayOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -400,7 +400,7 @@ function HolidayRow({
       )}
     >
       <span className="flex items-baseline gap-2 text-sm whitespace-nowrap tabular-nums">
-        <span className={cn("font-medium", row.suppressed ? "text-muted" : "text-ink")}>{DAY_MONTH.format(date)}</span>
+        <span className={cn("font-medium", row.suppressed ? "text-muted" : "text-ink")}>{formatUtcWithShortMonth(DAY_MONTH, date)}</span>
         <span className="text-faint">{WEEKDAY.format(date)}</span>
       </span>
       <span className={cn("min-w-0 text-sm break-words", row.suppressed ? "text-muted" : "text-ink")}>{row.name}</span>

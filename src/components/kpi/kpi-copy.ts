@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/labels";
+import { formatDate, formatUtcWithShortMonth } from "@/lib/labels";
 import type { CheckInCadence, KpiCycle } from "@/lib/types";
 
 /** Screen name for a KPI year, independent of the stored `name`. */
@@ -17,7 +17,7 @@ export function periodLabel(windowId: string): string {
   const quarter = /^(\d{4})-Q([1-4])$/.exec(windowId);
   if (quarter) return `Q${quarter[2]} ${quarter[1]}`;
   const month = /^(\d{4})-(\d{2})$/.exec(windowId);
-  if (month) return MONTH.format(new Date(Date.UTC(Number(month[1]), Number(month[2]) - 1, 1)));
+  if (month) return formatUtcWithShortMonth(MONTH, new Date(Date.UTC(Number(month[1]), Number(month[2]) - 1, 1)));
   return windowId;
 }
 
