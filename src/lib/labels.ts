@@ -65,7 +65,7 @@ export function formatUtcWithShortMonth(format: Intl.DateTimeFormat, date: Date)
 }
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const DAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 
 function parseIsoDate(iso: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
@@ -80,10 +80,10 @@ export function formatDate(iso: string | null | undefined): string {
   return date ? formatUtcWithShortMonth(DATE, date) : iso;
 }
 
-/** "2026-10-05" → "Mon, 5 Oct". */
+/** "2026-10-05" → "Mon 5 Oct". */
 export function formatDay(iso: string): string {
   const date = parseIsoDate(iso);
-  return date ? formatUtcWithShortMonth(DAY, date) : iso;
+  return date ? `${WEEKDAY.format(date)} ${date.getUTCDate()} ${shortMonth(date.getUTCMonth())}` : iso;
 }
 
 /** "2024-01-01", "2024-03-31" → "1 Jan 2024 – 31 Mar 2024"; open end → "From 1 Jan 2024". */

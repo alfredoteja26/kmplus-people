@@ -21,10 +21,11 @@ describe("formatDate", () => {
 });
 
 describe("formatDay", () => {
-  it("keeps the en-GB weekday shape and writes a three-letter month", () => {
-    expect(formatDay("2026-09-21")).toBe("Mon, 21 Sep");
-    expect(formatDay("2026-10-05")).toBe("Mon, 5 Oct");
-    expect(formatDay("2026-10-08")).toBe("Thu, 8 Oct");
+  it("writes weekday, day, and three-letter month with no comma", () => {
+    expect(formatDay("2026-09-21")).toBe("Mon 21 Sep");
+    expect(formatDay("2026-10-05")).toBe("Mon 5 Oct");
+    expect(formatDay("2026-10-06")).toBe("Tue 6 Oct");
+    expect(formatDay("2026-10-08")).toBe("Thu 8 Oct");
   });
 });
 
