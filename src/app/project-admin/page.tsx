@@ -1,16 +1,33 @@
 "use client";
 
 import { Button } from "@/components/coss/button";
-import { Callout, PageHeader } from "@/components/product/Card";
-import { Table, Td, Th } from "@/components/product/Table";
+import { Fact, FactsStrip } from "@/components/kpi/my-kpi/my-kpi-facts";
+import { MonthPager } from "@/components/leave/LeaveMonth";
+import { HoursByProject, NeedsAttention, Panel, hoursText, type AttentionItem } from "@/components/project-admin/parts";
+import { Reports, type ReportTab } from "@/components/project-admin/Reports";
+import { ProjectAdminSubnav } from "@/components/work-delivery/ProjectAdminSubnav";
 import { hasAdminGrant } from "@/lib/domain-query";
-import { formatDate, formatDateRange } from "@/lib/labels";
-import { jakartaTodayIso, leaveIsApproved, workbookRows } from "@/lib/work-delivery-query";
+import { formatDay, plural } from "@/lib/labels";
+import {
+  adminFacts,
+  approvedLeaveInSpan,
+  hoursByProject,
+  missingHoursLastWeek,
+  monthSpan,
+  projectsEndingSoon,
+  staffedToday,
+  timesheetByPerson,
+} from "@/lib/project-admin-view";
+import { personName } from "@/lib/project-view";
+import { jakartaTodayIso, workbookRows } from "@/lib/work-delivery-query";
 import { buildXlsx, XLSX_MIME } from "@/lib/xlsx";
 import { useStore } from "@/lib/store";
+import { DownloadIcon } from "lucide-react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 const NUMERIC_COLUMNS = new Set(["hours", "load"]);
+const MONTH = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" });
 
 function downloadWorkbook(state: ReturnType<typeof useStore>["state"]) {
   const sheets = workbookRows(state).map((sheet) => ({
@@ -31,150 +48,191 @@ function downloadWorkbook(state: ReturnType<typeof useStore>["state"]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** "Rayhan, Eka and 2 more": names first, so the row says who before anyone opens it. */
+function names(list: string[], max = 2): string {
+  if (list.length <= max) return list.join(" and ");
+  return `${list.slice(0, max).join(", ")} and ${list.length - max} more`;
+}
+
+function monthOf(iso: string) {
+  return { year: Number(iso.slice(0, 4)), month: Number(iso.slice(5, 7)) - 1 };
+}
+
 export default function ProjectAdminPage() {
   const { state } = useStore();
-  if (!hasAdminGrant(state)) {
+  const today = jakartaTodayIso();
+  const [tab, setTab] = useState<ReportTab>("projects");
+  const [cursor, setCursor] = useState(() => monthOf(today));
+
+  const admin = hasAdminGrant(state);
+  const thisMonth = monthSpan(monthOf(today).year, monthOf(today).month);
+  const span = monthSpan(cursor.year, cursor.month);
+
+  const facts = useMemo(() => adminFacts(state, today), [state, today]);
+  const byProject = useMemo(() => hoursByProject(state, thisMonth.from, thisMonth.to), [state, thisMonth.from, thisMonth.to]);
+  const timesheet = useMemo(() => timesheetByPerson(state, span.from, span.to), [state, span.from, span.to]);
+  const leave = useMemo(() => approvedLeaveInSpan(state, span.from, span.to), [state, span.from, span.to]);
+
+  if (!admin) {
     return (
-      <div>
-        <PageHeader title="Project Admin" />
-        <Callout tone="warning">Only an Admin can open Project Admin.</Callout>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
+        <h1 className="m-0 font-heading text-h1 font-medium">Project Admin</h1>
+        <p className="m-0 text-sm">
+          Only an Admin can open Project Admin.{" "}
+          <Link href="/projects" className="font-medium text-accent underline-offset-2 hover:underline">
+            See your projects
+          </Link>
+          .
+        </p>
       </div>
     );
   }
 
-  const approvedLeave = state.leaveRequests.filter((row) => leaveIsApproved(row));
-  const reportRowCount = workbookRows(state).reduce((sum, sheet) => sum + sheet.rows.length, 0);
+  function openReport(next: ReportTab, month?: { year: number; month: number }) {
+    setTab(next);
+    if (month) setCursor(month);
+    requestAnimationFrame(() => document.getElementById("reports")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  const overloaded = staffedToday(state, today).filter((row) => row.load > 100);
+  const gaps = missingHoursLastWeek(state, today);
+  const ending = projectsEndingSoon(state, today);
+  const waiting = state.leaveRequests.filter((row) => row.decision === null);
+  const lastWeekMonth = gaps.length > 0 ? monthOf(gaps[0].days[0]) : undefined;
+
+  const attention: AttentionItem[] = [
+    ...(waiting.length > 0
+      ? [{
+          id: "leave",
+          count: waiting.length,
+          tone: "act" as const,
+          title: waiting.length === 1 ? "1 leave request to decide" : `${waiting.length} leave requests to decide`,
+          detail: names([...new Set(waiting.map((row) => personName(state.people.find((p) => p.id === row.personId))))]),
+          action: "Decide",
+          href: "/leave/decide",
+        }]
+      : []),
+    ...(overloaded.length > 0
+      ? [{
+          id: "overload",
+          count: overloaded.length,
+          tone: "warn" as const,
+          title: overloaded.length === 1 ? "1 person is staffed past 100%" : `${overloaded.length} people are staffed past 100%`,
+          detail: names(overloaded.map((row) => `${personName(row.person)} ${row.load}%`)),
+          action: "See staffing",
+          onSelect: () => openReport("staffing"),
+        }]
+      : []),
+    ...(gaps.length > 0
+      ? [{
+          id: "gaps",
+          count: gaps.length,
+          tone: "warn" as const,
+          title: gaps.length === 1 ? "1 person has days with no hours last week" : `${gaps.length} people have days with no hours last week`,
+          detail: names(gaps.map((row) => `${personName(row.person)} (${row.days.length === 1 ? formatDay(row.days[0]) : `${row.days.length} days`})`)),
+          action: "See timesheet",
+          onSelect: () => openReport("timesheet", lastWeekMonth),
+        }]
+      : []),
+    ...(ending.length > 0
+      ? [{
+          id: "ending",
+          count: ending.length,
+          tone: "act" as const,
+          title: ending.length === 1 ? "1 project ends within 30 days" : `${ending.length} projects end within 30 days`,
+          detail: names(ending.map((row) => `${row.code} ${formatDay(row.endDate ?? "")}`)),
+          action: ending.length === 1 ? "Open project" : "See projects",
+          ...(ending.length === 1 ? { href: `/projects/${ending[0].id}` } : { onSelect: () => openReport("projects") }),
+        } as AttentionItem]
+      : []),
+  ];
+
+  const monthName = MONTH.format(new Date(Date.UTC(monthOf(today).year, monthOf(today).month, 1)));
+  const approvedThisMonth = approvedLeaveInSpan(state, thisMonth.from, thisMonth.to).length;
+  const projectHoursThisMonth = byProject.filter((row) => row.project).reduce((sum, row) => sum + row.hours, 0);
+  const hasRows = workbookRows(state).some((sheet) => sheet.rows.length > 0);
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Project Admin"
-        description="Set up project lists, leave types and public holidays, decide leave requests, and read company project, staffing, timesheet and leave reports."
-      />
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <header className="flex flex-col gap-4">
+        <div>
+          <h1 className="m-0 font-heading text-h1 font-medium">Project Admin</h1>
+          <p className="mt-1 mb-0 text-muted">Where project hours, people, and leave stand in {monthName}. Everything here is read-only.</p>
+        </div>
+        <ProjectAdminSubnav />
+      </header>
 
-      <div className="flex flex-wrap gap-3">
-        <Button
-          type="button"
-          variant={reportRowCount > 0 ? "default" : "outline"}
-          onClick={() => downloadWorkbook(state)}
+      <FactsStrip className="max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-4">
+        <Fact label="Active projects" detail={facts.projects > facts.activeProjects ? `of ${facts.projects}` : undefined}>
+          {facts.activeProjects}
+        </Fact>
+        <Fact label="People staffed today">
+          {facts.staffed}
+          {facts.overloaded > 0 ? <span className="text-sm font-normal text-warning-foreground">{facts.overloaded} over 100%</span> : null}
+        </Fact>
+        <Fact label={`Hours in ${monthName}`} detail={`to ${formatDay(today)}`}>
+          {hoursText(facts.monthHours)}
+        </Fact>
+        <Fact label="Leave to decide">
+          {facts.leaveToDecide > 0 ? (
+            <Link href="/leave/decide" className="text-accent underline-offset-2 hover:underline">
+              {facts.leaveToDecide}
+            </Link>
+          ) : (
+            <span className="text-muted">None</span>
+          )}
+          {approvedThisMonth > 0 ? (
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-sm font-normal text-muted underline-offset-2 hover:text-accent hover:underline"
+              onClick={() => openReport("leave", monthOf(today))}
+            >
+              {approvedThisMonth} approved in {monthName}
+            </button>
+          ) : null}
+        </Fact>
+      </FactsStrip>
+
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Panel
+          title={`Hours by project in ${monthName}`}
+          aside={<span className="text-sm text-muted tabular-nums">{hoursText(projectHoursThisMonth)} on projects</span>}
         >
-          Download report
-        </Button>
-        <Button variant="outline" render={<Link href="/project-admin/configure" />}>
-          Edit lists
-        </Button>
-        <Button variant="outline" render={<Link href="/project-admin/holidays" />}>
-          Public holidays
-        </Button>
-        <Button variant="outline" render={<Link href="/leave/decide" />}>
-          Leave requests
-        </Button>
+          <HoursByProject rows={byProject} total={byProject.reduce((sum, row) => sum + row.hours, 0)} />
+        </Panel>
+        <Panel className="max-lg:order-first" title="Needs attention" aside={attention.length > 0 ? <span className="text-sm text-muted tabular-nums">{plural(attention.length, "item")}</span> : null}>
+          <NeedsAttention items={attention} />
+        </Panel>
       </div>
-      <p className="m-0 text-sm text-muted">
-        The report is a text file with three sheets: Projects, Staffing and Timesheet.
-      </p>
 
-      <section>
-        <h2 className="mt-0 mb-3 text-h2 font-medium">Projects</h2>
-        {state.projects.length === 0 ? (
-          <p className="m-0 text-sm text-muted">
-            No projects yet.{" "}
-            <Link href="/projects" className="font-medium text-accent underline-offset-2 hover:underline">
-              Open Projects
-            </Link>{" "}
-            to add one.
-          </p>
-        ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Code</Th>
-              <Th>Name</Th>
-              <Th>Client</Th>
-              <Th>Start</Th>
-              <Th>End</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.projects.map((row) => (
-              <tr key={row.id}>
-                <Td>{row.code}</Td>
-                <Td>{row.name}</Td>
-                <Td>{row.clientName || "—"}</Td>
-                <Td>{formatDate(row.startDate)}</Td>
-                <Td>{formatDate(row.endDate) || "—"}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mt-0 mb-3 text-h2 font-medium">Staffing</h2>
-        {state.staffings.length === 0 ? (
-          <p className="m-0 text-sm text-muted">No one is staffed on a project yet. Staff people from a project&apos;s page.</p>
-        ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Person</Th>
-              <Th>Project</Th>
-              <Th>Start</Th>
-              <Th>End</Th>
-              <Th>Load</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.staffings.map((row) => {
-              const person = state.people.find((item) => item.id === row.personId);
-              const project = state.projects.find((item) => item.id === row.projectId);
-              return (
-                <tr key={row.id}>
-                  <Td>{person?.preferredName || person?.legalName || "Unknown person"}</Td>
-                  <Td>{project?.code ?? "Unknown project"}</Td>
-                  <Td>{formatDate(row.startDate)}</Td>
-                  <Td>{formatDate(row.endDate) || "—"}</Td>
-                  <Td>{row.load}%</Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mt-0 mb-3 text-h2 font-medium">Approved leave</h2>
-        <p className="mt-0 mb-3 text-sm text-muted">Shows approved leave only. Pending requests are in Leave requests.</p>
-        {approvedLeave.length === 0 ? (
-          <p className="m-0 text-sm text-muted">No approved leave yet.</p>
-        ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Person</Th>
-              <Th>Type</Th>
-              <Th>Dates</Th>
-              <Th>Pay</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {approvedLeave.map((row) => {
-              const person = state.people.find((item) => item.id === row.personId);
-              return (
-                <tr key={row.id}>
-                  <Td>{person?.preferredName || person?.legalName || "Unknown person"}</Td>
-                  <Td>{row.kind === "cuti" ? "Cuti" : row.kind === "sick" ? "Sick" : "Remote"}</Td>
-                  <Td>{formatDateRange(row.startDate, row.endDate || row.startDate)}</Td>
-                  <Td>{row.decision === "paid" ? "Paid" : "Unpaid"}</Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-        )}
-      </section>
+      <Reports
+        state={state}
+        today={today}
+        tab={tab}
+        onTab={setTab}
+        timesheet={timesheet}
+        leave={leave}
+        download={
+          <Button type="button" variant="outline" size="sm" disabled={!hasRows} onClick={() => downloadWorkbook(state)}>
+            <DownloadIcon aria-hidden="true" />
+            Download workbook
+          </Button>
+        }
+        pager={
+          <MonthPager
+            year={cursor.year}
+            monthIndex={cursor.month}
+            isCurrent={cursor.year === monthOf(today).year && cursor.month === monthOf(today).month}
+            onToday={() => setCursor(monthOf(today))}
+            onMove={(delta) =>
+              setCursor(({ year, month }) => {
+                const next = month + delta;
+                return { year: year + Math.floor(next / 12), month: ((next % 12) + 12) % 12 };
+              })
+            }
+          />
+        }
+      />
     </div>
   );
 }

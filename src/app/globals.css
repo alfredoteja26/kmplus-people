@@ -186,6 +186,12 @@ textarea {
   caret-color: var(--accent);
 }
 
+/* Inner scrollers (wide tables, the leave grid) get a thin line-strong thumb, not the platform's gray bar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

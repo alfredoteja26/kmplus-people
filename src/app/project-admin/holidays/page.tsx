@@ -2,20 +2,27 @@
 
 import { Button } from "@/components/coss/button";
 import { Input } from "@/components/coss/input";
-import { Calendar } from "@/components/coss/calendar";
-import { AppSheet } from "@/components/product/AppSheet";
-import { Callout, Card, PageHeader } from "@/components/product/Card";
+import { Badge } from "@/components/product/Badge";
 import { ConfirmAction } from "@/components/product/ConfirmAction";
 import { Field } from "@/components/product/Field";
-import { Select } from "@/components/product/Select";
-import { Table, Td, Th } from "@/components/product/Table";
-import { hasAdminGrant } from "@/lib/domain-query";
-import { formatDate } from "@/lib/labels";
+import { FormSheet } from "@/components/product/FormSheet";
+import { plainAdminError } from "@/components/work-delivery/admin/errors";
+import { EmptyBlock } from "@/components/work-delivery/project/parts";
+import { ProjectAdminSubnav } from "@/components/work-delivery/ProjectAdminSubnav";
 import type { IndonesiaHolidayFeedItem } from "@/lib/commands";
+import { hasAdminGrant } from "@/lib/domain-query";
+import { formatDate, plural } from "@/lib/labels";
 import { useStore } from "@/lib/store";
 import type { PublicHoliday, PublicHolidayOrigin } from "@/lib/types";
-import Link from "next/link";
-import { useState, type ComponentProps } from "react";
+import { cn } from "@/lib/utils";
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { useState } from "react";
+
+const DAY_MONTH = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
+const MONTH = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" });
+
+const FEED_DOWN = "The Indonesia holiday source did not respond. Your list was not changed. Try Refresh Indonesia holidays again.";
 
 function mark(origin: PublicHolidayOrigin | undefined): string {
   if (origin === "libur") return "Libur Nasional";
@@ -23,12 +30,18 @@ function mark(origin: PublicHolidayOrigin | undefined): string {
   return "Cuti Bersama (Internal)";
 }
 
-function jakartaYear(): number {
-  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric" }).format(new Date()));
+const ORIGIN_DOT: Record<PublicHolidayOrigin, string> = {
+  libur: "bg-accent-2",
+  bersama: "bg-warning",
+  internal: "bg-line-strong",
+};
+
+function utcDate(iso: string): Date {
+  return new Date(`${iso.slice(0, 10)}T00:00:00Z`);
 }
 
-function jakartaMonth(): number {
-  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", month: "numeric" }).format(new Date())) - 1;
+function jakartaYear(): number {
+  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric" }).format(new Date()));
 }
 
 async function loadYear(year: number): Promise<{ items: IndonesiaHolidayFeedItem[]; warning: string | null }> {
@@ -61,36 +74,83 @@ async function loadYear(year: number): Promise<{ items: IndonesiaHolidayFeedItem
   return { items, warning: null };
 }
 
+type SheetState = { kind: "add" } | { kind: "rename"; row: PublicHoliday } | null;
+
 export default function PublicHolidaysPage() {
   const { state, addPublicHoliday, renamePublicHoliday, removePublicHoliday, applyIndonesiaHolidayFeed } = useStore();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheet, setSheet] = useState<SheetState>(null);
   const [draftDate, setDraftDate] = useState("");
   const [draftName, setDraftName] = useState("");
   const [sheetError, setSheetError] = useState("");
   const [year, setYear] = useState(jakartaYear);
-  const [month, setMonth] = useState(jakartaMonth);
 
-  function openSheet(date: string) {
-    setDraftDate(date);
-    setDraftName("");
-    setSheetError("");
-    setSheetOpen(true);
+  if (!hasAdminGrant(state)) {
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
+        <h1 className="m-0 font-heading text-h1 font-medium">Public holidays</h1>
+        <p className="m-0 text-sm">Only an Admin can edit public holidays.</p>
+      </div>
+    );
   }
 
-  function addFromSheet() {
-    const result = addPublicHoliday(draftDate, draftName);
-    if (result.error) {
-      setSheetError(result.error);
+  function say(message: string) {
+    setError("");
+    setNotice(message);
+  }
+
+  function fail(message: string) {
+    setNotice("");
+    setError(message);
+  }
+
+  function open(next: SheetState) {
+    setDraftDate("");
+    setDraftName(next?.kind === "rename" ? next.row.name : "");
+    setSheetError("");
+    setSheet(next);
+  }
+
+  function submitSheet() {
+    if (!sheet) return;
+    const name = draftName.trim();
+    if (sheet.kind === "add") {
+      const result = addPublicHoliday(draftDate, draftName);
+      if (result.error) {
+        setSheetError(plainAdminError(result.error));
+        return;
+      }
+      setYear(Number(draftDate.slice(0, 4)));
+      say(`Added ${formatDate(draftDate)}, ${name}.`);
+    } else {
+      const message = renamePublicHoliday(sheet.row.id, name).error;
+      if (message) {
+        setSheetError(plainAdminError(message));
+        return;
+      }
+      say(`Renamed ${formatDate(sheet.row.date)} to ${name}.`);
+    }
+    setSheet(null);
+  }
+
+  function remove(row: PublicHoliday) {
+    const message = removePublicHoliday(row.id).error;
+    if (message) {
+      fail(plainAdminError(message));
       return;
     }
-    setSheetError("");
-    setNotice(`Added ${formatDate(draftDate)}, ${draftName.trim()}.`);
-    setDraftDate("");
-    setDraftName("");
-    setSheetOpen(false);
+    say(row.origin === "internal" ? `Removed ${formatDate(row.date)}, ${row.name}.` : `Hid ${formatDate(row.date)}, ${row.name}.`);
+  }
+
+  function restore(row: PublicHoliday) {
+    const message = addPublicHoliday(row.date, row.name).error;
+    if (message) {
+      fail(plainAdminError(message));
+      return;
+    }
+    say(`Added ${formatDate(row.date)} back as Cuti Bersama (Internal).`);
   }
 
   async function refresh() {
@@ -102,24 +162,22 @@ export default function PublicHolidaysPage() {
       const [current, next] = await Promise.all([loadYear(feedYear), loadYear(feedYear + 1)]);
       const items = [...current.items, ...next.items];
       if (items.length === 0) {
-        setError(
-          "The Indonesia holiday source did not respond. Your list was not changed. Try Refresh Indonesia holidays again.",
-        );
+        setError(FEED_DOWN);
         return;
       }
       const result = applyIndonesiaHolidayFeed(items);
       if (result.error) {
-        setError(result.error);
+        setError(plainAdminError(result.error));
         return;
       }
       const nextYearNote = next.warning ? ` ${feedYear + 1} is not published yet, so that year was not changed.` : "";
       setNotice(
         result.added === 0
           ? `Indonesia holidays are up to date. Names you edited were kept.${nextYearNote}`
-          : `Added ${result.added} missing Indonesia dates. Names you edited were kept.${nextYearNote}`,
+          : `Added ${plural(result.added, "missing Indonesia date")}. Names you edited were kept.${nextYearNote}`,
       );
     } catch {
-      setError("The Indonesia holiday source did not respond. Your list was not changed. Try Refresh Indonesia holidays again.");
+      setError(FEED_DOWN);
     } finally {
       setRefreshing(false);
     }
@@ -130,367 +188,261 @@ export default function PublicHolidaysPage() {
   )
     .filter((value) => Number.isFinite(value))
     .sort((a, b) => a - b);
+  const yearAt = years.indexOf(year);
 
-  if (!hasAdminGrant(state)) {
-    return (
-      <div>
-        <PageHeader title="Public holidays" />
-        <Callout tone="warning">Only an Admin can edit public holidays.</Callout>
-      </div>
-    );
+  const rows = state.publicHolidays
+    .filter((row) => row.date.startsWith(String(year)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const shown = rows.filter((row) => !row.suppressed).length;
+  const hidden = rows.length - shown;
+  const months = new Map<string, PublicHoliday[]>();
+  for (const row of rows) {
+    const key = row.date.slice(0, 7);
+    months.set(key, [...(months.get(key) ?? []), row]);
   }
 
+  const refreshButton = (
+    <Button type="button" size="sm" aria-label="Refresh Indonesia holidays" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing}>
+      <RefreshCwIcon aria-hidden="true" className={cn(refreshing && "animate-spin")} />
+      <span className="@2xl:hidden">{refreshing ? "Refreshing…" : "Refresh"}</span>
+      <span className="@max-2xl:hidden">{refreshing ? "Refreshing Indonesia holidays…" : "Refresh Indonesia holidays"}</span>
+    </Button>
+  );
+  const addButton = (
+    <Button type="button" variant="outline" size="sm" onClick={() => open({ kind: "add" })}>
+      <PlusIcon aria-hidden="true" />
+      Add a date
+    </Button>
+  );
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Public holidays"
-        description="Company-wide holidays. They appear on everyone's timesheet and don't count as work hours. People can still log time on them."
-        actions={
-          <Link href="/project-admin" className="text-sm font-medium text-accent no-underline hover:underline">
-            Back to Project Admin
-          </Link>
-        }
-      />
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="Year" className="w-36">
-          <Select
-            value={String(year)}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setYear(next);
-              setMonth(next === jakartaYear() ? jakartaMonth() : 0);
-            }}
-          >
-            {years.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Button type="button" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing}>
-          {refreshing ? "Refreshing Indonesia holidays…" : "Refresh Indonesia holidays"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => openSheet("")}>
-          Add a date
-        </Button>
-      </div>
-      {error ? <Callout tone="danger">{error}</Callout> : null}
-      {notice ? <Callout live="status">{notice}</Callout> : null}
-      <div className="grid grid-cols-1 gap-6">
-        <HolidayMonth
-          year={year}
-          month={month}
-          onMonth={setMonth}
-          holidays={state.publicHolidays.filter((row) => !row.suppressed && row.date.startsWith(String(year)))}
-          onAddOn={(date) => openSheet(date)}
-        />
-        <HolidayTable
-          year={year}
-          holidays={state.publicHolidays.filter((row) => row.date.startsWith(String(year)))}
-          onRename={(id, name) => renamePublicHoliday(id, name).error}
-          onRemove={(id) => removePublicHoliday(id)}
-          onRestore={(date, name) => {
-            const result = addPublicHoliday(date, name);
-            setError(result.error ?? "");
-            return result.error;
-          }}
-        />
-      </div>
-      {sheetOpen ? (
-        <AppSheet title="Add a date" onClose={() => setSheetOpen(false)}>
-          <p className="m-0 mb-4 text-sm text-muted">Dates you add here are marked Cuti Bersama (Internal).</p>
-          <form
-            className="grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              addFromSheet();
-            }}
-          >
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+      <header>
+        <h1 className="m-0 font-heading text-h1 font-medium">Public holidays</h1>
+        <p className="mt-1 mb-0 text-muted">
+          Company-wide days off. They show on everyone&apos;s timesheet and don&apos;t count as work hours, though people can
+          still log time on them.
+        </p>
+        <ProjectAdminSubnav className="mt-4" />
+      </header>
+
+      {notice ? (
+        <p role="status" className="m-0 text-sm">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="m-0 text-sm text-destructive-foreground">
+          {error}
+        </p>
+      ) : null}
+
+      <section aria-labelledby="holiday-year" className="@container min-w-0 overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1" role="group" aria-label="Year">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Previous year"
+                disabled={yearAt <= 0}
+                onClick={() => setYear(years[yearAt - 1])}
+              >
+                <ChevronLeftIcon aria-hidden="true" />
+              </Button>
+              <h2 id="holiday-year" className="m-0 min-w-[3.5rem] text-center text-base font-medium tabular-nums" aria-live="polite">
+                {year}
+              </h2>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Next year"
+                disabled={yearAt < 0 || yearAt >= years.length - 1}
+                onClick={() => setYear(years[yearAt + 1])}
+              >
+                <ChevronRightIcon aria-hidden="true" />
+              </Button>
+            </div>
+            <span className="text-sm text-muted tabular-nums">
+              {plural(shown, "date")}
+              {hidden > 0 ? ` · ${hidden} hidden` : null}
+            </span>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-2 @2xl:flex @2xl:w-auto @2xl:items-center">
+            {addButton}
+            {refreshButton}
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <EmptyBlock
+            className="py-10"
+            icon={<CalendarDaysIcon aria-hidden="true" />}
+            title={`No public holidays in ${year}`}
+            description="Load the national dates from the Indonesia holiday source, or add a company date."
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                {addButton}
+                {refreshButton}
+              </div>
+            }
+          />
+        ) : (
+          [...months.entries()].map(([key, monthRows]) => (
+            <div key={key}>
+              <h3 className="m-0 border-t border-line bg-[color-mix(in_srgb,var(--wash)_50%,var(--paper))] px-5 py-2 text-xs font-medium tracking-[0.06em] text-muted uppercase first:border-t-0">
+                {MONTH.format(utcDate(`${key}-01`))}
+                <span className="font-normal tracking-normal normal-case tabular-nums"> · {plural(monthRows.filter((row) => !row.suppressed).length, "date")}</span>
+              </h3>
+              <ul className="m-0 list-none p-0">
+                {monthRows.map((row) => (
+                  <HolidayRow
+                    key={row.id}
+                    row={row}
+                    onRename={() => open({ kind: "rename", row })}
+                    onRemove={() => remove(row)}
+                    onRestore={() => restore(row)}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
+
+        {hidden > 0 ? (
+          <p className="m-0 border-t border-line px-5 py-3 text-sm text-muted">
+            Hidden Indonesia dates stay off everyone&apos;s timesheet. A later refresh won&apos;t bring them back.
+          </p>
+        ) : null}
+      </section>
+
+      {sheet ? (
+        <FormSheet
+          title={sheet.kind === "add" ? "Add a date" : "Rename this date"}
+          description={
+            sheet.kind === "add"
+              ? "Dates you add here are marked Cuti Bersama (Internal)."
+              : sheet.row.origin === "internal"
+                ? `${formatDate(sheet.row.date)}, Cuti Bersama (Internal).`
+                : `${formatDate(sheet.row.date)}, ${mark(sheet.row.origin)}. Your name is kept when Indonesia holidays are refreshed.`
+          }
+          onClose={() => setSheet(null)}
+          onSubmit={submitSheet}
+          submitLabel={sheet.kind === "add" ? "Add date" : "Save name"}
+          submitDisabled={
+            !draftName.trim() ||
+            (sheet.kind === "add" ? !draftDate : draftName.trim() === sheet.row.name)
+          }
+        >
+          {sheet.kind === "add" ? (
             <Field label="Date">
-              <Input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} />
+              <Input
+                type="date"
+                value={draftDate}
+                onChange={(event) => {
+                  setDraftDate(event.target.value);
+                  setSheetError("");
+                }}
+              />
             </Field>
-            <Field label="Name">
-              <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
-            </Field>
-            {sheetError ? <Callout tone="danger">{sheetError}</Callout> : null}
-            <Button type="submit">Add date</Button>
-          </form>
-        </AppSheet>
+          ) : null}
+          <Field label="Name">
+            <Input
+              value={draftName}
+              onChange={(event) => {
+                setDraftName(event.target.value);
+                setSheetError("");
+              }}
+            />
+          </Field>
+          {sheetError ? (
+            <p role="alert" className="m-0 text-sm text-destructive-foreground">
+              {sheetError}
+            </p>
+          ) : null}
+        </FormSheet>
       ) : null}
     </div>
   );
 }
 
-function rowWash(origin: PublicHolidayOrigin | undefined): string {
-  if (origin === "libur") return "bg-tint";
-  if (origin === "bersama") return "bg-[color-mix(in_srgb,var(--warning)_14%,var(--paper))]";
-  return "bg-[color-mix(in_srgb,var(--ink)_6%,var(--paper))]";
+function OriginChip({ origin }: { origin: PublicHolidayOrigin }) {
+  return (
+    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] bg-tint px-2 text-label whitespace-nowrap text-accent-hover shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-2)_30%,transparent)]">
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", ORIGIN_DOT[origin])} />
+      {mark(origin)}
+    </span>
+  );
 }
 
-function HolidayTable({
-  year,
-  holidays,
+function HolidayRow({
+  row,
   onRename,
   onRemove,
   onRestore,
 }: {
-  year: number;
-  holidays: PublicHoliday[];
-  onRename: (id: string, name: string) => string | null;
-  onRemove: (id: string) => void;
-  onRestore: (date: string, name: string) => string | null;
-}) {
-  const active = holidays.filter((row) => !row.suppressed).sort((a, b) => a.date.localeCompare(b.date));
-  const removed = holidays.filter((row) => row.suppressed).sort((a, b) => a.date.localeCompare(b.date));
-  return (
-    <div className="min-w-0">
-      <Table>
-        <thead>
-          <tr>
-            <Th>Date</Th>
-            <Th>Name</Th>
-            <Th>Type</Th>
-            <Th> </Th>
-          </tr>
-        </thead>
-        <tbody>
-          {active.length === 0 ? (
-            <tr>
-              <Td colSpan={4} className="whitespace-normal text-muted">
-                No public holidays in {year}. Choose Refresh Indonesia holidays to load the national dates, or Add a date.
-              </Td>
-            </tr>
-          ) : (
-            active.map((row) => <HolidayTableRow key={row.id} row={row} onRename={onRename} onRemove={onRemove} />)
-          )}
-          {removed.length > 0 ? (
-            <tr>
-              <Td colSpan={4} className="text-sm text-muted">
-                Removed Indonesia dates stay off the list. A later refresh will not restore them.
-              </Td>
-            </tr>
-          ) : null}
-          {removed.map((row) => (
-            <RemovedRow key={row.id} row={row} onRestore={onRestore} />
-          ))}
-        </tbody>
-      </Table>
-    </div>
-  );
-}
-
-function HolidayTableRow({
-  row,
-  onRename,
-  onRemove,
-}: {
   row: PublicHoliday;
-  onRename: (id: string, name: string) => string | null;
-  onRemove: (id: string) => void;
+  onRename: () => void;
+  onRemove: () => void;
+  onRestore: () => void;
 }) {
-  const [name, setName] = useState(row.name);
-  const [renameError, setRenameError] = useState("");
+  const date = utcDate(row.date);
   const indonesia = row.origin === "libur" || row.origin === "bersama";
-  const wash = rowWash(row.origin);
+  const when = formatDate(row.date);
   return (
-    <tr className={wash}>
-      <Td className={`${wash} whitespace-nowrap tabular-nums`}>{formatDate(row.date)}</Td>
-      <Td className={`${wash} whitespace-normal`}>
-        <form
-          className="flex min-w-0 flex-wrap items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const next = name.trim();
-            if (!next) {
-              setRenameError("Enter a name, then choose Save name.");
-              setName(row.name);
-              return;
-            }
-            const message = onRename(row.id, next);
-            setRenameError(message ?? "");
-            if (message) setName(row.name);
-          }}
-        >
-          <Input
-            aria-label={`Name for ${formatDate(row.date)}`}
-            className="min-w-[10rem] flex-1"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              setRenameError("");
-            }}
-          />
-          <Button type="submit" variant="outline" size="sm" disabled={!name.trim() || name.trim() === row.name}>
-            Save name
-          </Button>
-        </form>
-        {renameError ? (
-          <p className="m-0 mt-2 text-sm text-danger" role="alert">
-            {renameError}
-          </p>
-        ) : null}
-      </Td>
-      <Td className={`${wash} whitespace-normal`}>{mark(row.origin)}</Td>
-      <Td className={wash}>
-        <ConfirmAction
-          trigger={
-            <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${row.name}, ${formatDate(row.date)}`}>
-              Remove
-            </Button>
-          }
-          title={`Remove ${row.name}?`}
-          description={
-            indonesia
-              ? `${formatDate(row.date)} will be removed from the calendar, and a later refresh will not bring this Indonesia holiday back. You can still add it again as Cuti Bersama (Internal).`
-              : `${formatDate(row.date)} is a company date. Removing it deletes it from this list.`
-          }
-          confirmLabel="Remove this date"
-          cancelLabel="Keep this date"
-          onConfirm={() => onRemove(row.id)}
-        />
-      </Td>
-    </tr>
-  );
-}
-
-function RemovedRow({ row, onRestore }: { row: PublicHoliday; onRestore: (date: string, name: string) => string | null }) {
-  const [restoreError, setRestoreError] = useState("");
-  return (
-    <tr>
-      <Td className="whitespace-nowrap tabular-nums text-muted">{formatDate(row.date)}</Td>
-      <Td className="whitespace-normal text-muted">{row.name}</Td>
-      <Td className="whitespace-normal text-muted">Removed</Td>
-      <Td>
-        <Button type="button" variant="outline" onClick={() => setRestoreError(onRestore(row.date, row.name) ?? "")}>
-          Add back as internal
-        </Button>
-        {restoreError ? (
-          <p className="m-0 mt-2 text-sm text-danger" role="alert">
-            {restoreError}
-          </p>
-        ) : null}
-      </Td>
-    </tr>
-  );
-}
-
-function isoOf(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function dateOf(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-const DOT: Record<"libur" | "bersama" | "internal", string> = {
-  libur: "bg-accent",
-  bersama: "bg-warning",
-  internal: "bg-ink",
-};
-
-/** Day cell with a dot for the holiday origin; module-level so focus survives re-renders. */
-const HolidayDayButton: NonNullable<ComponentProps<typeof Calendar>["components"]>["DayButton"] = ({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- keep `day` off the DOM button
-  day,
-  modifiers,
-  children,
-  ...props
-}) => {
-  const origin = modifiers.libur ? "libur" : modifiers.bersama ? "bersama" : modifiers.internal ? "internal" : null;
-  return (
-    <button {...props}>
-      <span className="flex flex-col items-center leading-none">
-        <span className="tabular-nums">{children}</span>
-        <span
-          aria-hidden="true"
-          className={`mt-1 size-1.5 rounded-full ${origin ? (modifiers.selected ? "bg-primary-foreground" : DOT[origin]) : "bg-transparent"}`}
-        />
+    <li
+      className={cn(
+        "grid min-h-11 grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 border-t border-line px-5 py-2 first:border-t-0",
+        "@2xl:grid-cols-[6rem_minmax(0,1fr)_12rem_11rem]",
+        row.suppressed && "text-muted",
+      )}
+    >
+      <span className="flex items-baseline gap-2 text-sm whitespace-nowrap tabular-nums">
+        <span className={cn("font-medium", row.suppressed ? "text-muted" : "text-ink")}>{DAY_MONTH.format(date)}</span>
+        <span className="text-faint">{WEEKDAY.format(date)}</span>
       </span>
-    </button>
-  );
-};
-
-function HolidayMonth({
-  year,
-  month,
-  onMonth,
-  holidays,
-  onAddOn,
-}: {
-  year: number;
-  month: number;
-  onMonth: (month: number) => void;
-  holidays: PublicHoliday[];
-  onAddOn: (date: string) => void;
-}) {
-  const [picked, setPicked] = useState<string | null>(null);
-  const byDate = new Map(holidays.map((row) => [row.date, row]));
-  const originOf = (row: PublicHoliday): keyof typeof DOT =>
-    row.origin === "libur" ? "libur" : row.origin === "bersama" ? "bersama" : "internal";
-  const datesFor = (origin: keyof typeof DOT) =>
-    holidays.filter((row) => originOf(row) === origin).map((row) => dateOf(row.date));
-  const pickedHoliday = picked ? byDate.get(picked) : undefined;
-  const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
-
-  return (
-    <Card className="min-w-0">
-      <section aria-label="Holiday calendar" className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
-        <Calendar
-          className="mx-auto sm:mx-0"
-          mode="single"
-          weekStartsOn={1}
-          showOutsideDays={false}
-          month={new Date(year, month, 1)}
-          onMonthChange={(next) => onMonth(next.getMonth())}
-          startMonth={new Date(year, 0, 1)}
-          endMonth={new Date(year, 11, 1)}
-          selected={picked ? dateOf(picked) : undefined}
-          onSelect={(date) => setPicked(date ? isoOf(date) : null)}
-          modifiers={{ libur: datesFor("libur"), bersama: datesFor("bersama"), internal: datesFor("internal") }}
-          labels={{
-            labelDayButton: (date) => {
-              const holiday = byDate.get(isoOf(date));
-              return holiday ? `${formatDate(isoOf(date))}, ${mark(holiday.origin)}, ${holiday.name}` : formatDate(isoOf(date));
-            },
-          }}
-          components={{ DayButton: HolidayDayButton }}
-        />
-        <div className="min-w-0 flex-1 sm:pt-2">
-          <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-sm text-muted sm:flex-col">
-            <li className="inline-flex items-center gap-2">
-              <span className={`size-2 rounded-full ${DOT.libur}`} /> Libur Nasional
-            </li>
-            <li className="inline-flex items-center gap-2">
-              <span className={`size-2 rounded-full ${DOT.bersama}`} /> Cuti Bersama
-            </li>
-            <li className="inline-flex items-center gap-2">
-              <span className={`size-2 rounded-full ${DOT.internal}`} /> Cuti Bersama (Internal)
-            </li>
-          </ul>
-          <div className="mt-3 flex min-h-11 flex-wrap items-center justify-between gap-2 text-sm" aria-live="polite">
-            {pickedHoliday ? (
-              <p className="m-0">
-                {formatDate(pickedHoliday.date)} · {pickedHoliday.name} · {mark(pickedHoliday.origin)}
-              </p>
-            ) : picked ? (
-              <>
-                <p className="m-0 text-muted">No public holiday on {formatDate(picked)}.</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => onAddOn(picked)}>
-                  Add this date
+      <span className={cn("min-w-0 text-sm break-words", row.suppressed ? "text-muted" : "text-ink")}>{row.name}</span>
+      <span className="col-start-2 flex flex-wrap items-center gap-1.5 @2xl:col-start-3">
+        <OriginChip origin={row.origin} />
+        {row.suppressed ? <Badge>Hidden</Badge> : null}
+      </span>
+      <span className="col-start-2 -ml-2 flex flex-wrap items-center gap-1 @2xl:col-start-4 @2xl:ml-0 @2xl:justify-end">
+        {row.suppressed ? (
+          <Button type="button" variant="ghost" size="sm" aria-label={`Add back ${row.name}, ${when}, as internal`} onClick={onRestore}>
+            Add back as internal
+          </Button>
+        ) : (
+          <>
+            <Button type="button" variant="ghost" size="sm" aria-label={`Rename ${row.name}, ${when}`} onClick={onRename}>
+              Rename
+            </Button>
+            <ConfirmAction
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted hover:text-destructive-foreground"
+                  aria-label={`${indonesia ? "Hide" : "Remove"} ${row.name}, ${when}`}
+                >
+                  {indonesia ? "Hide" : "Remove"}
                 </Button>
-              </>
-            ) : (
-              <p className="m-0 text-muted">
-                {holidays.some((row) => row.date.startsWith(monthPrefix))
-                  ? "Select a date to see its holiday, or an empty date to add one."
-                  : "No public holiday this month. Select a date to add one."}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-    </Card>
+              }
+              title={`${indonesia ? "Hide" : "Remove"} ${row.name}?`}
+              description={
+                indonesia
+                  ? `${when} comes off everyone's timesheet, and a later refresh won't bring this Indonesia holiday back. You can still add it back as Cuti Bersama (Internal).`
+                  : `${when} is a company date. Removing it deletes it from this list.`
+              }
+              confirmLabel={indonesia ? "Hide this date" : "Remove this date"}
+              cancelLabel="Keep this date"
+              onConfirm={onRemove}
+            />
+          </>
+        )}
+      </span>
+    </li>
   );
 }

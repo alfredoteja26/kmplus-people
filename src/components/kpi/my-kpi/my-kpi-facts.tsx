@@ -35,9 +35,9 @@ export function Fact({ label, children, detail }: { label: string; children: Rea
   );
 }
 
-export function FactsStrip({ children }: { children: ReactNode }) {
+export function FactsStrip({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <dl className="m-0 flex flex-wrap items-start gap-x-10 gap-y-4 rounded-2xl bg-paper px-5 py-4 shadow-(--shadow)">{children}</dl>
+    <dl className={cn("m-0 flex flex-wrap items-start gap-x-10 gap-y-4 rounded-2xl bg-paper px-5 py-4 shadow-(--shadow)", className)}>{children}</dl>
   );
 }
 
