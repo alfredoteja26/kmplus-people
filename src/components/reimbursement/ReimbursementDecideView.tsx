@@ -7,7 +7,7 @@ import type { DecideReimbursementInput } from "@/lib/commands";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { plural } from "@/lib/labels";
 import { personName } from "@/lib/project-view";
-import { formatRupiah, reimbursementState, reimbursementTypeName } from "@/lib/reimbursement-view";
+import { formatRupiah, reimbursementState, reimbursementTypeName, reimbursementsToDecide } from "@/lib/reimbursement-view";
 import { useStore } from "@/lib/store";
 import type { ReimbursementRequest } from "@/lib/types";
 import { InboxIcon, PlusIcon } from "lucide-react";
@@ -16,7 +16,8 @@ import { useState } from "react";
 import { PendingChangeActions } from "./PendingChangeActions";
 import { MarkPaidSheet } from "./MarkPaidSheet";
 import { ReimbursementDecideSheet } from "./ReimbursementDecideSheet";
-import { ReimbursementRequestSheet, plainReimbursementError } from "./ReimbursementRequestSheet";
+import { plainReimbursementError } from "./plain-error";
+import { ReimbursementRequestSheet } from "./ReimbursementRequestSheet";
 import { ReimbursementRow } from "./ReimbursementRow";
 
 export function ReimbursementDecideView() {
@@ -64,7 +65,7 @@ export function ReimbursementDecideView() {
     .filter((row) => reimbursementState(row) === "paid")
     .sort((a, b) => (b.paidOn ?? "").localeCompare(a.paidOn ?? "") || b.id.localeCompare(a.id))
     .slice(0, 20);
-  const decidable = waiting.length - mineCount;
+  const decidable = reimbursementsToDecide(state).length;
 
   const label = (row: ReimbursementRequest) =>
     `${personName(state.people.find((item) => item.id === row.personId))}, ${reimbursementTypeName(state, row)} ${formatRupiah(row.approvedAmount ?? row.amount)}`;

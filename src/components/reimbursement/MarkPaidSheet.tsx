@@ -9,7 +9,7 @@ import { formatRupiah, reimbursementTypeName } from "@/lib/reimbursement-view";
 import type { AppState, ReimbursementRequest } from "@/lib/types";
 import { jakartaTodayIso } from "@/lib/work-delivery-query";
 import { useState } from "react";
-import { plainReimbursementError } from "./ReimbursementRequestSheet";
+import { plainReimbursementError } from "./plain-error";
 
 /** The day the money went out. Opening it on a paid request corrects the date. */
 export function MarkPaidSheet({

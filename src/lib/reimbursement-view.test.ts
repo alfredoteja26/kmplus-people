@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { groupByExpenseMonth } from "./reimbursement-view";
+import { groupByExpenseMonth, parseRupiahInput, reimbursementsToDecide } from "./reimbursement-view";
+import { createInitialState } from "./fixtures";
 import type { ReimbursementRequest } from "./types";
 
 function request(id: string, patch: Partial<ReimbursementRequest>): ReimbursementRequest {
@@ -51,3 +52,34 @@ describe("monthly sums", () => {
     expect(october.rows).toHaveLength(5);
   });
 });
+
+describe("typing a rupiah amount", () => {
+  it("reads whole rupiah, with or without dots between thousands", () => {
+    expect(parseRupiahInput("85000")).toBe(85000);
+    expect(parseRupiahInput("1.250.000")).toBe(1250000);
+    expect(parseRupiahInput(" 85.000 ")).toBe(85000);
+  });
+
+  it("refuses decimals, commas, misplaced dots, and anything that is not a number", () => {
+    for (const text of ["85000.5", "85.00", "1.2500.000", "85,000", "85000,50", ".85000", "85000.", "", "abc", "0", "-5000"]) {
+      expect(parseRupiahInput(text)).toBeNull();
+    }
+  });
+});
+
+describe("reimbursements waiting on an Admin", () => {
+  it("lists pending requests the viewer may decide, leaving out their own, withdrawn, and decided ones", () => {
+    const state = {
+      ...createInitialState(),
+      currentPersonId: "person-alfredo",
+      reimbursementRequests: [
+        request("digit", { personId: "person-digit" }),
+        request("own", { personId: "person-alfredo" }),
+        request("withdrawn", { personId: "person-eka", withdrawnOn: "2026-10-12" }),
+        request("decided", { personId: "person-eka", decision: "rejected", decisionNote: "No" }),
+      ],
+    };
+    expect(reimbursementsToDecide(state).map((row) => row.id)).toEqual(["digit"]);
+  });
+});
+

@@ -10,6 +10,7 @@ import {
 } from "./domain-query";
 import { lateCheckInCount, needsCheckInThisWindow } from "./phase-desk";
 import type { AppState } from "./types";
+import { reimbursementsToDecide } from "./reimbursement-view";
 
 /** "act": the viewer must do something. "wait": the viewer's own work is with someone else. */
 export type NeedsYouTone = "act" | "wait";
@@ -190,17 +191,14 @@ export function needsYou(state: AppState, today: string): NeedsYouItem[] {
         action: "Decide",
       });
     }
-    // An Admin never decides their own reimbursement (ADR-0013), so those are not waiting on them.
-    const reimbursements = (state.reimbursementRequests ?? []).filter(
-      (row) => row.decision === null && row.withdrawnOn === null && row.personId !== state.currentPersonId,
-    ).length;
+    const reimbursements = reimbursementsToDecide({ ...state, reimbursementRequests: state.reimbursementRequests ?? [] }).length;
     if (reimbursements > 0) {
       items.push({
         id: "admin-reimbursements",
         hat: "admin",
         tone: "act",
         count: reimbursements,
-        title: `${reimbursements} ${plural(reimbursements, "reimbursement")} to decide`,
+        title: `${reimbursements} reimbursement ${plural(reimbursements, "request")} to decide`,
         href: "/reimbursement/decide",
         action: "Decide",
       });

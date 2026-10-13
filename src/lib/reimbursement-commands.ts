@@ -183,6 +183,11 @@ function pendingChangeRefusal(state: AppState, row: ReimbursementRequest | undef
   return null;
 }
 
+/** Whether the signed-in Person may still edit or withdraw this request; the screens ask the same rule. */
+export function canChangeReimbursement(state: AppState, row: ReimbursementRequest): boolean {
+  return pendingChangeRefusal(state, row) === null;
+}
+
 export type EditReimbursementInput = Omit<FileReimbursementInput, "personId">;
 
 /** The filer corrects a pending request; every filing rule applies again, the 90 days counted from filedOn. */
@@ -252,7 +257,7 @@ export function decideReimbursementRequest(
   input: DecideReimbursementInput,
 ): CommandResult<{ error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
-  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  if (!hasAdminGrant(state)) return { state, error: "Only an Admin can decide a reimbursement" };
   const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
   if (!row) return { state, error: "Reimbursement not found" };
   if (row.personId === state.currentPersonId) return { state, error: "An Admin cannot decide their own reimbursement" };
@@ -300,7 +305,7 @@ export function decideReimbursementRequest(
 
 /** Paid changes are Admin work, never on one's own request, and only on an approved one (ADR-0013). */
 function paidChangeRefusal(state: AppState, row: ReimbursementRequest | undefined): string | null {
-  if (!hasAdminGrant(state)) return "Admin grant required";
+  if (!hasAdminGrant(state)) return "Only an Admin can mark a reimbursement Paid";
   if (!row) return "Reimbursement not found";
   if (row.personId === state.currentPersonId) return "An Admin cannot mark their own reimbursement Paid";
   if (row.withdrawnOn || row.decision !== "approved") return "Only an approved reimbursement can be Paid";
@@ -351,12 +356,14 @@ export function clearReimbursementPaid(
 // ReimbursementType labels follow the LeaveType pattern: Admin adds, renames, and reorders; a label in use or the
 // last label stays.
 
+const TYPE_ADMIN_ONLY = "Only an Admin can change reimbursement types";
+
 export function addReimbursementType(
   state: AppState,
   name: string,
 ): CommandResult<{ reimbursementTypeId: string | null; error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
-  if (!hasAdminGrant(state)) return { state, reimbursementTypeId: null, error: "Admin grant required" };
+  if (!hasAdminGrant(state)) return { state, reimbursementTypeId: null, error: TYPE_ADMIN_ONLY };
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return { state, reimbursementTypeId: null, error: "Reimbursement type name is required" };
   const reimbursementTypeId = nid("reimbursement-type");
@@ -380,7 +387,7 @@ export function renameReimbursementType(
   name: string,
 ): CommandResult<{ error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
-  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  if (!hasAdminGrant(state)) return { state, error: TYPE_ADMIN_ONLY };
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return { state, error: "Reimbursement type name is required" };
   if (!state.reimbursementTypes.some((row) => row.id === reimbursementTypeId)) {
@@ -397,7 +404,7 @@ export function renameReimbursementType(
 
 export function reorderReimbursementTypes(state: AppState, orderedIds: string[]): CommandResult<{ error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
-  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  if (!hasAdminGrant(state)) return { state, error: TYPE_ADMIN_ONLY };
   const reordered = reorderLabels(state.reimbursementTypes, Array.isArray(orderedIds) ? orderedIds : []);
   if (!reordered) return { state, error: "Reimbursement type order must include every label once" };
   return {
@@ -411,7 +418,7 @@ export function removeReimbursementType(
   reimbursementTypeId: string,
 ): CommandResult<{ error: string | null }> {
   state = ensureWorkDeliveryCollections(state);
-  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  if (!hasAdminGrant(state)) return { state, error: TYPE_ADMIN_ONLY };
   if (state.reimbursementTypes.length <= 1) return { state, error: "At least one reimbursement type is required" };
   if (state.reimbursementRequests.some((row) => row.reimbursementTypeId === reimbursementTypeId)) {
     return { state, error: "A label still in use cannot be removed" };

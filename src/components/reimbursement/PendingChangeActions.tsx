@@ -2,14 +2,9 @@
 
 import { Button } from "@/components/coss/button";
 import { ConfirmAction } from "@/components/product/ConfirmAction";
-import { formatRupiah, reimbursementState, reimbursementTypeName } from "@/lib/reimbursement-view";
+import { canChangeReimbursement } from "@/lib/reimbursement-commands";
+import { formatRupiah, reimbursementTypeName } from "@/lib/reimbursement-view";
 import type { AppState, ReimbursementRequest } from "@/lib/types";
-
-/** Whether the viewer may still edit or withdraw it: they are its Person or the Admin who filed it, and it waits. */
-export function canChangeReimbursement(state: AppState, row: ReimbursementRequest): boolean {
-  const me = state.currentPersonId;
-  return reimbursementState(row) === "pending" && (row.personId === me || row.filedByPersonId === me);
-}
 
 export function PendingChangeActions({
   state,

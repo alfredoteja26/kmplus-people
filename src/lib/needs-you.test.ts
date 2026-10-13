@@ -75,7 +75,7 @@ describe("needsYou", () => {
       ],
     };
     const item = needsYou(state, TODAY).find((row) => row.id === "admin-reimbursements");
-    expect(item).toMatchObject({ count: 2, title: "2 reimbursements to decide", href: "/reimbursement/decide" });
+    expect(item).toMatchObject({ count: 2, title: "2 reimbursement requests to decide", href: "/reimbursement/decide" });
 
     const onlyOwn = { ...state, reimbursementRequests: [pending("r3", "person-alfredo")] };
     expect(needsYou(onlyOwn, TODAY).some((row) => row.id === "admin-reimbursements")).toBe(false);

@@ -541,3 +541,18 @@ describe("configuring reimbursement types", () => {
     });
   });
 });
+
+describe("refusal messages name the action", () => {
+  it("tells a non-Admin which Admin-only action they tried", () => {
+    const { state, id } = approved();
+    expect(markPaid(state, DIGIT, id, "2026-10-13")).toMatchObject({ error: expect.stringMatching(/mark a reimbursement Paid/) });
+    expect(clearPaid(state, DIGIT, id)).toMatchObject({ error: expect.stringMatching(/mark a reimbursement Paid/) });
+    expect(decide(filedBy(DIGIT).state, DIGIT, filedBy(DIGIT).id, { decision: "approved" })).toMatchObject({
+      error: expect.stringMatching(/decide a reimbursement/),
+    });
+    expect(run(createInitialState(), DIGIT, "addReimbursementType", ["Parking"])).toMatchObject({
+      error: expect.stringMatching(/reimbursement types/),
+    });
+  });
+});
+

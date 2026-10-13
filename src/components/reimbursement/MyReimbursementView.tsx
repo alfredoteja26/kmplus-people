@@ -16,7 +16,8 @@ import type { ReimbursementRequest } from "@/lib/types";
 import { PlusIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
 import { PendingChangeActions } from "./PendingChangeActions";
-import { ReimbursementRequestSheet, plainReimbursementError } from "./ReimbursementRequestSheet";
+import { plainReimbursementError } from "./plain-error";
+import { ReimbursementRequestSheet } from "./ReimbursementRequestSheet";
 import { ReimbursementRow } from "./ReimbursementRow";
 
 export function MyReimbursementView() {

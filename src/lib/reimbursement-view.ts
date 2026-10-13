@@ -83,3 +83,21 @@ export function formatExpenseMonth(month: string): string {
   const [year, monthNumber] = month.split("-").map(Number);
   return year && monthNumber ? MONTH.format(new Date(Date.UTC(year, monthNumber - 1, 1))) : month;
 }
+
+/**
+ * What someone typed in a rupiah field, as whole rupiah: digits, optionally with a dot between every three
+ * ("1.250.000"). Anything else, including a decimal like "85000.5" or a comma, is null rather than guessed at.
+ */
+export function parseRupiahInput(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^(\d+|\d{1,3}(\.\d{3})+)$/.test(trimmed)) return null;
+  const amount = Number(trimmed.replace(/\./g, ""));
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
+}
+
+/** Pending requests the signed-in Admin may decide: never their own (ADR-0013). Home and the queue both count these. */
+export function reimbursementsToDecide(state: AppState): ReimbursementRequest[] {
+  return state.reimbursementRequests.filter(
+    (row) => reimbursementState(row) === "pending" && row.personId !== state.currentPersonId,
+  );
+}

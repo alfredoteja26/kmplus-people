@@ -7,10 +7,10 @@ import { Field } from "@/components/product/Field";
 import { FormSheet } from "@/components/product/FormSheet";
 import type { DecideReimbursementInput } from "@/lib/commands";
 import { personName } from "@/lib/project-view";
-import { formatRupiah, reimbursementTypeName } from "@/lib/reimbursement-view";
+import { formatRupiah, parseRupiahInput, reimbursementTypeName } from "@/lib/reimbursement-view";
 import type { AppState, ReimbursementRequest } from "@/lib/types";
 import { useState } from "react";
-import { plainReimbursementError } from "./ReimbursementRequestSheet";
+import { plainReimbursementError } from "./plain-error";
 
 /** Approve at a lower amount, or reject: both carry a note the Person reads. */
 export function ReimbursementDecideSheet({
@@ -30,8 +30,9 @@ export function ReimbursementDecideSheet({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const person = personName(state.people.find((item) => item.id === row.personId));
-  const lowerValue = Number(amount);
-  const lowerOk = /^\d+$/.test(amount) && lowerValue >= 1 && lowerValue < row.amount;
+  const parsed = parseRupiahInput(amount);
+  const lowerValue = parsed ?? 0;
+  const lowerOk = parsed !== null && parsed < row.amount;
   const ready = Boolean(note.trim()) && (mode === "reject" || lowerOk);
 
   return (
@@ -61,7 +62,7 @@ export function ReimbursementDecideSheet({
             inputMode="numeric"
             autoComplete="off"
             value={amount}
-            onChange={(event) => setAmount(event.target.value.replace(/[.\s]/g, ""))}
+            onChange={(event) => setAmount(event.target.value)}
           />
         </Field>
       ) : null}
