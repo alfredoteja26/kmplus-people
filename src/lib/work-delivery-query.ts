@@ -7,6 +7,7 @@ import {
   lineManagerPersonIdForAssignment,
   normalizeKpiYearPhase,
 } from "./domain-query";
+import { windowFor } from "./cadence";
 import { todayIso } from "./domain";
 import type {
   AppState,
@@ -373,14 +374,19 @@ export function workbookRows(state: AppState): WorkbookSheet[] {
     {
       name: "Timesheet",
       columns: ["person", "date", "hours", "project code", "type"],
-      rows: state.timeBlocks.map((row) => {
-        const person = state.people.find((item) => item.id === row.personId);
+      // One row per Person per counted block: their own blocks plus Meetings they accepted.
+      rows: state.people
+        .flatMap((person) =>
+          countedTimeBlocksForPerson(state, person.id).map((block) => ({ person, block })),
+        )
+        .sort((a, b) => a.block.startAt.localeCompare(b.block.startAt))
+        .map(({ person, block: row }) => {
         const project = row.projectId
           ? state.projects.find((item) => item.id === row.projectId)
           : undefined;
         const type = state.timeBlockTypes.find((item) => item.id === row.typeId);
         return [
-          person?.preferredName || person?.legalName || row.personId,
+          person.preferredName || person.legalName || person.id,
           row.startAt.slice(0, 10),
           String(hoursBetween(row.startAt, row.endAt)),
           project?.code ?? "",
@@ -478,20 +484,12 @@ export function kpiRemindersForPerson(
     for (const item of items) {
       const cadence = item.checkInCadence ?? cycle.checkInCadence;
       const due = cadence === "monthly" ? lastDayOfMonth(today.slice(0, 7)) : lastDayOfQuarter(today);
-      if (due < today) continue; // late window: no three-day reminders
       if (!isReminderWindow(due, today)) continue;
-      const submitted = state.checkIns.some(
-        (row) =>
-          row.kpiItemId === item.id
-          && row.window.includes(due.slice(0, 7) === today.slice(0, 7) || cadence === "quarterly" ? row.window : row.window)
-          && effectiveCheckInStatus(row) !== "returned",
-      );
-      // Simpler: any check-in in current window month/quarter
-      const windowPrefix = cadence === "monthly" ? today.slice(0, 7) : due.slice(0, 7);
+      const currentWindow = windowFor(today, cadence);
       const inWindow = state.checkIns.filter(
-        (row) => row.kpiItemId === item.id && (row.date.startsWith(windowPrefix.slice(0, 4)) || row.window.includes(windowPrefix)),
+        (row) => row.kpiItemId === item.id && row.window === currentWindow,
       );
-      const latest = inWindow.sort((a, b) => b.date.localeCompare(a.date))[0];
+      const latest = [...inWindow].sort((a, b) => b.date.localeCompare(a.date))[0];
       if (!latest) {
         if (ownerId === personId) {
           reminders.push({
@@ -512,7 +510,8 @@ export function kpiRemindersForPerson(
             dueDate: due,
           });
         }
-        if (isLineManagerForKpiSet({ ...state, currentPersonId: personId }, set.id) && !latest.lineManagerApprovedBy) {
+        const waiting = effectiveCheckInStatus(latest) === "pending";
+        if (waiting && isLineManagerForKpiSet({ ...state, currentPersonId: personId }, set.id) && !latest.lineManagerApprovedBy) {
           reminders.push({
             kind: "check-in",
             personId,
@@ -520,7 +519,7 @@ export function kpiRemindersForPerson(
             dueDate: due,
           });
         }
-        if (isAdmin && !latest.adminApprovedBy) {
+        if (waiting && isAdmin && !latest.adminApprovedBy) {
           reminders.push({
             kind: "check-in",
             personId,

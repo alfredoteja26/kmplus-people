@@ -713,6 +713,9 @@ export function removeDeliverableCategory(
   state = ensureWorkDeliveryCollections(state);
   const denied = adminDenied(state);
   if (denied) return { state, error: denied };
+  if (state.deliverableCategories.length <= 1) {
+    return { state, error: "At least one category label is required" };
+  }
   if (state.deliverables.some((row) => row.categoryId === categoryId)) {
     return { state, error: "A label still in use cannot be removed" };
   }
@@ -925,6 +928,9 @@ export function removeLeaveType(state: AppState, leaveTypeId: string): CommandRe
   state = ensureWorkDeliveryCollections(state);
   const denied = adminDenied(state);
   if (denied) return { state, error: denied };
+  if (state.leaveTypes.length <= 1) {
+    return { state, error: "At least one leave type is required" };
+  }
   if (state.leaveRequests.some((row) => row.leaveTypeId === leaveTypeId)) {
     return { state, error: "A label still in use cannot be removed" };
   }
@@ -1119,6 +1125,12 @@ export function removeTimeBlockType(state: AppState, typeId: string): CommandRes
   state = ensureWorkDeliveryCollections(state);
   const denied = adminDenied(state);
   if (denied) return { state, error: denied };
+  if (state.timeBlockTypes.length <= 1) {
+    return { state, error: "At least one time entry type is required" };
+  }
+  if (state.timeBlockTypes.find((row) => row.id === typeId)?.allowsInvites) {
+    return { state, error: "The Meeting type cannot be removed; rename it instead" };
+  }
   if (state.timeBlocks.some((row) => row.typeId === typeId)) {
     return { state, error: "A label still in use cannot be removed" };
   }
@@ -1172,7 +1184,8 @@ export function upsertTimeBlock(
     return { state, timeBlockId: null, error: "TimeBlocks for the same Person may not overlap" };
   }
 
-  const inviteePersonIds = input.inviteePersonIds ?? [];
+  // One Invite per Person per Meeting; the creator's own hours already count.
+  const inviteePersonIds = [...new Set(input.inviteePersonIds ?? [])].filter((id) => id !== personId);
   if (inviteePersonIds.length > 0 && !type.allowsInvites) {
     return { state, timeBlockId: null, error: "Only the Meeting type may have Invites" };
   }

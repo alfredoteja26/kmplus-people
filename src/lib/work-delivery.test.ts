@@ -6,7 +6,9 @@ import {
   deleteStaffing,
   fileLeaveRequest,
   openProject,
+  removeDeliverableCategory,
   removePublicHoliday,
+  removeTimeBlockType,
   renamePublicHoliday,
   applyIndonesiaHolidayFeed,
   addPublicHoliday,
@@ -418,6 +420,42 @@ describe("LeaveRequest and TimeBlock", () => {
     );
     expect(refused.error).toMatch(/cuti or sick/i);
   });
+
+  it("keeps one Invite per Person, never invites the creator, and declines without counting hours", () => {
+    let state = asAlfredo(createInitialState());
+    const meeting = upsertTimeBlock(state, {
+      typeId: "tbtype-meeting",
+      startAt: "2026-09-30T13:00",
+      endAt: "2026-09-30T15:00",
+      title: "Review",
+      inviteePersonIds: ["person-rayhan", "person-rayhan", "person-alfredo"],
+    });
+    expect(meeting.error).toBeNull();
+    state = meeting.state;
+    const invites = state.invites.filter((row) => row.timeBlockId === meeting.timeBlockId);
+    expect(invites.map((row) => row.personId)).toEqual(["person-rayhan"]);
+
+    const declined = respondToInvite(
+      { ...state, currentPersonId: "person-rayhan", currentRole: "manager" },
+      invites[0]!.id,
+      "declined",
+    );
+    expect(declined.error).toBeNull();
+    expect(personWeekHours(declined.state, "person-rayhan", "2026-09-30")).toBe(0);
+    expect(personWeekHours(declined.state, "person-alfredo", "2026-09-30")).toBe(2);
+  });
+
+  it("refuses removing the Meeting type or the last label in a list", () => {
+    let state = asAlfredo(createInitialState());
+    expect(removeTimeBlockType(state, "tbtype-meeting").error).toMatch(/Meeting type/);
+    const categories = [...state.deliverableCategories];
+    for (const row of categories.slice(1)) {
+      const removed = removeDeliverableCategory(state, row.id);
+      expect(removed.error).toBeNull();
+      state = removed.state;
+    }
+    expect(removeDeliverableCategory(state, categories[0]!.id).error).toMatch(/At least one/);
+  });
 });
 
 describe("Home menu, workbook, reminders", () => {
@@ -452,6 +490,39 @@ describe("Home menu, workbook, reminders", () => {
     expect(cycle?.planningEndsOn == null || cycle.planningEndsOn === "").toBe(true);
     const reminders = kpiRemindersForPerson(state, "person-alfredo", "2026-12-28");
     expect(reminders.filter((row) => row.kind === "planning")).toHaveLength(0);
+  });
+
+  it("reminds a check-in per current window: an earlier quarter does not count as submitted", () => {
+    const state = asDigit(createInitialState());
+    const submitFor = (today: string) =>
+      kpiRemindersForPerson(state, "person-digit", today).filter(
+        (row) => row.kind === "check-in" && row.label.startsWith("Submit"),
+      );
+    // Q3 window already has a check-in for ki-digit-1: 3 days before 30 Sep stays quiet for that item.
+    const q3 = submitFor("2026-09-27").length;
+    // Q4 has no check-in yet: 3 days before 31 Dec reminds again.
+    const q4 = submitFor("2026-12-28").length;
+    expect(q4).toBeGreaterThan(q3);
+    // Two days before is not a reminder day (3, 1, 0 only).
+    expect(submitFor("2026-12-29")).toHaveLength(0);
+  });
+
+  it("does not remind approvers about a returned check-in", () => {
+    const base = createInitialState();
+    const state: AppState = {
+      ...base,
+      checkIns: base.checkIns.map((row) =>
+        row.id === "ci-digit-1"
+          ? { ...row, date: "2026-12-01", window: "2026-Q4", status: "returned" as const, lineManagerApprovedBy: undefined, adminApprovedBy: undefined }
+          : row,
+      ),
+    };
+    const admin = kpiRemindersForPerson(state, "person-alfredo", "2026-12-28").filter(
+      (row) => row.kind === "check-in" && row.label.startsWith("Admin"),
+    );
+    expect(admin).toHaveLength(0);
+    const owner = kpiRemindersForPerson(state, "person-digit", "2026-12-28").map((row) => row.label);
+    expect(owner).toContain("Resubmit check-in by 2026-12-31");
   });
 });
 
