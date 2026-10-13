@@ -2,10 +2,10 @@ import type { Role } from "@/lib/types";
 
 export function peopleListDescription(role: Role, hr: boolean): string {
   if (hr) {
-    return "Create Person and Employment, confirm draft hires, assign seats, and resolve correction requests from each profile.";
+    return "Add people, confirm new hires, assign positions, and handle correction requests.";
   }
   if (role === "manager") {
-    return "People in your reporting line. Open a profile for identity, employment, and reviewed evidence.";
+    return "People who report to you. Open a profile to see their details, employment, and reviewed CV.";
   }
-  return "Your Person record. Request a correction from the profile when contact details need an update.";
+  return "Your profile. To change your legal name or reviewed CV details, ask HR from your profile.";
 }

@@ -5,72 +5,22 @@ primary_target: "src/app/kpi/page.tsx"
 related_targets: ["src/app/kpi/set/[id]/page.tsx"]
 ---
 
-# My KPI — design brief
+# My KPI (/kpi, /kpi/set/[id])
 
-Confirmed 16 Sep 2026. Performance nav: My KPI, Team, KPI Admin, KPI tree.
+Mode: Operate. Visitor: the Person who owns this year's KPI Portfolio on an Assignment, drafting weighted items, submitting for approval, and checking in. Product truth from the earlier brief stands: weights sum to 100, every non-root item names one parent, Direct only when unit and cadence match, check-ins land in their window, score appears after the year closes.
 
-## 1. Job and audience
-
-- **Visitor mode:** Operate. Employee on their current Assignment during an open KpiCycle, drafting weighted KpiItems or logging CheckIns against agreed targets. Manager may act on behalf on the same surface. HR may retarget parent or Direct/Indirect after the set is active; employees cannot change cascade once agreed.
-- **Primary audience:** Employee (owner of the KpiSet). Secondary: Manager (behalf + agreement happens elsewhere on Team), HR (parent retarget only when active/agreed).
-- **Scene:** Office daylight at a desk. One person owns the work surface; the UI stays quiet and operational, not a performance dashboard hero.
-
-## 2. Outcome and proof
-
-- **Primary job:** See cycle context and KpiSet status, maintain a small weighted item list (targets, definitions, cascade, cadence while editable), submit for agreement when valid, then CheckIn actual versus target in the correct window until the cycle closes and KpiScore appears here.
-- **Success:** Weights sum to 100%; every non-root item names one parent KpiItem; Direct only when unit and cadence match the parent; CheckIns land in the item’s effective window (monthly or quarterly); rolled Direct actuals display where DirectMix applies; submit fails loudly until tree and weights are complete.
-- **Proof in product:** Status badge and optional return comment, weight total line (100% = success tone), per-row health, latest or rolled actual, stored KpiScore callout after close. `/kpi/set/[id]` is read-only proof when opened from KPI tree (person, position, same columns, no edit or CheckIn).
-
-## 3. Selected direction
-
-- **Visual authority:** [DESIGN.md](../../DESIGN.md). Light canvas `#FAFAFA`, paper table and cards, accent `#1E857C`, Inter, KM/PLUS mark in shell only. Restrained sage SaaS; not Portaverse, not navy chrome, no glass or gradient type.
-- **Structural thesis:** Phase desk. The heading is the phase job. One status line carries the countdown or the score. The queue lists KPIs or people. The sheet is the editor.
-- **Focal moment:** The item row where cascade (parent + Direct/Indirect), optional DirectMix on parents with Direct children, cadence override while drafting, and inline CheckIn (window label + actual + note) converge. RootPosition rows show “no parent” instead of cascade controls.
-- **Companion route:** KpiSet by id mirrors the table read-only with person and position in the header and links back to KPI tree and Person profile.
-
-## 4. Scope and boundaries
-
-- **In scope:** `/kpi` operate surface for current person’s KpiSet on current Assignment; `/kpi/set/[id]` scoped read view from tree. Fields: name, definition, target, unit, weight, polarity, parent, cascade mode, DirectMix (when applicable), per-item cadence override in draft/returned, CheckIn when agreed/active.
-- **Fidelity:** Production-ready screen layout and states; chrome and nav IA unchanged (Performance group as today; no Project or payslip).
-- **Untouched:** Shell sidebar/top bar, Team agreement, KPI Admin open/close, KPI tree visualization, bonus math, calibration, salary, Portaverse-style KPI type trees. Sidebar Performance labels: My KPI, Team, KPI Admin, KPI tree.
-- **Anti-goals:** Hero metric template, side-stripes, dark dashboard chrome, automatic org copy for parents, TenantObjective roots, weighted % across mismatched units.
-
-## 5. States and ranges
-
-- **No open KpiCycle:** Warning callout only; no table.
-- **Open cycle, no Assignment or no KpiSet:** Warning with cycle name; HR drafts from KPI Admin.
-- **KpiSet statuses:** draft and returned (full edit, add/remove, cadence column, submit); agreed and active (CheckIn, cascade frozen for employee; HR parent/mode/DirectMix per policy); scored (read items + visible KpiScore; no CheckIn).
-- **Returned:** Prominent return comment callout above table.
-- **Typical load:** 3–8 KpiItems, weights totaling 100%. Sample names (utilization, delivery quality, knowledge contribution, workshop facilitation) are examples only.
-- **Validation surfaces:** Weight sum ≠ 100% (warning on footer line); missing parent on non-root blocks submit; Direct blocked when unit or cadence differs (command error callout); children-only DirectMix replaces own CheckIn with muted “rolls up from Direct children” instead of a form.
-
-## 6. Interaction and layout
-
-- **Hierarchy:** Header (cycle, title, description, status) → optional return/score/error callouts → item table → weight summary → conditional add card + submit.
-- **Table columns:** KpiItem (name, definition, DirectMix when parent has Direct children), Target, Weight, Parent (CascadeFields or read text), Latest actual (own CheckIn date or rolled sum with own suffix), Health badge, Cadence column only in draft/returned, actions (Remove when editing; CheckIn form when agreed/active).
-- **Add KpiItem:** Grid form reusing CascadeFields for non-root; RootPosition skips parent. Submit for agreement primary button in card footer.
-- **CheckIn:** Inline in row; show effective cadence and window id; actual required; optional note; sage primary CheckIn button. Blocked row shows explanation only.
-- **Read set view:** Same column set minus cadence and actions; parent as text; weights footer muted; breadcrumb to tree and person.
-- **Responsive:** Table may horizontal scroll on narrow viewports; forms stack to one column; do not collapse cascade into a separate wizard.
-
-## 7. Constraints and open decisions
-
-- **Domain:** KpiSet on Assignment + KpiCycle; optional company objectives elsewhere, not rendered as a type tree here. ADR-0001 and cascade spec stories govern parent pointer, Direct/Indirect, DirectMix, cadence windows.
-- **ACL:** Employee sees own set; tree deep-link read view uses existing `canViewKpiSet`. Manager behalf is role/demo switcher, not a separate layout.
-- **Components:** Reuse PageHeader, Callout, Table, Card, Field/Input/Select, StatusBadge, HealthBadge; CadenceField, CascadeFields, DirectMixField as the cascade/cadence affordances.
-- **Accessibility:** Label CheckIn inputs by item name and window; status and health not color-only.
-- **Open (non-blocking for layout):** Whether post-submit draft edits are ever allowed (today: returned only); exact copy for Direct validation errors (keep command message in danger callout).
+Confirmed with user (12 Oct 2026): replace the dial gauges with a facts strip; KPI items as rows; add, edit and check-in in sheets.
 
 ## Direction contract
 
-**THESIS:** The Performance pages are a phase desk. Planning leads with the countdown and the planning task. Monitoring leads with the live score and check-in. One KPI opens in a sheet. The wide table is no longer the editor.
+THESIS: My KPI is a short weighted list with its facts on top, so a Person sees what is missing before they press Submit. Refuses dial gauges and a hero score.
 
-**OWN-WORLD:** `#FAFAFA` canvas, paper list, sage primary `#1E857C` on submit and check-in, Inter, 16px panel radius. The sheet is a right-hand paper panel on a wide screen and a full-screen panel on a phone.
+OWN-WORLD: KMPlus sage on light canvas: one facts strip like the project page, register rows with a weight bar, target, latest actual, health badge and cascade parent, sheets for every edit, 6px status badges.
 
-**STORY:** The visitor sees days left while the year is in planning, or the latest monitoring score once the portfolio is approved. They open one KPI, edit or check in, and the queue stays put.
+STORY: Alfredo opens My KPI, reads "Draft · weights 80% of 100%", adds one KPI in the sheet, sees weights reach 100%, and submits.
 
-**FIRST VIEWPORT:** Heading is the phase job (Submit portfolio, or Check in). Under it, one status line for the countdown or the score. Then a single queue. The sheet opens from a row, a tree node, or Open portfolio.
+FIRST VIEWPORT: Title and status on one line, Position switcher; facts strip (status, weights of 100 with meter, score or "Shown once approved", next check-in or window); then the item rows panel with Add KPI and Submit for approval.
 
-**FORM:** Phase desk plus sheet. Seed: `confirmed-phase-desk-2026-09-24` (code-led).
+FORM: devl.dev Dashboard Engineering (density only), user-pinned. Seed key: none (user-pinned).
 
-**FINISH:** Unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

@@ -3,14 +3,18 @@
 import { CadenceField } from "@/components/kpi/CadenceField";
 import { CascadeFields } from "@/components/kpi/CascadeFields";
 import { DirectMixField } from "@/components/kpi/DirectMixField";
+import { approvalWaitingText, frequencyLabel, periodDueDate, periodLabel } from "@/components/kpi/kpi-copy";
 import { EditableItemFields } from "@/components/kpi/my-kpi/editable-item-fields";
 import { latestActualText } from "@/components/kpi/my-kpi/latest-actual";
 import { TeamKpiDraftReview } from "@/components/kpi/team/TeamKpiDraftReview";
-import { Sheet } from "@/components/ui/Sheet";
-import { Button } from "@/components/ui/Button";
-import { Callout } from "@/components/ui/Card";
-import { Field, Input, Select } from "@/components/ui/Input";
-import { HealthBadge, StatusBadge } from "@/components/ui/StatusBadge";
+import { AppSheet } from "@/components/product/AppSheet";
+import { Button } from "@/components/coss/button";
+import { ConfirmAction } from "@/components/product/ConfirmAction";
+import { Callout } from "@/components/product/Card";
+import { Field } from "@/components/product/Field";
+import { Input } from "@/components/coss/input";
+import { Select } from "@/components/product/Select";
+import { HealthBadge, StatusBadge } from "@/components/product/StatusBadge";
 import { isRootAssignment } from "@/lib/cascade";
 import { effectiveCadence, windowFor } from "@/lib/cadence";
 import { blocksOwnCheckIn } from "@/lib/direct";
@@ -27,13 +31,14 @@ import {
   canAgreeOrReturnCheckIn,
   canAgreeOrReturnKpiPortfolio,
   canDraftKpiPortfolio,
-  checkInApprovalWaitingCopy,
+  checkInApprovalGaps,
   effectiveCheckInStatus,
   isPortfolioDualApproved,
   kpiYearPhase,
   personIdForKpiSet,
-  portfolioApprovalWaitingCopy,
+  portfolioApprovalGaps,
 } from "@/lib/domain-query";
+import { plainKpiError } from "@/lib/my-kpi-view";
 import { liveMonitoringScore } from "@/lib/phase-desk";
 import { useStore } from "@/lib/store";
 import type { CascadeMode, KpiCycle, KpiItem, Polarity } from "@/lib/types";
@@ -64,9 +69,9 @@ export function KpiDetailSheet({
 
   if (!kpiSet || !cycle) {
     return (
-      <Sheet title="KPI portfolio" onClose={onClose}>
-        <Callout tone="warning">This KPI portfolio is no longer available.</Callout>
-      </Sheet>
+      <AppSheet title="KPI Portfolio" onClose={onClose}>
+        <Callout tone="warning">This KPI Portfolio no longer exists. Close this panel to go back to the list.</Callout>
+      </AppSheet>
     );
   }
 
@@ -77,10 +82,11 @@ export function KpiDetailSheet({
   const item = itemId ? items.find((row) => row.id === itemId) : undefined;
   const phase = kpiYearPhase(cycle);
   const live = phase === "monitoring" ? liveMonitoringScore(state, kpiSet.id) : null;
-  const title = showAdd ? "Add KPI" : item ? item.name : `${person?.legalName ?? "KPI portfolio"}`;
+  const title = showAdd ? "Add KPI" : item ? item.name : `${person?.legalName ?? "KPI Portfolio"}`;
+  const waiting = kpiSet.status === "pending" ? approvalWaitingText(portfolioApprovalGaps(state, kpiSet.id)) : null;
 
   return (
-    <Sheet title={title} onClose={onClose}>
+    <AppSheet title={title} onClose={onClose}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={kpiSet.status} />
@@ -88,18 +94,21 @@ export function KpiDetailSheet({
         </div>
         {phase === "monitoring" && live !== null ? (
           <p className="m-0 text-sm">
-            Latest monitoring score <span className="font-medium tabular-nums">{live}</span>
+            Current score <span className="font-medium tabular-nums">{live}</span>
           </p>
         ) : null}
         {phase === "closed" && kpiSet.score !== undefined ? (
           <p className="m-0 text-sm">
-            Stored score <span className="font-medium tabular-nums">{kpiSet.score}</span>
+            Final score <span className="font-medium tabular-nums">{kpiSet.score}</span>
           </p>
         ) : null}
-        {portfolioApprovalWaitingCopy(state, kpiSet.id) ? (
-          <Callout tone="accent">{portfolioApprovalWaitingCopy(state, kpiSet.id)}</Callout>
+        {waiting ? <Callout tone="accent">{waiting}.</Callout> : null}
+        {kpiSet.returnComment && (kpiSet.status === "returned" || kpiSet.status === "draft") ? (
+          <Callout tone="warning">
+            <p className="m-0 font-medium">Returned for changes</p>
+            <p className="mt-1 mb-0 whitespace-pre-line">{kpiSet.returnComment}</p>
+          </Callout>
         ) : null}
-        {kpiSet.returnComment ? <Callout tone="warning">{kpiSet.returnComment}</Callout> : null}
 
         {showAdd ? (
           <AddKpiForm
@@ -112,7 +121,7 @@ export function KpiDetailSheet({
           <>
             {initialItemId ? null : (
               <Button variant="ghost" type="button" onClick={() => setItemId(null)}>
-                All KPIs
+                Back to all KPIs
               </Button>
             )}
             <ItemEditor
@@ -140,7 +149,7 @@ export function KpiDetailSheet({
           />
         )}
       </div>
-    </Sheet>
+    </AppSheet>
   );
 }
 
@@ -186,7 +195,7 @@ function PortfolioBody({
 
   return (
     <div className="space-y-4">
-      <p className="m-0 text-sm tabular-nums text-muted">Weights {weightSum(items)}%</p>
+      <p className="m-0 text-sm tabular-nums text-muted">Weights total {weightSum(items)}%</p>
       {error ? <Callout tone="danger">{error}</Callout> : null}
       {showDraftReview ? (
         <TeamKpiDraftReview
@@ -195,18 +204,18 @@ function PortfolioBody({
           kpiSet={kpiSet}
           assignmentId={assignment.id}
           items={items}
-          onSaveItem={(patch) => upsertKpiItem(patch)}
+          onSaveItem={(patch) => setError(plainKpiError(upsertKpiItem(patch)) || null)}
         />
       ) : (
-        <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-[12px] border-[1.5px] border-line p-0">
+        <ul className="m-0 list-none divide-y divide-line overflow-clip rounded-[12px] border border-line p-0">
           {items.length === 0 ? (
-            <li className="px-3 py-3 text-sm text-muted">No KPIs on this portfolio yet.</li>
+            <li className="px-3 py-3 text-sm text-muted">No KPIs on this KPI Portfolio yet.</li>
           ) : (
             items.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-tint"
+                  className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--tint)_60%,var(--paper))] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
                   onClick={() => onOpenItem(item.id)}
                 >
                   <span>
@@ -227,56 +236,68 @@ function PortfolioBody({
           <Button
             type="button"
             onClick={() => {
-              setError(onAgree(kpiSetId));
+              setError(plainKpiError(onAgree(kpiSetId)) || null);
             }}
           >
-            Agree
+            Approve
           </Button>
-          <Field label="Return comment">
-            <Input value={comment} onChange={(event) => setComment(event.target.value)} />
-          </Field>
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={() => onReturn(kpiSetId, comment.trim() || "Please revise")}
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onReturn(kpiSetId, comment.trim() || "Please revise");
+            }}
           >
-            Return
-          </Button>
+            <Field label="Reason for returning">
+              <Input value={comment} onChange={(event) => setComment(event.target.value)} />
+            </Field>
+            <Button variant="outline" type="submit">
+              Return
+            </Button>
+          </form>
         </div>
       ) : null}
       {pendingCheckIns.length > 0 ? (
         <div className="space-y-3 border-t border-line pt-4">
-          <h3 className="m-0 text-[16px] font-medium">Check-ins waiting</h3>
+          <h3 className="m-0 text-base font-medium">KPI Check-Ins to approve</h3>
           {pendingCheckIns.map((checkIn) => {
             const named = items.find((row) => row.id === checkIn.kpiItemId);
+            const what = `${named?.name ?? "KPI"}, ${periodLabel(checkIn.window)}`;
             return (
               <div key={checkIn.id} className="space-y-2">
                 <p className="m-0 text-sm">
-                  {named?.name ?? "KPI"} · {checkIn.window}: actual {checkIn.actual}
+                  {named?.name ?? "KPI"} · {periodLabel(checkIn.window)}: actual{" "}
+                  <span className="tabular-nums">
+                    {checkIn.actual} {named?.unit}
+                  </span>
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" onClick={() => setError(onAgreeCheckIn(checkIn.id))}>
-                    Agree Check-In
+                <form
+                  className="flex flex-wrap gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    onReturnCheckIn(checkIn.id, checkInComments[checkIn.id]?.trim() || "Please revise");
+                  }}
+                >
+                  <Button
+                    type="button"
+                    aria-label={`Approve KPI Check-In for ${what}`}
+                    onClick={() => setError(plainKpiError(onAgreeCheckIn(checkIn.id)) || null)}
+                  >
+                    Approve
                   </Button>
                   <Input
                     className="min-w-[10rem] flex-1"
-                    placeholder="Return comment"
-                    aria-label={`Return comment for check-in ${checkIn.window}`}
+                    placeholder="Reason for returning"
+                    aria-label={`Reason for returning the KPI Check-In for ${what}`}
                     value={checkInComments[checkIn.id] ?? ""}
                     onChange={(event) =>
                       setCheckInComments((prev) => ({ ...prev, [checkIn.id]: event.target.value }))
                     }
                   />
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    onClick={() =>
-                      onReturnCheckIn(checkIn.id, checkInComments[checkIn.id]?.trim() || "Please revise")
-                    }
-                  >
+                  <Button variant="outline" type="submit" aria-label={`Return KPI Check-In for ${what}`}>
                     Return
                   </Button>
-                </div>
+                </form>
               </div>
             );
           })}
@@ -314,7 +335,7 @@ function ItemEditor({
   const rootAssignment = isRootAssignment(state, assignmentId);
 
   function save(patch: KpiItem) {
-    setError(onSave(patch));
+    setError(plainKpiError(onSave(patch)) || null);
   }
 
   return (
@@ -348,7 +369,7 @@ function ItemEditor({
             </p>
           )}
         </Field>
-        <Field label="Weight %">
+        <Field label="Weight (%)">
           {canEdit ? (
             <Input
               type="number"
@@ -410,27 +431,57 @@ function ItemEditor({
           onChange={(checkInCadence) => save({ ...item, checkInCadence })}
         />
       ) : null}
-      <p className="m-0 text-sm">
-        Latest actual <span className="tabular-nums">{latestActualText(state, item)}</span>
-      </p>
-      <HealthBadge health={itemHealth(state, item)} />
+      <dl className="m-0 grid grid-cols-[8rem_minmax(0,1fr)] items-center gap-x-4 gap-y-2.5 border-t border-line pt-4 text-sm">
+        {canEdit ? null : (
+          <>
+            <dt className="text-muted">Frequency</dt>
+            <dd className="m-0">{frequencyLabel(effectiveCadence(cycle, item))}</dd>
+          </>
+        )}
+        {!canEdit && item.polarity === "lower-better" ? (
+          <>
+            <dt className="text-muted">Polarity</dt>
+            <dd className="m-0">Lower is better</dd>
+          </>
+        ) : null}
+        <dt className="text-muted">Latest actual</dt>
+        <dd className="m-0 tabular-nums">{latestActualText(state, item)}</dd>
+        <dt className="text-muted">Health</dt>
+        <dd className="m-0">
+          <HealthBadge health={itemHealth(state, item)} />
+        </dd>
+      </dl>
       {state.checkIns
         .filter((row) => row.kpiItemId === item.id)
         .map((row) => {
-          const waiting = checkInApprovalWaitingCopy(state, row.id);
-          const returned = effectiveCheckInStatus(row) === "returned";
+          const status = effectiveCheckInStatus(row);
+          const waiting = status === "pending" ? approvalWaitingText(checkInApprovalGaps(state, row.id)) : null;
+          const returned = status === "returned";
           if (!waiting && !returned) return null;
+          const period = periodLabel(row.window);
           return (
             <p key={row.id} className="m-0 text-sm text-muted">
-              {returned ? `Returned: ${row.returnComment ?? "Please revise this check-in"}` : `KPI Check-In ${row.window}: ${waiting}`}
+              {returned
+                ? `KPI Check-In for ${period} returned: ${row.returnComment ?? "Update it and submit again."}`
+                : `KPI Check-In for ${period}: ${waiting?.toLowerCase()}.`}
             </p>
           );
         })}
       {canCheckIn ? <CheckInForm cycle={cycle} item={item} onSave={onCheckIn} /> : null}
       {canEdit ? (
-        <Button variant="ghost" type="button" onClick={onRemove}>
-          Remove
-        </Button>
+        <div>
+          <ConfirmAction
+            trigger={
+              <Button variant="ghost" size="sm" type="button" className="text-destructive-foreground">
+                Remove KPI
+              </Button>
+            }
+            title={`Remove “${item.name}”?`}
+            description="It leaves this KPI Portfolio with its target and weight. Weights will need to add up to 100% again."
+            confirmLabel="Remove KPI"
+            onConfirm={onRemove}
+          />
+        </div>
       ) : null}
     </div>
   );
@@ -452,7 +503,9 @@ function CheckInForm({
   const cadence = effectiveCadence(cycle, item);
   const windowId = windowFor(todayIso(), cadence);
   if (blocksOwnCheckIn(state, item)) {
-    return <p className="text-sm text-muted">Rolls up from direct child KPIs only.</p>;
+    return (
+      <p className="text-sm text-muted">This KPI adds up from its Direct child KPIs, so there is no actual to enter here.</p>
+    );
   }
   return (
     <form
@@ -460,31 +513,31 @@ function CheckInForm({
       onSubmit={(event) => {
         event.preventDefault();
         const message = onSave(item.id, Number(actual), note);
-        setError(message);
+        setError(message ? plainKpiError(message) : null);
         if (message) return;
         setActual("");
         setNote("");
       }}
     >
-      <h3 className="m-0 text-[16px] font-medium">Check in</h3>
+      <h3 className="m-0 text-base font-medium">KPI Check-In for {periodLabel(windowId)}</h3>
       <p className="m-0 text-sm text-muted">
-        Window {windowId} · {cadence}
+        {frequencyLabel(cadence)} · due by {periodDueDate(windowId)}
       </p>
       {error ? <Callout tone="danger">{error}</Callout> : null}
-      <Field label="Actual">
+      <Field label={item.unit ? `Actual (${item.unit})` : "Actual"}>
         <Input
           type="number"
           step="any"
           className="tabular-nums"
-          aria-label={`Actual for ${item.name}, window ${windowId}`}
+          aria-label={`Actual for ${item.name}, ${periodLabel(windowId)}`}
           value={actual}
           onChange={(event) => setActual(event.target.value)}
           required
         />
       </Field>
-      <Field label="Note">
+      <Field label="Note (optional)">
         <Input
-          aria-label={`Check-in note for ${item.name}`}
+          aria-label={`Note for ${item.name}`}
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
@@ -532,7 +585,7 @@ function AddKpiForm({
           parentKpiItemId: rootAssignment ? null : parentKpiItemId || null,
           cascadeMode,
         });
-        setError(message);
+        setError(message ? plainKpiError(message) : null);
         if (!message) onDone();
       }}
     >
@@ -549,7 +602,7 @@ function AddKpiForm({
       <Field label="Unit">
         <Input value={unit} onChange={(event) => setUnit(event.target.value)} />
       </Field>
-      <Field label="Weight %">
+      <Field label="Weight (%)">
         <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
       </Field>
       <Field label="Polarity">
@@ -582,8 +635,8 @@ function AddKpiForm({
           onCascadeModeChange={setCascadeMode}
         />
       ) : null}
-      <Button type="submit" variant="secondary">
-        Add item
+      <Button type="submit" variant="outline">
+        Add KPI
       </Button>
     </form>
   );

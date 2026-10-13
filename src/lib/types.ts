@@ -2,6 +2,8 @@ export const TENANT_ID = "kmplus";
 
 export type Role = "employee" | "manager" | "hr" | "admin";
 
+export type WeekGridMode = "weekdays" | "full";
+
 export type Person = {
   id: string;
   tenantId: string;
@@ -20,6 +22,8 @@ export type Person = {
   experiences: ExperienceRecord[];
   certificationRows: CertificationRecord[];
   skillRows: SkillRecord[];
+  /** Timesheet week grid; Saturday and Sunday hours still count when weekdays. */
+  weekGrid?: WeekGridMode;
 };
 
 export type EducationRecord = {
@@ -230,6 +234,153 @@ export type TenantUser = {
   authEpoch: number;
 };
 
+export type Project = {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  /** Blank for internal work such as KMPlus People. */
+  clientName: string | null;
+  startDate: string;
+  endDate: string | null;
+};
+
+export type Staffing = {
+  id: string;
+  tenantId: string;
+  personId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string | null;
+  /** Whole percent from 1 to 100 on this row. */
+  load: number;
+};
+
+export type WorkItem = {
+  id: string;
+  tenantId: string;
+  projectId: string;
+  name: string;
+  description: string;
+  picPersonId: string;
+  startDate: string;
+  endDate: string;
+};
+
+export type DeliverableKind = "file" | "link";
+
+export type DeliverableFileVersion = {
+  id: string;
+  storagePath: string;
+  fileName: string;
+  uploadedAt: string;
+};
+
+export type Deliverable = {
+  id: string;
+  tenantId: string;
+  projectId: string;
+  kind: DeliverableKind;
+  name: string;
+  statusId: string;
+  categoryId: string;
+  /** Link URL; overwritten on edit. Empty for file Deliverables. */
+  url: string | null;
+  /** File versions; empty for link Deliverables. */
+  versions: DeliverableFileVersion[];
+  workItemIds: string[];
+};
+
+export type DeliverableStatus = {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+  isDefault: boolean;
+  /** Sticky Accepted identity for progress; rename does not clear this. */
+  countsAsAccepted: boolean;
+};
+
+export type DeliverableCategory = {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+};
+
+export type LeaveKind = "cuti" | "sick" | "remote";
+export type LeaveSpanMode = "days" | "hours";
+export type LeaveDecision = "unpaid" | "paid" | "refused";
+
+export type LeaveRequest = {
+  id: string;
+  tenantId: string;
+  personId: string;
+  kind: LeaveKind;
+  leaveTypeId: string | null;
+  coverPersonId: string | null;
+  doctorLetterPath: string | null;
+  note: string;
+  spanMode: LeaveSpanMode;
+  startDate: string;
+  endDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  decision: LeaveDecision | null;
+  decidedByPersonId: string | null;
+};
+
+export type LeaveType = {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+};
+
+export type PublicHolidayOrigin = "libur" | "bersama" | "internal";
+
+export type PublicHoliday = {
+  id: string;
+  tenantId: string;
+  date: string;
+  name: string;
+  origin: PublicHolidayOrigin;
+  suppressed: boolean;
+  nameLocked: boolean;
+};
+
+export type TimeBlockType = {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+  /** Sticky Meeting privilege; rename does not move invites to another type. */
+  allowsInvites: boolean;
+};
+
+export type TimeBlock = {
+  id: string;
+  tenantId: string;
+  personId: string;
+  typeId: string;
+  /** Asia/Jakarta wall clock as `YYYY-MM-DDTHH:mm`. */
+  startAt: string;
+  endAt: string;
+  projectId: string | null;
+  workItemId: string | null;
+  title: string;
+};
+
+export type InviteStatus = "pending" | "accepted" | "declined";
+
+export type Invite = {
+  id: string;
+  tenantId: string;
+  timeBlockId: string;
+  personId: string;
+  status: InviteStatus;
+};
+
 export type AppState = {
   tenantId: string;
   currentRole: Role;
@@ -248,6 +399,18 @@ export type AppState = {
   kpiItems: KpiItem[];
   checkIns: CheckInRecord[];
   audit: AuditEntry[];
+  projects: Project[];
+  staffings: Staffing[];
+  workItems: WorkItem[];
+  deliverables: Deliverable[];
+  deliverableStatuses: DeliverableStatus[];
+  deliverableCategories: DeliverableCategory[];
+  leaveRequests: LeaveRequest[];
+  leaveTypes: LeaveType[];
+  publicHolidays: PublicHoliday[];
+  timeBlockTypes: TimeBlockType[];
+  timeBlocks: TimeBlock[];
+  invites: Invite[];
 };
 
 export type Health = "on-track" | "at-risk" | "off" | "none";

@@ -1,23 +1,29 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import * as commands from "./commands";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type * as commands from "./commands";
+import { COMMANDS, refusal, type CommandArgs, type CommandName, type CommandOutput } from "./command-registry";
 import type { ApplyCvMode, CreatePersonInput } from "./commands";
-import { currentAssignment, roleLabel } from "./domain";
+import { currentAssignment, recordingIds, roleLabel, withIdSource } from "./domain";
 import { createInitialState } from "./fixtures";
+import { overlaySessionIdentity } from "./session-identity";
+import type { Role } from "./types";
 import type { AppState, CurriculumVitae, FieldDecision, KpiItem, Person, Position } from "./types";
 
 type Store = {
   state: AppState;
   persisted: boolean;
+  /** Set when the server refused a change the browser had already shown; cleared by the next accepted one. */
+  syncError: string | null;
+  dismissSyncError: () => void;
   createPerson: (input: CreatePersonInput) => string;
   updatePerson: (personId: string, patch: Partial<Person>) => void;
-  confirmHire: (personId: string) => void;
-  assignPosition: (personId: string, positionId: string, startDate: string) => void;
+  confirmHire: (personId: string) => string | null;
+  assignPosition: (personId: string, positionId: string, startDate: string) => string | null;
   createPosition: (input: Omit<Position, "id" | "tenantId">) => string;
-  updatePosition: (positionId: string, patch: Partial<Omit<Position, "id" | "tenantId">>) => void;
-  requestCorrection: (personId: string, field: string, currentValue: string, proposedValue: string) => void;
-  resolveCorrection: (id: string, status: "accepted" | "rejected") => void;
+  updatePosition: (positionId: string, patch: Partial<Omit<Position, "id" | "tenantId">>) => string | null;
+  requestCorrection: (personId: string, field: string, currentValue: string, proposedValue: string) => string | null;
+  resolveCorrection: (id: string, status: "accepted" | "rejected") => string | null;
   addCv: (cv: Omit<CurriculumVitae, "id" | "tenantId">) => string;
   decideCvField: (cvId: string, key: string, decision: FieldDecision, editedValue?: string) => void;
   applyCv: (cvId: string, mode: ApplyCvMode) => string | null;
@@ -40,47 +46,110 @@ type Store = {
   returnCheckIn: (checkInId: string, comment: string) => void;
   grantAdmin: (personId: string) => string | null;
   revokeAdmin: (personId: string) => string | null;
+  openProject: (input: commands.OpenProjectInput) => { projectId: string | null; error: string | null };
+  updateProject: (projectId: string, input: commands.UpdateProjectInput) => { error: string | null };
+  addStaffing: (input: commands.AddStaffingInput) => { staffingId: string | null; overload: number; error: string | null };
+  updateStaffing: (
+    staffingId: string,
+    patch: Parameters<typeof commands.updateStaffing>[2],
+  ) => { overload: number; error: string | null };
+  deleteStaffing: (staffingId: string) => { error: string | null };
+  upsertWorkItem: (input: commands.UpsertWorkItemInput) => { workItemId: string | null; error: string | null };
+  deleteWorkItem: (workItemId: string) => { error: string | null };
+  addDeliverable: (input: commands.AddDeliverableInput) => { deliverableId: string | null; error: string | null };
+  updateDeliverable: (
+    deliverableId: string,
+    patch: Parameters<typeof commands.updateDeliverable>[2],
+  ) => { error: string | null };
+  deleteDeliverable: (deliverableId: string) => { error: string | null };
+  fileLeaveRequest: (input: commands.FileLeaveInput) => { leaveRequestId: string | null; error: string | null };
+  decideLeaveRequest: (leaveRequestId: string, decision: import("./types").LeaveDecision) => { error: string | null };
+  withdrawLeaveRequest: (leaveRequestId: string) => { error: string | null };
+  upsertTimeBlock: (input: commands.UpsertTimeBlockInput) => { timeBlockId: string | null; error: string | null };
+  deleteTimeBlock: (timeBlockId: string) => { error: string | null };
+  respondToInvite: (inviteId: string, status: "accepted" | "declined") => { error: string | null };
+  setWeekGrid: (mode: import("./types").WeekGridMode, personId?: string) => { error: string | null };
+  updatePersonContact: (personId: string, patch: commands.ContactPatch) => { error: string | null };
+  addDeliverableStatus: (name: string) => { statusId: string | null; error: string | null };
+  renameDeliverableStatus: (statusId: string, name: string) => { error: string | null };
+  removeDeliverableStatus: (statusId: string) => { error: string | null };
+  addDeliverableCategory: (name: string) => { categoryId: string | null; error: string | null };
+  renameDeliverableCategory: (categoryId: string, name: string) => { error: string | null };
+  removeDeliverableCategory: (categoryId: string) => { error: string | null };
+  addLeaveType: (name: string) => { leaveTypeId: string | null; error: string | null };
+  renameLeaveType: (leaveTypeId: string, name: string) => { error: string | null };
+  removeLeaveType: (leaveTypeId: string) => { error: string | null };
+  addPublicHoliday: (date: string, name: string) => { holidayId: string | null; error: string | null };
+  renamePublicHoliday: (holidayId: string, name: string) => { error: string | null };
+  removePublicHoliday: (holidayId: string) => { error: string | null };
+  applyIndonesiaHolidayFeed: (items: import("./commands").IndonesiaHolidayFeedItem[]) => { added: number; error: string | null };
+  addTimeBlockType: (name: string) => { typeId: string | null; error: string | null };
+  renameTimeBlockType: (typeId: string, name: string) => { error: string | null };
+  removeTimeBlockType: (typeId: string) => { error: string | null };
 };
 
 const StoreContext = createContext<Store | null>(null);
 
-async function putTenantState(state: AppState) {
-  const response = await fetch("/api/tenant-state", {
-    method: "PUT",
+type CommandReply = { state?: AppState; error?: string };
+
+async function postCommand(name: CommandName, args: unknown[], ids: string[]): Promise<{ status: number; reply: CommandReply }> {
+  const response = await fetch("/api/commands", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(state),
+    body: JSON.stringify({ name, args, ids }),
   });
-  if (!response.ok) {
-    throw new Error("Could not save tenant state");
-  }
+  const reply = (await response.json().catch(() => ({}))) as CommandReply;
+  return { status: response.status, reply };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState | null>(null);
   const [persisted, setPersisted] = useState(false);
+  /** Latest committed state, updated synchronously so two commits in one tick build on each other. */
+  const latest = useRef<AppState | null>(null);
+  /** Commands reach the server one after another, in the order the user made them. */
+  const sending = useRef<Promise<void>>(Promise.resolve());
+  /** Commands sent but not yet answered; the server's view replaces local state once this reaches zero. */
+  const inFlight = useRef(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/tenant-state")
-      .then(async (response) => {
+    (async () => {
+      try {
+        const response = await fetch("/api/tenant-state");
         if (response.status === 401) {
           window.location.href = "/login";
-          throw new Error("unauthorized");
+          return;
         }
-        if (!response.ok) throw new Error("unavailable");
-        return (await response.json()) as AppState;
-      })
-      .then((loaded) => {
-        if (cancelled) return;
-        setState(loaded);
-        setPersisted(true);
-      })
-      .catch((error: unknown) => {
+        if (response.ok) {
+          const loaded = (await response.json()) as AppState;
+          if (!cancelled) {
+            latest.current = loaded;
+            setState(loaded);
+            setPersisted(true);
+          }
+          return;
+        }
+        throw new Error("unavailable");
+      } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof Error && error.message === "unauthorized") return;
-        setState(createInitialState());
+        let fallback = createInitialState();
+        try {
+          const meResponse = await fetch("/api/auth/me");
+          if (meResponse.ok) {
+            const me = (await meResponse.json()) as { personId: string; role: Role };
+            fallback = overlaySessionIdentity(fallback, { personId: me.personId, role: me.role });
+          }
+        } catch {
+          /* keep fixture identity */
+        }
+        latest.current = fallback;
+        setState(fallback);
         setPersisted(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -90,130 +159,249 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!state) return null;
     const current = state;
 
-    function persist(next: AppState) {
+    function send(name: CommandName, args: unknown[], ids: string[]) {
       if (!persisted) return;
-      void putTenantState(next).catch(() => setPersisted(false));
+      inFlight.current += 1;
+      sending.current = sending.current
+        .then(async () => {
+          const { status, reply } = await postCommand(name, args, ids);
+          if (status === 401) {
+            window.location.href = "/login";
+            return;
+          }
+          if (status >= 500 || (!reply.state && status !== 400)) throw new Error(reply.error ?? "Save failed");
+          if (status === 403 || status === 400) setSyncError(reply.error ?? "The server did not accept that change.");
+          else setSyncError(null);
+          if (reply.state && inFlight.current === 1) {
+            latest.current = reply.state;
+            setState(reply.state);
+          }
+        })
+        .catch(() => setPersisted(false))
+        .finally(() => {
+          inFlight.current -= 1;
+        });
     }
 
-    function commit<T extends { state: AppState }>(run: (prev: AppState) => T): Omit<T, "state"> {
-      const { state: next, ...rest } = run(current);
-      setState(next);
-      persist(next);
-      return rest as Omit<T, "state">;
+    /** Runs a command locally for an instant result, then sends it (with the ids it created) to the server. */
+    function commit<N extends CommandName>(name: N, args: CommandArgs<N>): Omit<CommandOutput<N>, "state"> {
+      const recorder = recordingIds();
+      const command = COMMANDS[name] as unknown as (state: AppState, ...rest: unknown[]) => CommandOutput<N>;
+      const output = withIdSource(recorder.source, () => command(latest.current ?? current, ...(args as unknown[])));
+      const { state: next, ...rest } = output as CommandOutput<N> & { state: AppState };
+      if (!refusal(output as { error?: unknown })) {
+        latest.current = next;
+        setState(next);
+        send(name, args as unknown[], recorder.ids);
+      }
+      return rest as Omit<CommandOutput<N>, "state">;
     }
 
     return {
       state: current,
       persisted,
+      syncError,
+      dismissSyncError: () => setSyncError(null),
       createPerson(input) {
-        return commit((prev) => commands.createPerson(prev, input)).personId;
+        return commit("createPerson", [input]).personId;
       },
       updatePerson(personId, patch) {
-        commit((prev) => commands.updatePerson(prev, personId, patch));
+        commit("updatePerson", [personId, patch]);
       },
       confirmHire(personId) {
-        commit((prev) => commands.confirmHire(prev, personId));
+        return commit("confirmHire", [personId]).error ?? null;
       },
       assignPosition(personId, positionId, startDate) {
-        commit((prev) => commands.assignPosition(prev, personId, positionId, startDate));
+        return commit("assignPosition", [personId, positionId, startDate]).error ?? null;
       },
       createPosition(input) {
-        return commit((prev) => commands.createPosition(prev, input)).positionId;
+        return commit("createPosition", [input]).positionId;
       },
       updatePosition(positionId, patch) {
-        commit((prev) => commands.updatePosition(prev, positionId, patch));
+        return commit("updatePosition", [positionId, patch]).error ?? null;
       },
       requestCorrection(personId, field, currentValue, proposedValue) {
-        commit((prev) => commands.requestCorrection(prev, personId, field, currentValue, proposedValue));
+        return commit("requestCorrection", [personId, field, currentValue, proposedValue]).error ?? null;
       },
       resolveCorrection(id, status) {
-        commit((prev) => commands.resolveCorrection(prev, id, status));
+        return commit("resolveCorrection", [id, status]).error ?? null;
       },
       addCv(cv) {
-        return commit((prev) => commands.addCv(prev, cv)).cvId;
+        return commit("addCv", [cv]).cvId;
       },
       decideCvField(cvId, key, decision, editedValue) {
-        commit((prev) => commands.decideCvField(prev, cvId, key, decision, editedValue));
+        commit("decideCvField", [cvId, key, decision, editedValue]);
       },
       applyCv(cvId, mode) {
-        const { personId } = commit((prev) => commands.applyCv(prev, cvId, mode));
+        const { personId } = commit("applyCv", [cvId, mode]);
         return mode.type === "new-hire" ? personId : null;
       },
       rejectCv(cvId) {
-        commit((prev) => commands.rejectCv(prev, cvId));
+        commit("rejectCv", [cvId]);
       },
       startKpiPlanning(cycleId) {
-        return commit((prev) => commands.startKpiPlanning(prev, cycleId)).error;
+        return commit("startKpiPlanning", [cycleId]).error;
       },
       startKpiMonitoring(cycleId) {
-        return commit((prev) => commands.startKpiMonitoring(prev, cycleId)).error;
+        return commit("startKpiMonitoring", [cycleId]).error;
       },
       setKpiYearCheckInFrequency(cycleId, cadence) {
-        return commit((prev) => commands.setKpiYearCheckInFrequency(prev, cycleId, cadence)).error;
+        return commit("setKpiYearCheckInFrequency", [cycleId, cadence]).error;
       },
       setKpiPlanningEndDate(cycleId, planningEndsOn) {
-        return commit((prev) => commands.setKpiPlanningEndDate(prev, cycleId, planningEndsOn)).error;
+        return commit("setKpiPlanningEndDate", [cycleId, planningEndsOn]).error;
       },
       closeKpiYear(cycleId) {
-        return commit((prev) => commands.closeKpiYear(prev, cycleId)).error;
+        return commit("closeKpiYear", [cycleId]).error;
       },
       openKpiAdjustmentWindow(cycleId) {
-        return commit((prev) => commands.openKpiAdjustmentWindow(prev, cycleId)).error;
+        return commit("openKpiAdjustmentWindow", [cycleId]).error;
       },
       closeKpiAdjustmentWindow(cycleId) {
-        return commit((prev) => commands.closeKpiAdjustmentWindow(prev, cycleId)).error;
+        return commit("closeKpiAdjustmentWindow", [cycleId]).error;
       },
       createMissingKpiSets(cycleId) {
-        return commit((prev) => commands.createMissingKpiSets(prev, cycleId)).created;
+        return commit("createMissingKpiSets", [cycleId]).created;
       },
       upsertKpiItem(item) {
-        return commit((prev) => commands.upsertKpiItem(prev, item)).error;
+        return commit("upsertKpiItem", [item]).error;
       },
       removeKpiItem(id) {
-        commit((prev) => commands.removeKpiItem(prev, id));
+        commit("removeKpiItem", [id]);
       },
       submitKpiSet(kpiSetId) {
-        return commit((prev) => commands.submitKpiSet(prev, kpiSetId)).error;
+        return commit("submitKpiSet", [kpiSetId]).error;
       },
       agreeKpiSet(kpiSetId) {
-        return commit((prev) => commands.agreeKpiSet(prev, kpiSetId)).error;
+        return commit("agreeKpiSet", [kpiSetId]).error;
       },
       returnKpiSet(kpiSetId, comment) {
-        commit((prev) => commands.returnKpiSet(prev, kpiSetId, comment));
+        commit("returnKpiSet", [kpiSetId, comment]);
       },
       grantAdmin(personId) {
-        return commit((prev) => commands.grantAdmin(prev, personId)).error;
+        return commit("grantAdmin", [personId]).error;
       },
       revokeAdmin(personId) {
-        return commit((prev) => commands.revokeAdmin(prev, personId)).error;
+        return commit("revokeAdmin", [personId]).error;
       },
       addCheckIn(kpiItemId, actual, note) {
-        return commit((prev) => commands.addCheckIn(prev, kpiItemId, actual, note)).error;
+        return commit("addCheckIn", [kpiItemId, actual, note]).error;
       },
       agreeCheckIn(checkInId) {
-        return commit((prev) => commands.agreeCheckIn(prev, checkInId)).error;
+        return commit("agreeCheckIn", [checkInId]).error;
       },
       returnCheckIn(checkInId, comment) {
-        commit((prev) => commands.returnCheckIn(prev, checkInId, comment));
+        commit("returnCheckIn", [checkInId, comment]);
+      },
+      openProject(input) {
+        return commit("openProject", [input]);
+      },
+      updateProject(projectId, input) {
+        return commit("updateProject", [projectId, input]);
+      },
+      addStaffing(input) {
+        return commit("addStaffing", [input]);
+      },
+      updateStaffing(staffingId, patch) {
+        return commit("updateStaffing", [staffingId, patch]);
+      },
+      deleteStaffing(staffingId) {
+        return commit("deleteStaffing", [staffingId]);
+      },
+      upsertWorkItem(input) {
+        return commit("upsertWorkItem", [input]);
+      },
+      deleteWorkItem(workItemId) {
+        return commit("deleteWorkItem", [workItemId]);
+      },
+      addDeliverable(input) {
+        return commit("addDeliverable", [input]);
+      },
+      updateDeliverable(deliverableId, patch) {
+        return commit("updateDeliverable", [deliverableId, patch]);
+      },
+      deleteDeliverable(deliverableId) {
+        return commit("deleteDeliverable", [deliverableId]);
+      },
+      fileLeaveRequest(input) {
+        return commit("fileLeaveRequest", [input]);
+      },
+      decideLeaveRequest(leaveRequestId, decision) {
+        return commit("decideLeaveRequest", [leaveRequestId, decision]);
+      },
+      withdrawLeaveRequest(leaveRequestId) {
+        return commit("withdrawLeaveRequest", [leaveRequestId]);
+      },
+      upsertTimeBlock(input) {
+        return commit("upsertTimeBlock", [input]);
+      },
+      deleteTimeBlock(timeBlockId) {
+        return commit("deleteTimeBlock", [timeBlockId]);
+      },
+      respondToInvite(inviteId, status) {
+        return commit("respondToInvite", [inviteId, status]);
+      },
+      setWeekGrid(mode, personId) {
+        return commit("setWeekGrid", [mode, personId]);
+      },
+      updatePersonContact(personId, patch) {
+        return commit("updatePersonContact", [personId, patch]);
+      },
+      addDeliverableStatus(name) {
+        return commit("addDeliverableStatus", [name]);
+      },
+      renameDeliverableStatus(statusId, name) {
+        return commit("renameDeliverableStatus", [statusId, name]);
+      },
+      removeDeliverableStatus(statusId) {
+        return commit("removeDeliverableStatus", [statusId]);
+      },
+      addDeliverableCategory(name) {
+        return commit("addDeliverableCategory", [name]);
+      },
+      renameDeliverableCategory(categoryId, name) {
+        return commit("renameDeliverableCategory", [categoryId, name]);
+      },
+      removeDeliverableCategory(categoryId) {
+        return commit("removeDeliverableCategory", [categoryId]);
+      },
+      addLeaveType(name) {
+        return commit("addLeaveType", [name]);
+      },
+      renameLeaveType(leaveTypeId, name) {
+        return commit("renameLeaveType", [leaveTypeId, name]);
+      },
+      removeLeaveType(leaveTypeId) {
+        return commit("removeLeaveType", [leaveTypeId]);
+      },
+      addPublicHoliday(date, name) {
+        return commit("addPublicHoliday", [date, name]);
+      },
+      renamePublicHoliday(holidayId, name) {
+        return commit("renamePublicHoliday", [holidayId, name]);
+      },
+      removePublicHoliday(holidayId) {
+        return commit("removePublicHoliday", [holidayId]);
+      },
+      applyIndonesiaHolidayFeed(items) {
+        return commit("applyIndonesiaHolidayFeed", [items]);
+      },
+      addTimeBlockType(name) {
+        return commit("addTimeBlockType", [name]);
+      },
+      renameTimeBlockType(typeId, name) {
+        return commit("renameTimeBlockType", [typeId, name]);
+      },
+      removeTimeBlockType(typeId) {
+        return commit("removeTimeBlockType", [typeId]);
       },
     };
-  }, [state, persisted]);
+  }, [state, persisted, syncError]);
 
-  if (!store) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">
-        Loading People…
-      </div>
-    );
-  }
+  if (!store) return <ShellSkeleton />;
 
   return (
     <StoreContext.Provider value={store}>
-      {!store.persisted ? (
-        <p className="m-0 border-b-[1.5px] border-line bg-[color-mix(in_srgb,var(--warning)_12%,var(--paper))] px-4 py-2 text-sm">
-          Postgres is offline. Changes last until refresh.
-        </p>
-      ) : null}
       {children}
     </StoreContext.Provider>
   );
@@ -231,3 +419,26 @@ export function useCurrentAssignment() {
 }
 
 export { roleLabel };
+
+/** Shown while the tenant loads: the shell's shape, so nothing jumps when the real page arrives. */
+function ShellSkeleton() {
+  const bar = "rounded-full bg-[color-mix(in_srgb,var(--line)_70%,var(--paper))] motion-safe:animate-pulse";
+  return (
+    <div className="flex h-dvh flex-col bg-bg" role="status" aria-live="polite">
+      <span className="sr-only">Loading KMPlus People…</span>
+      <div className="h-[68px] shrink-0 border-b-[1.5px] border-line bg-paper" aria-hidden />
+      <div className="flex min-h-0 flex-1" aria-hidden>
+        <div className="hidden w-[var(--sidebar-width-expanded)] shrink-0 flex-col gap-3 border-r-[1.5px] border-line bg-paper px-4 py-5 md:flex">
+          {[70, 55, 80, 60, 50, 75, 65].map((width, index) => (
+            <span key={index} className={`h-4 ${bar}`} style={{ width: `${width}%` }} />
+          ))}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-8 sm:px-6">
+          <span className={`h-7 w-48 ${bar}`} />
+          <span className={`h-4 w-80 max-w-full ${bar}`} />
+          <div className="mt-4 h-64 rounded-2xl bg-paper shadow-[var(--shadow)]" />
+        </div>
+      </div>
+    </div>
+  );
+}

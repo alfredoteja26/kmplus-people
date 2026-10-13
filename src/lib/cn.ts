@@ -1,3 +1,2 @@
-export function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
+/** Kept so older imports resolve; use "@/lib/utils" (clsx + tailwind-merge) in new code. */
+export { cn } from "./utils";

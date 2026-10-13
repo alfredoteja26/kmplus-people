@@ -3,7 +3,7 @@
 ########################################
 # 1. Dependencies (with dev deps for build)
 ########################################
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 # libc compat + openssl needed by Prisma engines on Alpine
 RUN apk add --no-cache libc6-compat openssl
@@ -15,7 +15,7 @@ RUN npm ci
 ########################################
 # 2. Build the Next.js standalone output
 ########################################
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl
 COPY --from=deps /app/node_modules ./node_modules
@@ -27,7 +27,7 @@ RUN npx prisma generate && npm run build
 ########################################
 # 3. Production runtime (Node, standalone)
 ########################################
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl
 ENV NODE_ENV=production

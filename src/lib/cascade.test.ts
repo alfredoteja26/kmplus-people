@@ -19,7 +19,7 @@ describe("cascade", () => {
     const broken = { ...state, kpiItems: items };
     expect(validateParents(broken, "set-alfredo")).toMatch(/needs a parent/);
 
-    const submit = submitKpiSet(broken, "set-alfredo");
+    const submit = submitKpiSet({ ...broken, currentPersonId: "person-alfredo", currentRole: "employee" }, "set-alfredo");
     expect(submit.error).toMatch(/needs a parent/);
     expect(submit.state.kpiSets.find((row) => row.id === "set-alfredo")?.status).toBe("pending");
 

@@ -1,6 +1,8 @@
 # KPI Admin (`/kpi/cycle`) design brief
 
-Confirmed 16 Sep 2026. Sidebar label is **KPI Admin**, not Cycle. Domain object remains KpiCycle.
+Confirmed 16 Sep 2026. Sidebar label is **KPI Admin**, not Cycle.
+
+> **Stale domain nouns.** ADR-0002 replaced product **Cycle** with **KpiAdmin** over **KpiYear** (**KpiPlanning** / **KpiMonitoring**). Prefer [CONTEXT.md](../../CONTEXT.md). Layout ideas below may still be useful; do not reintroduce KpiCycle as a product name.
 
 ## 1. Job and audience
 

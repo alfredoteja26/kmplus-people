@@ -1,12 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
+import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { AppFrame } from "@/components/shell/AppFrame";
 import "./globals.css";
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-plus-jakarta",
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -16,14 +16,19 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KMPlus People",
+  title: { default: "KMPlus People", template: "%s · KMPlus People" },
   description: "People, with evidence. KMPlus Optima Internasional.",
+  applicationName: "KMPlus People",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1A7870",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-brand="kmplus" className={`${inter.variable} ${plexMono.variable}`}>
-      <body className={inter.className}>
+    <html lang="en" data-brand="kmplus" className={`${plusJakarta.variable} ${plexMono.variable}`}>
+      <body className={`${plusJakarta.className} relative isolate`}>
         <AppFrame>{children}</AppFrame>
       </body>
     </html>

@@ -1,16 +1,20 @@
 "use client";
 
 import { CycleCard } from "@/components/kpi/cycle/CycleCard";
+import { kpiYearName } from "@/components/kpi/kpi-copy";
 import { KpiDetailSheet } from "@/components/kpi/KpiDetailSheet";
 import { PhaseFacts } from "@/components/kpi/PhaseFacts";
-import { Button } from "@/components/ui/Button";
-import { Callout, Card, PageColumn, PageHeader } from "@/components/ui/Card";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Button } from "@/components/coss/button";
+import { ConfirmAction } from "@/components/product/ConfirmAction";
+import { Callout, Card, PageColumn, PageHeader } from "@/components/product/Card";
+import { Table, Td, Th } from "@/components/product/Table";
 import { canAccessKpiAdmin, kpiYearPhase, openCycle } from "@/lib/domain-query";
 import { kpiOnTrackCount, personById, todayIso } from "@/lib/domain";
 import { lateCheckInCount, peopleWithUndonePlanning } from "@/lib/phase-desk";
-import { StatGauge } from "@/components/ui/StatGauge";
+import { StatGauge } from "@/components/product/StatGauge";
+import { accessLabel, plural } from "@/lib/labels";
 import { useStore } from "@/lib/store";
+import type { KpiCycle } from "@/lib/types";
 import { useState } from "react";
 
 export default function KpiAdminPage() {
@@ -33,9 +37,16 @@ export default function KpiAdminPage() {
   const activeYear = openCycle(state);
   const lateCheckIns = lateCheckInCount(state, todayIso());
   const planningOpen = peopleWithUndonePlanning(state);
+  const activePhase = activeYear ? kpiYearPhase(activeYear) : null;
+  const years = [...state.cycles].sort(byAdminOrder);
 
   if (!allowed) {
-    return <Callout tone="warning">KPI Admin requires the Admin grant. HR and tenant admin do not get it by default.</Callout>;
+    return (
+      <div>
+        <PageHeader title="KPI Admin" />
+        <Callout tone="warning">KPI Admin needs Admin access. HR or an existing Admin can give it to you.</Callout>
+      </div>
+    );
   }
 
   return (
@@ -43,50 +54,44 @@ export default function KpiAdminPage() {
       <PageHeader
         className="mb-0"
         title="KPI Admin"
-        description="Start planning, then monitoring, for each KPI year. Set the planning end date and the default check-in frequency while the year is active. Close the year when the firm is done. Closed years stay readable."
+        description="Run each KPI year: start planning, start monitoring, then close and score. Closed years stay available to view."
       />
       {activeYear ? (
         <PhaseFacts
           cycle={activeYear}
           extra={
-            <>
+            activePhase === "monitoring" ? (
               <StatGauge
-                label="Check-ins late"
+                label="Late KPI Check-Ins"
                 value={String(lateCheckIns)}
                 percent={lateCheckIns > 0 ? 1 : 0}
                 tone={lateCheckIns > 0 ? "danger" : "accent"}
-                target={activeYear && kpiYearPhase(activeYear) === "monitoring" ? activeYear.name : "Monitoring"}
-                detail={
-                  activeYear && kpiYearPhase(activeYear) === "monitoring"
-                    ? "KPIs that missed a check-in window earlier in this year. The current window is still due, not late."
-                    : "Late check-ins are counted once the year is in monitoring."
-                }
+                target={kpiYearName(activeYear)}
+                detail="KPIs with no KPI Check-In for an earlier period this year. The current period is not late yet."
               />
+            ) : activePhase === "planning" ? (
               <StatGauge
-                label="Planning still open"
+                label="Planning not done"
                 value={String(planningOpen)}
+                unit={planningOpen === 1 ? "person" : "people"}
                 percent={planningOpen > 0 ? 1 : 0}
                 tone={planningOpen > 0 ? "warning" : "accent"}
-                target="People"
-                detail={
-                  activeYear && kpiYearPhase(activeYear) === "planning"
-                    ? "People whose portfolio is missing, still a draft, or returned."
-                    : "This count is for a KPI year that is in planning."
-                }
+                target={kpiYearName(activeYear)}
+                detail="No KPI Portfolio yet, still a draft, or returned for changes."
               />
-            </>
+            ) : null
           }
         />
       ) : null}
-      {activeYear ? (
-        <p className="mb-6 text-sm text-muted">
-          On track in {activeYear.name} ({kpiYearPhase(activeYear) === "planning" ? "planning" : kpiYearPhase(activeYear) === "monitoring" ? "monitoring" : "closed"}): {kpiOnTrackCount(state)}
+      {activeYear && activePhase === "monitoring" ? (
+        <p className="m-0 text-sm text-muted">
+          {plural(kpiOnTrackCount(state), "KPI Portfolio")} on track in {kpiYearName(activeYear)}.
         </p>
       ) : null}
       {state.cycles.length === 0 ? (
-        <Callout tone="accent">No KPI years yet. Add an annual KPI year in tenant setup when that is available.</Callout>
+        <Callout tone="accent">No KPI years have been set up yet.</Callout>
       ) : (
-        state.cycles.map((cycle) => (
+        years.map((cycle) => (
           <CycleCard
             key={cycle.id}
             cycle={cycle}
@@ -104,17 +109,16 @@ export default function KpiAdminPage() {
         ))
       )}
       <Card className="mt-6">
-        <h2 className="mt-0 mb-2 text-[16px] font-medium">Admin grant</h2>
+        <h2 className="mt-0 mb-2 text-base font-medium">Admin access</h2>
         <p className="mt-0 mb-4 text-sm text-muted">
-          HR or an existing Admin can grant or revoke Admin. The grant stacks with Employee or Manager login.
+          HR or an Admin can give or remove Admin access. It adds to the person&apos;s usual role.
         </p>
         {grantError ? <Callout tone="danger">{grantError}</Callout> : null}
         <Table>
           <thead>
             <tr>
               <Th>Person</Th>
-              <Th>Login</Th>
-              <Th>Admin</Th>
+              <Th>Access</Th>
               <Th>Actions</Th>
             </tr>
           </thead>
@@ -124,20 +128,28 @@ export default function KpiAdminPage() {
               return (
                 <tr key={user.id}>
                   <Td>{person?.legalName ?? user.personId}</Td>
-                  <Td>{user.role}</Td>
-                  <Td>{user.adminGrant ? "Yes" : "No"}</Td>
+                  <Td>{accessLabel(user.role, Boolean(user.adminGrant))}</Td>
                   <Td>
                     {user.adminGrant ? (
-                      <Button
-                        variant="secondary"
-                        type="button"
-                        onClick={() => setGrantError(revokeAdmin(user.personId))}
-                      >
-                        Revoke Admin
-                      </Button>
+                      <ConfirmAction
+                        trigger={
+                          <Button variant="ghost" size="sm" type="button">
+                            Remove Admin access
+                          </Button>
+                        }
+                        title={`Remove Admin access from ${person?.legalName ?? "this person"}?`}
+                        description="They keep their usual role but can no longer run KPI Admin, open every KPI Portfolio, or manage Admin settings."
+                        confirmLabel="Remove Admin access"
+                        onConfirm={() => setGrantError(revokeAdmin(user.personId))}
+                      />
                     ) : (
-                      <Button type="button" onClick={() => setGrantError(grantAdmin(user.personId))}>
-                        Grant Admin
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => setGrantError(grantAdmin(user.personId))}
+                      >
+                        Give Admin access
                       </Button>
                     )}
                   </Td>
@@ -150,4 +162,17 @@ export default function KpiAdminPage() {
       {openSetId ? <KpiDetailSheet kpiSetId={openSetId} onClose={() => setOpenSetId(null)} /> : null}
     </PageColumn>
   );
+}
+
+/** Active year first, then years not started (soonest first), then closed years (latest first). */
+function byAdminOrder(left: KpiCycle, right: KpiCycle) {
+  const group = (cycle: KpiCycle) => {
+    const phase = kpiYearPhase(cycle);
+    if (phase === "planning" || phase === "monitoring") return 0;
+    if (phase === null) return 1;
+    return 2;
+  };
+  const diff = group(left) - group(right);
+  if (diff !== 0) return diff;
+  return group(left) === 2 ? right.year - left.year : left.year - right.year;
 }

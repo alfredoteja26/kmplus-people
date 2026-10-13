@@ -12,7 +12,7 @@ function rosterActive(pathname: string) {
   return false;
 }
 
-export function PeopleSubnav() {
+export function PeopleSubnav({ className }: { className?: string } = {}) {
   const pathname = usePathname();
   const { state } = useStore();
   const hr = isHrLike(state.currentRole);
@@ -21,11 +21,11 @@ export function PeopleSubnav() {
   const onCv = pathname === "/cv";
 
   return (
-    <nav aria-label="People sections" className="mb-6 flex flex-wrap gap-2">
+    <nav aria-label="People sections" className={cn("mb-6 flex flex-wrap gap-2", className)}>
       <Link
         href="/people"
         className={cn(
-          "rounded-full border-[1.5px] px-3 py-1.5 text-sm font-medium no-underline transition-colors",
+          "rounded-full border px-3 py-1.5 text-sm font-medium no-underline transition-colors",
           onRoster
             ? "border-accent bg-accent text-on-accent"
             : "border-line bg-paper text-muted hover:text-ink",
@@ -38,7 +38,7 @@ export function PeopleSubnav() {
         <Link
           href="/cv"
           className={cn(
-            "rounded-full border-[1.5px] px-3 py-1.5 text-sm font-medium no-underline transition-colors",
+            "rounded-full border px-3 py-1.5 text-sm font-medium no-underline transition-colors",
             onCv
               ? "border-accent bg-accent text-on-accent"
               : "border-line bg-paper text-muted hover:text-ink",

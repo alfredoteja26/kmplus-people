@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   addCheckIn,
+  agreeCheckIn,
   agreeKpiSet,
   closeKpiYear,
   grantAdmin,
+  openKpiAdjustmentWindow,
+  returnKpiSet,
   revokeAdmin,
+  submitKpiSet,
   upsertKpiItem,
 } from "./commands";
 import { userForPerson } from "./domain";
@@ -73,6 +77,31 @@ describe("closeKpiYear scoring", () => {
     const item = closed.state.kpiItems.find((row) => row.id === "ki-digit-1")!;
     expect(upsertKpiItem(closed.state, { ...item, name: "nope" }).error).toMatch(/closed/i);
     expect(agreeKpiSet(closed.state, "set-alfredo").error).toMatch(/closed/i);
+    expect(returnKpiSet(closed.state, "set-alfredo", "late").error).toMatch(/closed/i);
+    expect(submitKpiSet(closed.state, "set-alfredo-assoc").error).toMatch(/closed/i);
+    expect(agreeCheckIn(closed.state, "ci-digit-1").error).toMatch(/closed/i);
+    expect(openKpiAdjustmentWindow(closed.state, "cycle-2026").error).toMatch(/monitoring/i);
+  });
+});
+
+describe("closeKpiYear approved Check-Ins", () => {
+  it("feeds approved KpiCheckIns into KpiScore and ignores a pending one in the same window", () => {
+    const base = asAlfredo(createInitialState());
+    const withoutQ3: AppState = { ...base, checkIns: base.checkIns.filter((row) => row.id !== "ci-digit-1") };
+    const noActual = closeKpiYear(withoutQ3, "cycle-2026").state.kpiSets.find((row) => row.id === "set-digit")?.score;
+    const withApproved = closeKpiYear(base, "cycle-2026").state.kpiSets.find((row) => row.id === "set-digit")?.score;
+    expect(withApproved).toBeGreaterThan(noActual!);
+
+    const pending = addCheckIn(
+      { ...withoutQ3, currentPersonId: "person-digit", currentRole: "employee" },
+      "ki-digit-1",
+      999,
+      "pending at close",
+      { window: "2026-Q3" },
+    );
+    expect(pending.error).toBeNull();
+    const closed = closeKpiYear(asAlfredo(pending.state), "cycle-2026");
+    expect(closed.state.kpiSets.find((row) => row.id === "set-digit")?.score).toBe(noActual);
   });
 });
 

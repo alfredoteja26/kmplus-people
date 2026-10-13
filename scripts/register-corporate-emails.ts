@@ -17,7 +17,7 @@ const existing: { personId: string; email: string; sheetName: string }[] = [
   { personId: "person-irfan", email: "irfan.widyatmoko@kmplus.co.id", sheetName: "Irfan Alfieri" },
   { personId: "person-raafi", email: "ahmad.raafi@kmplus.co.id", sheetName: "Ahmad Raafi" },
   { personId: "person-fadhylah", email: "fadhylah@kmplus.co.id", sheetName: "Fadhylah Chayrina" },
-  { personId: "person-alfredo", email: "alfredoteja@kmplus.co.id", sheetName: "Alfredo Teja" },
+  { personId: "person-alfredo", email: "alfredo@kmplus.co.id", sheetName: "Alfredo Teja" },
   { personId: "person-digit", email: "digit.praktika@kmplus.co.id", sheetName: "Digit Praktika" },
   { personId: "person-imanuella", email: "imanuella@kmplus.co.id", sheetName: "Imanuella" },
   { personId: "person-sakinah", email: "sakinah@kmplus.co.id", sheetName: "Sakinah" },

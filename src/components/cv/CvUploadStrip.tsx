@@ -1,7 +1,8 @@
 "use client";
 
-import { Card } from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Input";
+import { useId, useRef, useState } from "react";
+import { Button } from "@/components/coss/button";
+import { Card } from "@/components/product/Card";
 
 export function CvUploadStrip({
   busy,
@@ -12,29 +13,55 @@ export function CvUploadStrip({
   error: string | null;
   onFile: (file: File) => void;
 }) {
+  const inputId = useId();
+  const hintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
   return (
     <Card className="mb-4 !p-3 sm:!p-3">
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <div className="min-w-[min(100%,220px)] flex-1">
-          <Field label="Upload .pdf or .docx">
-            <Input
-              type="file"
-              accept=".pdf,.docx"
-              disabled={busy}
-              className="h-9 py-1 file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-accent"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) onFile(file);
-                event.target.value = "";
-              }}
-            />
-          </Field>
-        </div>
-        {busy ? <p className="mb-2 text-sm text-muted">Parsing document…</p> : null}
+      <div
+        className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[12px] border border-dashed px-4 py-3 transition-colors ${
+          dragging ? "border-accent bg-tint" : "border-line-strong"
+        }`}
+        onDragOver={(event) => {
+          if (busy) return;
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          if (busy) return;
+          const file = event.dataTransfer.files?.[0];
+          if (file) onFile(file);
+        }}
+      >
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          accept=".pdf,.docx"
+          className="sr-only"
+          disabled={busy}
+          aria-describedby={hintId}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onFile(file);
+            event.target.value = "";
+          }}
+        />
+        <Button type="button" variant="outline" loading={busy} onClick={() => inputRef.current?.click()}>
+          Upload a CV
+        </Button>
+        <p id={hintId} className="m-0 min-w-0 flex-1 text-sm text-muted" aria-live="polite">
+          {busy ? "Reading CV…" : "PDF or Word (.docx). Choose a file or drop it here."}
+        </p>
       </div>
       {error ? (
-        <p className="mb-0 mt-2 text-sm text-danger" role="alert">
-          {error}. Choose another file or try again.
+        <p className="mb-0 mt-2 text-sm text-destructive-foreground" role="alert">
+          {error.replace(/\.$/, "")}. Choose another file or try again.
         </p>
       ) : null}
     </Card>

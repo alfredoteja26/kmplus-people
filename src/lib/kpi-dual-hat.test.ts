@@ -12,6 +12,12 @@ function asAlfredo(state: AppState): AppState {
   return { ...state, currentPersonId: "person-alfredo", currentRole: "employee" };
 }
 
+/** Seat changes are HR's; KPI work then continues as Alfredo (Employee + Admin). */
+function asHr<T extends { state: AppState }>(state: AppState, run: (hr: AppState) => T): T {
+  const result = run({ ...state, currentPersonId: "person-denny", currentRole: "hr" });
+  return { ...result, state: asAlfredo(result.state) };
+}
+
 function packsForDigit(state: AppState) {
   const cycleId = "cycle-2026";
   return currentAssignments(state, "person-digit").map((assignment) => ({
@@ -24,7 +30,7 @@ function packsForDigit(state: AppState) {
 describe("dual-hat KpiPortfolios", () => {
   it("gives two current Assignments two KpiPortfolios with their own LineManager chains", () => {
     const started = asAlfredo(createInitialState());
-    const added = addAssignment(started, "person-digit", "pos-sales-trainee", "2026-09-01");
+    const added = asHr(started, (hr) => addAssignment(hr, "person-digit", "pos-sales-trainee", "2026-09-01"));
 
     const packs = packsForDigit(added.state);
     expect(packs).toHaveLength(2);
@@ -67,7 +73,7 @@ describe("mid-year mutation KpiPortfolios", () => {
   it("keeps the old pack on the old Assignment and drafts a new pack on the new seat", () => {
     const started = asAlfredo(createInitialState());
     const oldAssignment = started.assignments.find((row) => row.id === "asg-digit");
-    const mutated = assignPosition(started, "person-digit", "pos-head-eng", "2026-09-14");
+    const mutated = asHr(started, (hr) => assignPosition(hr, "person-digit", "pos-head-eng", "2026-09-14"));
 
     const newAssignment = currentAssignments(mutated.state, "person-digit");
     expect(newAssignment).toHaveLength(1);
@@ -93,7 +99,7 @@ describe("mid-year mutation KpiPortfolios", () => {
 
   it("dual-approves the new pack without rewriting the old Assignment pack", () => {
     let state = asAlfredo(createInitialState());
-    state = assignPosition(state, "person-digit", "pos-head-eng", "2026-09-14").state;
+    state = asHr(state, (hr) => assignPosition(hr, "person-digit", "pos-head-eng", "2026-09-14")).state;
     const newAssignment = currentAssignments(state, "person-digit")[0]!;
     const newPack = kpiSetForAssignment(state, newAssignment.id, "cycle-2026")!;
 

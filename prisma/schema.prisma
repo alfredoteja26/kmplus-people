@@ -4,7 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  // Supabase: DATABASE_URL is the transaction pooler (serverless); DIRECT_URL the session pooler (db push).
+  directUrl = env("DIRECT_URL")
 }
 
 model Tenant {
@@ -32,6 +34,7 @@ model Person {
   experiences           Json
   certificationRows     Json
   skillRows             Json
+  weekGrid              String   @default("weekdays")
 
   employments  Employment[]
   assignments  Assignment[]
@@ -39,6 +42,12 @@ model Person {
   corrections  CorrectionRequest[]
   auditEntries AuditEntry[]
   users        User[]
+  staffings    Staffing[]
+  leaveRequests LeaveRequest[] @relation("LeaveSubject")
+  leaveCovers   LeaveRequest[] @relation("LeaveCover")
+  timeBlocks   TimeBlock[]
+  invites      Invite[]
+  workItemPics WorkItem[]
 
   @@index([tenantId])
 }
@@ -53,6 +62,8 @@ model User {
   adminGrant      Boolean  @default(false)
   mustSetPassword Boolean  @default(true)
   authEpoch       Int      @default(0)
+  // Last forgot-password email; the public route sends at most one a minute per User.
+  passwordEmailSentAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   person          Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -247,4 +258,188 @@ model AuditEntry {
   actor         Person @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
+}
+
+model Project {
+  id         String     @id
+  tenantId   String
+  code       String
+  name       String
+  clientName String?
+  startDate  String
+  endDate    String?
+  staffings  Staffing[]
+  workItems  WorkItem[]
+  deliverables Deliverable[]
+  timeBlocks TimeBlock[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Staffing {
+  id        String  @id
+  tenantId  String
+  personId  String
+  projectId String
+  startDate String
+  endDate   String?
+  load      Int
+  person    Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([personId])
+  @@index([projectId])
+}
+
+model WorkItem {
+  id          String  @id
+  tenantId    String
+  projectId   String
+  name        String
+  description String  @default("")
+  picPersonId String
+  startDate   String
+  endDate     String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pic         Person  @relation(fields: [picPersonId], references: [id], onDelete: Restrict)
+  timeBlocks  TimeBlock[]
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@index([picPersonId])
+}
+
+model Deliverable {
+  id          String @id
+  tenantId    String
+  projectId   String
+  kind        String
+  name        String
+  statusId    String
+  categoryId  String
+  url         String?
+  versions    Json
+  workItemIds Json
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      DeliverableStatus @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  category    DeliverableCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([projectId])
+}
+
+model DeliverableStatus {
+  id               String @id
+  tenantId         String
+  name             String
+  sortOrder        Int
+  isDefault        Boolean @default(false)
+  countsAsAccepted Boolean @default(false)
+  deliverables     Deliverable[]
+
+  @@index([tenantId])
+}
+
+model DeliverableCategory {
+  id           String @id
+  tenantId     String
+  name         String
+  sortOrder    Int
+  deliverables Deliverable[]
+
+  @@index([tenantId])
+}
+
+model LeaveType {
+  id            String @id
+  tenantId      String
+  name          String
+  sortOrder     Int
+  leaveRequests LeaveRequest[]
+
+  @@index([tenantId])
+}
+
+model LeaveRequest {
+  id                 String  @id
+  tenantId           String
+  personId           String
+  kind               String
+  leaveTypeId        String?
+  coverPersonId      String?
+  doctorLetterPath   String?
+  note               String
+  spanMode           String
+  startDate          String
+  endDate            String
+  startTime          String?
+  endTime            String?
+  decision           String?
+  decidedByPersonId  String?
+  person             Person  @relation("LeaveSubject", fields: [personId], references: [id], onDelete: Cascade)
+  cover              Person? @relation("LeaveCover", fields: [coverPersonId], references: [id], onDelete: SetNull)
+  leaveType          LeaveType? @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([personId])
+}
+
+model PublicHoliday {
+  id         String  @id
+  tenantId   String
+  date       String
+  name       String
+  origin     String  @default("internal")
+  suppressed Boolean @default(false)
+  nameLocked Boolean @default(false)
+
+  @@index([tenantId])
+  @@unique([tenantId, date])
+}
+
+model TimeBlockType {
+  id            String @id
+  tenantId      String
+  name          String
+  sortOrder     Int
+  allowsInvites Boolean @default(false)
+  timeBlocks    TimeBlock[]
+
+  @@index([tenantId])
+}
+
+model TimeBlock {
+  id         String  @id
+  tenantId   String
+  personId   String
+  typeId     String
+  startAt    String
+  endAt      String
+  projectId  String?
+  workItemId String?
+  title      String  @default("")
+  person     Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  type       TimeBlockType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  workItem   WorkItem? @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  invites    Invite[]
+
+  @@index([tenantId])
+  @@index([personId])
+}
+
+model Invite {
+  id          String @id
+  tenantId    String
+  timeBlockId String
+  personId    String
+  status      String
+  timeBlock   TimeBlock @relation(fields: [timeBlockId], references: [id], onDelete: Cascade)
+  person      Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([timeBlockId, personId])
+  @@index([tenantId])
+  @@index([personId])
 }

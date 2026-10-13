@@ -1,16 +1,17 @@
 "use client";
 
 import { AuthFrame, BackToSignIn, CheckMark } from "@/components/auth/AuthFrame";
-import { Button } from "@/components/ui/Button";
-import { Callout } from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Input";
+import { Button } from "@/components/coss/button";
+import { Callout } from "@/components/product/Card";
+import { Field } from "@/components/product/Field";
+import { Input } from "@/components/coss/input";
 import Link from "next/link";
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
 function FillPasswordForm() {
   const params = useSearchParams();
-  const oobCode = params.get("oobCode") ?? "";
+  const tokenHash = params.get("token_hash") ?? "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -25,28 +26,28 @@ function FillPasswordForm() {
       const response = await fetch("/api/auth/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oobCode, password, confirm }),
+        body: JSON.stringify({ tokenHash, password, confirm }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(payload.error || "Could not save the password.");
+        setError(payload.error || "We couldn’t save your password. Try again in a moment.");
         return;
       }
       setSaved(true);
     } catch {
-      setError("Could not save the password.");
+      setError("We couldn’t reach KMPlus People. Check your connection and try again.");
     } finally {
       setPending(false);
     }
   }
 
-  if (!oobCode) {
+  if (!tokenHash) {
     return (
-      <AuthFrame title="Set a password" description="This link is missing or has expired.">
-        <Link href="/login/forgot" className="text-sm font-medium text-accent no-underline hover:underline">
-          Request a new link
-        </Link>
-        <div className="mt-4">
+      <AuthFrame title="This link has expired" description="Password links work for 1 hour, and each one works once. Request a new one.">
+        <div className="grid gap-3">
+          <Button size="lg" className="w-full" render={<Link href="/login/forgot" />}>
+            Send a new link
+          </Button>
           <BackToSignIn />
         </div>
       </AuthFrame>
@@ -55,22 +56,19 @@ function FillPasswordForm() {
 
   if (saved) {
     return (
-      <AuthFrame title="Password saved" description="Sign in with your email and the new password.">
+      <AuthFrame title="Password set" description="You can now sign in with your work email and your new password.">
         <CheckMark />
-        <Link
-          href="/login"
-          className="inline-flex min-h-9 w-full items-center justify-center rounded-[12px] bg-accent text-sm font-medium text-on-accent no-underline"
-        >
+        <Button size="lg" className="w-full" render={<Link href="/login" />}>
           Sign in
-        </Link>
+        </Button>
       </AuthFrame>
     );
   }
 
   return (
-    <AuthFrame title="Set a password" description="Choose a password for your KMPlus login. Use at least 8 characters.">
+    <AuthFrame title="Choose a password" description="Use at least 8 characters. You’ll sign in with your work email and this password.">
       <form className="grid gap-4" onSubmit={(event) => void onSubmit(event)}>
-        <Field label="New password">
+        <Field label="New password" hint="At least 8 characters.">
           <Input
             type="password"
             autoComplete="new-password"
@@ -97,14 +95,14 @@ function FillPasswordForm() {
               <>
                 {" "}
                 <Link href="/login/forgot" className="font-medium text-ink underline">
-                  Request a new link
+                  Send a new link
                 </Link>
               </>
             ) : null}
           </Callout>
         ) : null}
-        <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "Saving…" : "Save password"}
+        <Button type="submit" size="lg" className="w-full" disabled={pending}>
+          {pending ? "Saving…" : "Set password"}
         </Button>
         <BackToSignIn />
       </form>

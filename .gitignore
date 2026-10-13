@@ -42,3 +42,7 @@ next-env.d.ts
 
 # production secrets (jangan commit)
 .env.production
+
+# Supabase CLI
+supabase/.temp/
+.env.supabase.local

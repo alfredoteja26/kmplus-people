@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { setLoginEmail } from "@/lib/commands";
 import { currentSessionUser } from "@/lib/server/current-user";
 import { loadTenantState, saveTenantState } from "@/lib/server/persist";
+import { withTenantLock } from "@/lib/server/tenant-lock";
 import { overlaySessionIdentity } from "@/lib/session-identity";
 
 export const runtime = "nodejs";
@@ -21,19 +22,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const state = overlaySessionIdentity(await loadTenantState(), {
-    personId: sessionUser.personId,
-    role: sessionUser.role,
-  });
-  const result = setLoginEmail(state, personId, email);
-  if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
-
   try {
-    await saveTenantState(result.state);
+    return await withTenantLock(async () => {
+      const loaded = await loadTenantState();
+      const before = structuredClone(loaded);
+      const state = overlaySessionIdentity(loaded, {
+        personId: sessionUser.personId,
+        role: sessionUser.role,
+      });
+      const result = setLoginEmail(state, personId, email);
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
+      await saveTenantState(result.state, before);
+      return NextResponse.json({ ok: true });
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save the login email.";
     return NextResponse.json({ error: message }, { status: 503 });
   }
-
-  return NextResponse.json({ ok: true });
 }

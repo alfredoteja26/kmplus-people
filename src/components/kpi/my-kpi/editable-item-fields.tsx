@@ -1,6 +1,6 @@
 "use client";
 
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/coss/input";
 import type { KpiItem } from "@/lib/types";
 
 export function EditableItemFields({

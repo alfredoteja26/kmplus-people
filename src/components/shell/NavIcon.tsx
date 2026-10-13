@@ -50,10 +50,42 @@ const paths: Record<NavIconId, ReactNode> = {
   ),
   tree: (
     <>
-      <circle cx="12" cy="5" r="2" />
-      <circle cx="6" cy="17" r="2" />
-      <circle cx="18" cy="17" r="2" />
-      <path d="M12 7v4M12 11 6 15M12 11l6 4" />
+      <path d="M12 4v5M12 9H6.5v4M12 9h5.5v4" />
+      <path d="M4.5 20v-4.5M8.5 20v-6M15.5 20v-3M19.5 20v-7" />
+    </>
+  ),
+  projects: (
+    <>
+      <rect x="4.5" y="6" width="15" height="13" rx="2" />
+      <path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+      <path d="M4.5 11h15" />
+    </>
+  ),
+  timesheet: (
+    <>
+      <circle cx="12" cy="12.5" r="7.5" />
+      <path d="M12 8.5v4l2.75 1.75" />
+    </>
+  ),
+  leave: (
+    <>
+      <rect x="4.5" y="5.5" width="15" height="14" rx="2" />
+      <path d="M8.5 3.5v4M15.5 3.5v4M4.5 10h15" />
+      <path d="M9.5 14.5h5" />
+    </>
+  ),
+  "leave-decide": (
+    <>
+      <rect x="4.5" y="5.5" width="15" height="14" rx="2" />
+      <path d="M8.5 3.5v4M15.5 3.5v4M4.5 10h15" />
+      <path d="m9.25 14.75 1.9 1.9 3.6-3.9" />
+    </>
+  ),
+  "project-admin": (
+    <>
+      <rect x="4.5" y="6" width="15" height="13" rx="2" />
+      <path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+      <path d="M9 14.5h6M12 11.5v6" />
     </>
   ),
 };

@@ -1,26 +1,68 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 :root {
   --bg: #fafafa;
   --paper: #ffffff;
   --ink: #222222;
   --muted: #5e5e5e;
-  --faint: #757575;
+  --faint: #6a6a6a;
   --line: #dedede;
-  --accent: #1e857c;
+  /* 3:1 boundary for inputs and tree connectors (WCAG 1.4.11). --line stays for dividers. */
+  --line-strong: #949494;
+  /* #1A7870: AA with white (5.3:1) and as text on canvas (5.1:1). The kit's #1E857C sat at 4.47:1. */
+  --accent: #1a7870;
+  --accent-hover: #145f59;
   --accent-2: #009d9a;
   --tint: #edfffe;
+  --wash: #f4f4f4;
   --success: #12a864;
   --warning: #c9891a;
   --danger: #c4353a;
+  --danger-hover: #a52b30;
   --info: #0673c0;
   --on-accent: #ffffff;
+  /* Sign-in brand panel only (not a work surface). */
+  --brand-deep: #0a706d;
+  --brand-deeper: #0b5a56;
+  --brand-deepest: #0a4643;
+  --brand-wave: #8fe6dd;
   --radius: 12px;
   --radius-lg: 16px;
   --shadow: 0 10px 28px -14px rgba(34, 34, 34, 0.16);
-  --border: 1.5px solid var(--line);
   --sidebar-width-expanded: 240px;
   --sidebar-width-collapsed: 72px;
+
+  /* coss-ui semantic aliases. Sage stays primary. --accent and --muted keep their KMPlus meanings. */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--tint);
+  --secondary-foreground: var(--ink);
+  --muted-foreground: var(--muted);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: #8d2428;
+  --info-foreground: #054e86;
+  --success-foreground: #0c6b40;
+  --warning-foreground: #8a5e10;
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--accent);
+  --sidebar: var(--paper);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-accent: var(--tint);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
 }
 
 @theme inline {
@@ -30,18 +72,66 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-2: var(--accent-2);
   --color-on-accent: var(--on-accent);
   --color-tint: var(--tint);
+  --color-wash: var(--wash);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
   --color-info: var(--info);
-  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-heading: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-info-foreground: var(--info-foreground);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --radius-md: 12px;
   --radius-lg: 16px;
+
+  /* Type ramp from DESIGN.md. text-base (16), text-sm (14) and text-xs (12) are Tailwind's own steps. */
+  --text-display: 42px;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: 30px;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: 22px;
+  --text-h2--line-height: 1.3;
+  /* Dense steps for status badges and the timesheet grid. */
+  --text-label: 13px;
+  --text-label--line-height: 1.25;
+  --text-micro: 11px;
+  --text-micro--line-height: 1.3;
 }
 
 * {
@@ -49,19 +139,16 @@
 }
 
 html {
-  height: 100%;
-  overflow: hidden;
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--ink);
-  font-family: Inter, system-ui, sans-serif;
-  font-size: 15px;
+  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -74,7 +161,7 @@ body {
 
 code,
 .mono {
-  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 
 button,
@@ -99,13 +186,10 @@ textarea {
   caret-color: var(--accent);
 }
 
-@keyframes sheet-in {
-  from {
-    transform: translateX(28px);
-  }
-  to {
-    transform: translateX(0);
-  }
+/* Inner scrollers (wide tables, the leave grid) get a thin line-strong thumb, not the platform's gray bar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -118,6 +202,47 @@ textarea {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 150ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* Sign-in brand panel: deep sage, darker toward the base so the wave reads. White text stays above 6:1. */
+.auth-brand {
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--brand-deep) 92%, white) 0%, transparent 60%),
+    linear-gradient(165deg, var(--brand-deep) 0%, var(--brand-deeper) 55%, var(--brand-deepest) 100%);
+}
+
+.brand-wave {
+  transform-origin: 50% 70%;
+  animation: brand-wave-drift 22s ease-in-out infinite alternate;
+}
+
+@keyframes brand-wave-drift {
+  from {
+    transform: translate3d(-2%, 0, 0) scaleY(1);
+  }
+  to {
+    transform: translate3d(2%, -1.5%, 0) scaleY(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-wave {
+    animation: none;
+  }
+}
+
+/* Timesheet: a drafted block settles in from the pointer instead of popping. */
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { evaluateLogin, rejectPassword } from "@/lib/server/login";
-import { firebaseAuthConfigured, signInWithPassword } from "@/lib/server/firebase-auth";
+import { supabaseAuthConfigured, signInWithPassword } from "@/lib/server/supabase-auth";
+import { verifyPassword } from "@/lib/server/password";
 import { getPrisma } from "@/lib/server/prisma";
 import { writeSession } from "@/lib/server/session";
 import type { Role } from "@/lib/types";
@@ -14,10 +15,6 @@ type LoginBody = {
 };
 
 export async function POST(request: Request) {
-  if (!firebaseAuthConfigured()) {
-    return NextResponse.json({ error: "Password sign-in is not available yet." }, { status: 503 });
-  }
-
   let body: LoginBody;
   try {
     body = (await request.json()) as LoginBody;
@@ -58,9 +55,20 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    await signInWithPassword(result.user.email, password);
-  } catch {
+  // Seeded demo hashes are for local dev. Once Supabase Auth is configured it alone checks passwords,
+  // so a database copied from a seeded server never accepts the demo password.
+  let passwordOk = false;
+  if (supabaseAuthConfigured()) {
+    try {
+      await signInWithPassword(result.user.email, password);
+      passwordOk = true;
+    } catch {
+      passwordOk = false;
+    }
+  } else {
+    passwordOk = record?.passwordHash ? verifyPassword(password, record.passwordHash) : false;
+  }
+  if (!passwordOk) {
     const rejected = rejectPassword(result.user.mustSetPassword);
     return NextResponse.json(
       { error: rejected.error, needsPasswordEmail: rejected.needsPasswordEmail === true },

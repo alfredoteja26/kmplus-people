@@ -10,22 +10,32 @@
     "test": "vitest run",
     "postinstall": "prisma generate",
     "db:up": "docker compose up -d",
-    "db:setup": "prisma generate && prisma db push && prisma db seed"
+    "db:setup": "prisma generate && prisma db push && prisma db seed",
+    "db:lockdown": "prisma db execute --schema prisma/schema.prisma --file prisma/supabase-lockdown.sql"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@daypicker/react": "^10.0.1",
     "@prisma/client": "^6.16.2",
-    "firebase-admin": "^13.10.0",
+    "@supabase/auth-js": "^2.117.3",
+    "@supabase/storage-js": "^2.117.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.48.0",
     "mammoth": "^1.9.1",
     "next": "^15.5.3",
+    "nodemailer": "^10.0.16",
     "pdf-parse": "^1.1.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^20.19.13",
+    "@types/nodemailer": "^8.0.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",

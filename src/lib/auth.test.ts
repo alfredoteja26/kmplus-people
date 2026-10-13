@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { FORGOT_PASSWORD_MESSAGE, loginEmailChanges, shouldSendPasswordEmail, validateNewPassword } from "./auth-policy";
+import {
+  FORGOT_PASSWORD_MESSAGE,
+  loginEmailChanges,
+  normalizeLoginEmail,
+  shouldSendPasswordEmail,
+  validateNewPassword,
+} from "./auth-policy";
 import { applyCv, confirmHire, decideCvField, setLoginEmail } from "./commands";
 import { createInitialState, DEMO_PASSWORD, seedTenantUsers } from "./fixtures";
 import { overlaySessionIdentity } from "./session-identity";
 import { evaluateLogin, rejectPassword } from "./server/login";
+import { passwordEmail } from "./server/mailer";
 import { hashPassword, verifyPassword } from "./server/password";
 import { createSessionToken, verifySessionToken } from "./server/session-token";
 import { employmentFor } from "./domain";
@@ -67,7 +74,8 @@ describe("login", () => {
     expect(evaluateLogin(user, true).ok).toBe(true);
     expect(evaluateLogin(null, true)).toMatchObject({ ok: false, status: 401, error: "Invalid email or password" });
     expect(evaluateLogin(user, false)).toMatchObject({ ok: false, status: 401, error: "Invalid email or password" });
-    expect(evaluateLogin({ ...user, email: seeded.email }, true)).toMatchObject({
+    expect(normalizeLoginEmail(seeded.email)).toBe(seeded.email);
+    expect(evaluateLogin({ ...user, email: "alfredo@kmplusconsulting.com" }, true)).toMatchObject({
       ok: false,
       status: 401,
       error: "Invalid email or password",
@@ -99,10 +107,10 @@ describe("login", () => {
 describe("login email", () => {
   it("lets HR set a corporate login and refuses Admin", () => {
     const started = createInitialState();
-    const changed = setLoginEmail(started, "person-alfredo", "Alfredo@kmplus.co.id");
+    const changed = setLoginEmail(started, "person-alfredo", "Alfredo.Teja@kmplus.co.id");
     const user = changed.state.users.find((row) => row.personId === "person-alfredo");
     expect(changed.error).toBeUndefined();
-    expect(user?.email).toBe("alfredo@kmplus.co.id");
+    expect(user?.email).toBe("alfredo.teja@kmplus.co.id");
     expect(user?.mustSetPassword).toBe(true);
     expect(user?.authEpoch).toBe(1);
     expect(started.people.find((row) => row.id === "person-alfredo")?.email).toBe(
@@ -153,5 +161,16 @@ describe("session-owned role", () => {
     expect(session?.userId).toBe("user-alfredo");
     expect(session?.authEpoch).toBe(2);
     expect(await verifySessionToken("not-a-token")).toBeNull();
+  });
+});
+
+describe("passwordEmail", () => {
+  it("links to the set-password page and escapes what it prints", () => {
+    const link = "https://kmplus-people.vercel.app/login/password?token_hash=abc&type=recovery";
+    const mail = passwordEmail("a<b>@kmplus.co.id", link);
+    expect(mail.subject).toBe("Set your KMPlus People password");
+    expect(mail.text).toContain(link);
+    expect(mail.html).toContain('href="https://kmplus-people.vercel.app/login/password?token_hash=abc&amp;type=recovery"');
+    expect(mail.html).toContain("a&lt;b&gt;@kmplus.co.id");
   });
 });

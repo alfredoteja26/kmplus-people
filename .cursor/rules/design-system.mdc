@@ -1,0 +1,20 @@
+---
+description: KMPlus People UI uses coss-ui primitives and the sage tokens
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# KMPlus People UI
+
+Interface code imports primitives from `@/components/coss`. Do not invent one-off buttons, inputs, selects, badges, dialogs, sheets, or tables.
+
+- Primary actions use the sage button (`variant` omitted or `default`). Outline is the secondary action. Destructive is the danger action.
+- Hover washes use `bg-tint`. Do not use coss `bg-accent` or `bg-muted` for washes. In this app `--accent` is sage and `--muted` is body text `#5E5E5E`.
+- Form rows use `Field` from `@/components/product/Field` with coss `Input` or `Textarea`. String choices use `ChoiceSelect` or `Select` from `@/components/product/Select`.
+- Centered confirmations use `AppDialog`. Side panels use `AppSheet`. Both are coss dialogs.
+- Type is Plus Jakarta Sans. Mono is IBM Plex Mono. Do not add Inter, Geist, or a second sans.
+- Colors come from `src/app/globals.css`. Do not paste hex values into components.
+- Org tree, KPI forest, and stat gauge stay product components. They consume the same tokens.
+- Do not add shadcn/Radix components next to coss.
+
+The live specimen is `/design-system`. It is not a sidebar item.

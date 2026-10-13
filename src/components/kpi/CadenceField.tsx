@@ -1,7 +1,9 @@
 "use client";
 
-import { Field, Select } from "@/components/ui/Input";
+import { Field } from "@/components/product/Field";
+import { Select } from "@/components/product/Select";
 import type { CheckInCadence, KpiItem } from "@/lib/types";
+import { frequencyLabel } from "./kpi-copy";
 
 type CadenceFieldProps = {
   item: KpiItem;
@@ -21,7 +23,7 @@ export function CadenceField({ item, cycleCadence, onChange, compact }: CadenceF
           onChange(value === "" ? undefined : (value as CheckInCadence));
         }}
       >
-        <option value="">KPI year default ({cycleCadence})</option>
+        <option value="">Same as KPI year ({frequencyLabel(cycleCadence)})</option>
         <option value="monthly">Monthly</option>
         <option value="quarterly">Quarterly</option>
       </Select>
