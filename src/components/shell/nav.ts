@@ -15,7 +15,6 @@ export type NavIconId =
   | "leave"
   | "leave-decide"
   | "reimbursement"
-  | "reimbursement-decide"
   | "project-admin";
 
 export type NavItem = {
@@ -54,8 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/leave/file", label: "Leave", icon: "leave" },
       { href: "/reimbursement", label: "Reimbursement", icon: "reimbursement" },
       { href: "/leave/decide", label: "Leave requests", icon: "leave-decide" },
-      { href: "/reimbursement/decide", label: "Reimbursement requests", icon: "reimbursement-decide" },
-      { href: "/project-admin", label: "Project Admin", icon: "project-admin" },
+      { href: "/project-admin", label: "Admin", icon: "project-admin" },
     ],
   },
 ];
@@ -65,7 +63,6 @@ function canSeeNavItem(href: string, role: Role, kpiAdmin: boolean): boolean {
   if (href === "/kpi/cycle") return kpiAdmin;
   if (href === "/project-admin") return kpiAdmin;
   if (href === "/leave/decide") return kpiAdmin;
-  if (href === "/reimbursement/decide") return kpiAdmin;
   return true;
 }
 

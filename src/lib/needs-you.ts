@@ -199,7 +199,7 @@ export function needsYou(state: AppState, today: string): NeedsYouItem[] {
         tone: "act",
         count: reimbursements,
         title: `${reimbursements} reimbursement ${plural(reimbursements, "request")} to decide`,
-        href: "/reimbursement/decide",
+        href: "/project-admin/reimbursements",
         action: "Decide",
       });
     }
