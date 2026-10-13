@@ -12,7 +12,7 @@ function rosterActive(pathname: string) {
   return false;
 }
 
-export function PeopleSubnav() {
+export function PeopleSubnav({ className }: { className?: string } = {}) {
   const pathname = usePathname();
   const { state } = useStore();
   const hr = isHrLike(state.currentRole);
@@ -21,7 +21,7 @@ export function PeopleSubnav() {
   const onCv = pathname === "/cv";
 
   return (
-    <nav aria-label="People sections" className="mb-6 flex flex-wrap gap-2">
+    <nav aria-label="People sections" className={cn("mb-6 flex flex-wrap gap-2", className)}>
       <Link
         href="/people"
         className={cn(
