@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./fixtures";
-import { buildReport, NO_FILTERS, reportDate, reportFileName, reportHours } from "./report-model";
+import { buildReport, REPORT_DEFAULTS, reportDate, reportFileName, reportHours, suggestedPreparedFor } from "./report-model";
 import type { AppState, Invite, Project, Staffing, TimeBlock } from "./types";
 
 const AT = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
@@ -48,7 +48,7 @@ describe("Report model", () => {
       ],
       invites: [invite("i1", "meeting", "person-eka", "accepted"), invite("i2", "meeting", "person-alfredo", "pending")],
     };
-    const report = buildReport(state, { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, AT);
+    const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT);
     // Rayhan 3 + 2 + 1, Eka accepted the 1h meeting, Alfredo's pending invite adds nothing.
     expect(report.summary.totalHours).toBe(7);
   });
@@ -63,7 +63,7 @@ describe("Report model", () => {
         block("a2", "person-eka", "2026-10-07", 1, "p1"),
       ],
     };
-    const report = buildReport(state, { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, AT);
+    const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT);
     expect(report.summary).toMatchObject({ totalHours: 14, projectHours: 8, noProjectHours: 6 });
     expect(report.hoursByProject.map((row) => [row.project?.code ?? null, row.hours])).toEqual([
       ["BBB", 5],
@@ -76,7 +76,7 @@ describe("Report model", () => {
     const holiday = (id: string, date: string, suppressed: boolean) => ({ id, tenantId: "kmplus", date, name: id, origin: "libur" as const, suppressed, nameLocked: false });
     const state: AppState = { ...world(), publicHolidays: [holiday("h1", "2026-10-02", false), holiday("h2", "2026-10-06", true)] };
     // October 2026 has 22 weekdays; Fri 2 Oct is a holiday, the suppressed Tue 6 Oct still counts.
-    expect(buildReport(state, { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, AT).summary.workingDays).toBe(21);
+    expect(buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT).summary.workingDays).toBe(21);
   });
 
   it("includes People who logged hours or whose Staffing overlaps the range, and counts those past 100% Load on any one day", () => {
@@ -95,13 +95,13 @@ describe("Report model", () => {
       // Alfredo has no Staffing but logged internal time.
       timeBlocks: [block("x", "person-alfredo", "2026-10-05", 2, null)],
     };
-    const report = buildReport(state, { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, AT);
+    const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT);
     expect(report.summary.people).toBe(3);
     expect(report.summary.overloaded).toBe(1);
   });
 
   describe("filters", () => {
-    const OCT = { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" };
+    const OCT = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
     function filtered(): AppState {
       return {
         ...world(),
@@ -160,9 +160,10 @@ describe("Report model", () => {
     });
 
     it("names the filters in plain words", () => {
-      expect(buildReport(filtered(), OCT, AT).filters).toEqual(["Projects: All projects", "People: Everyone", "Time with no project included"]);
+      const words = (report: ReturnType<typeof buildReport>) => report.filters.map((row) => `${row.label}: ${row.value}`);
+      expect(words(buildReport(filtered(), OCT, AT))).toEqual(["Projects: All projects", "People: Everyone", "Time with no project: Included"]);
       const narrowed = buildReport(filtered(), { ...OCT, projectIds: ["p2", "p1"], personIds: ["person-rayhan", "person-eka"] }, AT);
-      expect(narrowed.filters).toEqual(["Projects: AAA, BBB", "People: Eka, Rayhan", "Time with no project left out"]);
+      expect(words(narrowed)).toEqual(["Projects: AAA, BBB", "People: Eka, Rayhan", "Time with no project: Left out"]);
     });
   });
 
@@ -173,16 +174,38 @@ describe("Report model", () => {
     expect(reportHours(7.25)).toBe("7.3");
   });
 
-  it("names the file after the title and the range", () => {
-    const report = buildReport(world(), { ...NO_FILTERS, from: "2026-09-21", to: "2026-10-20" }, AT);
+  it("names the file after the title and the range, without characters a file name cannot hold", () => {
+    const range = { ...REPORT_DEFAULTS, from: "2026-09-21", to: "2026-10-20" };
+    const report = buildReport(world(), range, AT);
     expect(reportFileName(report, "pdf")).toBe("Project report 2026-09-21 to 2026-10-20.pdf");
     expect(reportFileName(report, "xlsx")).toBe("Project report 2026-09-21 to 2026-10-20.xlsx");
+    const client = buildReport(world(), { ...range, title: 'Samudra Energi,  Q3/Q4: "final"?' }, AT);
+    expect(reportFileName(client, "pdf")).toBe("Samudra Energi, Q3Q4 final 2026-09-21 to 2026-10-20.pdf");
+  });
+
+  it("falls back to the default title when it is empty and caps the title and Prepared for at 80 characters", () => {
+    const range = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
+    expect(buildReport(world(), { ...range, title: "   " }, AT).title).toBe("Project report");
+    const long = "x".repeat(100);
+    const report = buildReport(world(), { ...range, title: `  ${long}`, preparedFor: long }, AT);
+    expect(report.title).toHaveLength(80);
+    expect(report.preparedFor).toHaveLength(80);
+    expect(buildReport(world(), { ...range, preparedFor: "  PT Samudra  Energi " }, AT).preparedFor).toBe("PT Samudra Energi");
+  });
+
+  it("starts Prepared for with the client of exactly one chosen Project", () => {
+    const state: AppState = { ...world(), projects: [{ ...project("p1", "AAA"), clientName: "PT Samudra Energi" }, project("p2", "BBB")] };
+    expect(suggestedPreparedFor(state, ["p1"])).toBe("PT Samudra Energi");
+    // An internal Project has no client, and two Projects or none name no single client.
+    expect(suggestedPreparedFor(state, ["p2"])).toBe("");
+    expect(suggestedPreparedFor(state, ["p1", "p2"])).toBe("");
+    expect(suggestedPreparedFor(state, null)).toBe("");
   });
 
   it("keeps exact hours so Project rows always add up to the total, even for 15-minute blocks", () => {
     const quarter = (id: string, projectId: string | null): TimeBlock => ({ ...block(id, "person-rayhan", "2026-10-05", 1, projectId), startAt: `2026-10-05T${id}`, endAt: `2026-10-05T${id.slice(0, 3)}${String(Number(id.slice(3)) + 15).padStart(2, "0")}` });
     const state: AppState = { ...world(), timeBlocks: [quarter("09:00", "p1"), quarter("10:00", "p2"), quarter("11:00", null)] };
-    const report = buildReport(state, { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, AT);
+    const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT);
     const rows = report.hoursByProject.reduce((sum, row) => sum + row.hours, 0);
     expect(rows).toBeCloseTo(report.summary.totalHours, 10);
     expect(report.summary.projectHours + report.summary.noProjectHours).toBeCloseTo(report.summary.totalHours, 10);

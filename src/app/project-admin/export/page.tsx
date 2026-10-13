@@ -10,7 +10,7 @@ import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, reportDate, reportWorkingDays, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { buildReport, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
 import { addMonthsIso, parseReportSettings, reportFilterError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
@@ -20,6 +20,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 const REPORT_FONTS_URL = "/fonts/report";
+const REPORT_LOGO_URL = "/brand/kmplus-logo-official.png";
 
 /** This month, last month, this quarter, and the last 12 months, all in Asia/Jakarta. */
 function quickRanges(today: string) {
@@ -90,7 +91,7 @@ function usePdfPreview(report: Report | null) {
       try {
         const [{ pdf }, { ReportPdf, registerReportFonts }] = await Promise.all([import("@react-pdf/renderer"), import("@/components/report/ReportPdf")]);
         registerReportFonts(REPORT_FONTS_URL);
-        const blob = await pdf(<ReportPdf report={report} />).toBlob();
+        const blob = await pdf(<ReportPdf report={report} logo={REPORT_LOGO_URL} />).toBlob();
         if (id !== latest.current) return;
         const pages = ((await blob.text()).match(/\/Type\s*\/Page[^s]/g) ?? []).length;
         setPreview((old) => {
@@ -140,15 +141,25 @@ function ExportReportForm() {
   const [projectIds, setProjectIds] = useState(initial.projectIds);
   const [personIds, setPersonIds] = useState(initial.personIds);
   const [includeNoProject, setIncludeNoProject] = useState(initial.includeNoProject);
+  const [title, setTitle] = useState(initial.title);
+  // Prepared for follows the one chosen Project's client until the Admin types in it, or the link set it.
+  const [preparedForEdited, setPreparedForEdited] = useState(() => params.has("preparedFor"));
+  const [preparedFor, setPreparedFor] = useState(() => (params.has("preparedFor") ? initial.preparedFor : suggestedPreparedFor(state, initial.projectIds)));
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const rangeError = reportRangeError(from, to);
   const settingsError = rangeError ?? reportFilterError({ projectIds, personIds });
   const generatedBy = personName(state.people.find((row) => row.id === state.currentPersonId));
   const report = useMemo(
-    () => (settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject }, { generatedBy, generatedAt: jakartaStamp() })),
-    [state, from, to, projectIds, personIds, includeNoProject, settingsError, generatedBy],
+    () =>
+      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor }, { generatedBy, generatedAt: jakartaStamp() }),
+    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, settingsError, generatedBy],
   );
+
+  function chooseProjects(next: string[] | null) {
+    setProjectIds(next);
+    if (!preparedForEdited) setPreparedFor(suggestedPreparedFor(state, next));
+  }
   // While the range is invalid the preview keeps the last Report that could be built, dimmed.
   const lastGood = useRef<Report | null>(null);
   if (report) lastGood.current = report;
@@ -156,15 +167,22 @@ function ExportReportForm() {
 
   useEffect(() => {
     if (settingsError) return;
-    router.replace(`${pathname}?${serializeReportSettings({ from, to, projectIds, personIds, includeNoProject })}`, { scroll: false });
-  }, [from, to, projectIds, personIds, includeNoProject, settingsError, pathname, router]);
+    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim() };
+    router.replace(`${pathname}?${serializeReportSettings(settings)}`, { scroll: false });
+  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, settingsError, pathname, router]);
 
   async function downloadXlsx() {
     if (!report) return;
     setXlsxBusy(true);
     try {
-      const [{ default: ExcelJS }, { buildReportWorkbook, XLSX_TYPE }] = await Promise.all([import("exceljs"), import("@/lib/report-workbook")]);
-      const bytes = await buildReportWorkbook(ExcelJS, report);
+      const [{ default: ExcelJS }, { buildReportWorkbook, XLSX_TYPE }, logo] = await Promise.all([
+        import("exceljs"),
+        import("@/lib/report-workbook"),
+        fetch(REPORT_LOGO_URL)
+          .then((response) => (response.ok ? response.arrayBuffer() : null))
+          .catch(() => null),
+      ]);
+      const bytes = await buildReportWorkbook(ExcelJS, report, logo ? new Uint8Array(logo) : null);
       save(new Blob([bytes as BlobPart], { type: XLSX_TYPE }), reportFileName(report, "xlsx"));
     } finally {
       setXlsxBusy(false);
@@ -182,12 +200,39 @@ function ExportReportForm() {
           Back to Project Admin
         </Link>
         <h1 className="m-0 font-heading text-h1 font-medium">Export report</h1>
-        <p className="m-0 max-w-[70ch] text-muted">Choose the range, projects, and people the report covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
+        <p className="m-0 max-w-[70ch] text-muted">Name the report and choose the range, projects, and people it covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
       </header>
 
       <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="flex flex-col overflow-clip rounded-2xl bg-paper shadow-(--shadow) lg:sticky lg:top-4" aria-label="Report settings">
-          <section className="flex flex-col gap-3 px-5 py-4" aria-labelledby="report-range">
+          <section className="flex flex-col gap-3 px-5 py-4" aria-label="Title and client">
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Title
+              <Input
+                value={title}
+                maxLength={REPORT_TEXT_MAX}
+                onChange={(event) => setTitle(event.target.value)}
+                onBlur={() => setTitle(reportTitle(title))}
+                placeholder={REPORT_TITLE}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              <span>
+                Prepared for <span className="font-normal text-muted">(optional)</span>
+              </span>
+              <Input
+                value={preparedFor}
+                maxLength={REPORT_TEXT_MAX}
+                onChange={(event) => {
+                  setPreparedFor(event.target.value);
+                  setPreparedForEdited(true);
+                }}
+                placeholder="Client name"
+              />
+            </label>
+          </section>
+
+          <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-labelledby="report-range">
             <h2 id="report-range" className="m-0 text-base font-medium">
               Date range
             </h2>
@@ -232,7 +277,7 @@ function ExportReportForm() {
             <h2 id="report-projects" className="m-0 text-base font-medium">
               Projects
             </h2>
-            <CheckRow checked={projectIds === null} onChange={() => setProjectIds(projectIds === null ? [] : null)}>
+            <CheckRow checked={projectIds === null} onChange={() => chooseProjects(projectIds === null ? [] : null)}>
               All projects
             </CheckRow>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 ps-1">
@@ -240,7 +285,7 @@ function ExportReportForm() {
                 <CheckRow
                   key={project.id}
                   checked={projectIds === null || projectIds.includes(project.id)}
-                  onChange={() => setProjectIds(toggleId(projectIds, projects.map((row) => row.id), project.id))}
+                  onChange={() => chooseProjects(toggleId(projectIds, projects.map((row) => row.id), project.id))}
                 >
                   <CodeChip code={project.code} />
                 </CheckRow>

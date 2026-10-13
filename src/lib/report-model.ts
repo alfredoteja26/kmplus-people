@@ -14,10 +14,42 @@ export type ReportConfig = {
   projectIds: string[] | null;
   personIds: string[] | null;
   includeNoProject: boolean;
+  /** Typed by the Admin; the Report trims it, caps it, and falls back to "Project report" when empty. */
+  title: string;
+  /** Optional client name, typed by hand. */
+  preparedFor: string;
 };
 
-/** Every Project, everyone, and time with no Project included: the Report before any filter. */
-export const NO_FILTERS = { projectIds: null, personIds: null, includeNoProject: true } satisfies Omit<ReportConfig, "from" | "to">;
+export const REPORT_TITLE = "Project report";
+/** The longest title or Prepared for a Report holds, so it fits the cover and the page header. */
+export const REPORT_TEXT_MAX = 80;
+
+/** Every setting except the range at its default: every Project, everyone, time with no Project included. */
+export const REPORT_DEFAULTS = {
+  projectIds: null,
+  personIds: null,
+  includeNoProject: true,
+  title: REPORT_TITLE,
+  preparedFor: "",
+} satisfies Omit<ReportConfig, "from" | "to">;
+
+function cleanText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, REPORT_TEXT_MAX).trim();
+}
+
+/** The title a Report carries: trimmed, at most 80 characters, and "Project report" when left empty. */
+export function reportTitle(value: string): string {
+  return cleanText(value) || REPORT_TITLE;
+}
+
+/**
+ * What Prepared for starts with: the client of the one chosen Project, or nothing. The Admin may still edit it,
+ * and an edited value is never replaced.
+ */
+export function suggestedPreparedFor(state: AppState, projectIds: string[] | null): string {
+  if (projectIds?.length !== 1) return "";
+  return cleanText(state.projects.find((row) => row.id === projectIds[0])?.clientName ?? "");
+}
 
 /** Who generated the Report and when, in Asia/Jakarta wall time ("13 Oct 2026, 10:42"). */
 export type ReportStamp = { generatedBy: string; generatedAt: string };
@@ -97,12 +129,14 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   return {
     ...config,
     includeNoProject,
+    title: reportTitle(config.title),
+    preparedFor: cleanText(config.preparedFor),
     ...stamp,
-    /** The filters in plain words, one line each, for the Cover and the section context lines. */
+    /** The filters in plain words, for the Cover table and the section context lines. */
     filters: [
-      `Projects: ${projectFilter ? chosenProjects.map((row) => row.code).join(", ") || "None" : "All projects"}`,
-      `People: ${personFilter ? chosenPeople.join(", ") || "None" : "Everyone"}`,
-      includeNoProject ? "Time with no project included" : "Time with no project left out",
+      { label: "Projects", value: projectFilter ? chosenProjects.map((row) => row.code).join(", ") || "None" : "All projects" },
+      { label: "People", value: personFilter ? chosenPeople.join(", ") || "None" : "Everyone" },
+      { label: "Time with no project", value: includeNoProject ? "Included" : "Left out" },
     ],
     summary: {
       totalHours: sum(blocks),
@@ -135,16 +169,23 @@ export function reportHours(hours: number): string {
   return HOURS.format(hours);
 }
 
-export const REPORT_TITLE = "Project report";
-
 /** "21 Sep 2026 – 20 Oct 2026". */
 export function reportRange(report: Pick<Report, "from" | "to">): string {
   return `${reportDate(report.from)} – ${reportDate(report.to)}`;
 }
 
-/** "Project report 2026-09-21 to 2026-10-20.pdf". */
-export function reportFileName(report: Pick<Report, "from" | "to">, extension: "pdf" | "xlsx"): string {
-  return `${REPORT_TITLE} ${report.from} to ${report.to}.${extension}`;
+/** "Projects: AAA, BBB · People: Everyone · Time with no project: Left out". */
+export function reportFilterLine(report: Pick<Report, "filters">): string {
+  return report.filters.map((row) => `${row.label}: ${row.value}`).join(" · ");
+}
+
+/**
+ * "Samudra Energi, October hours 2026-10-01 to 2026-10-31.pdf": the title, less the characters a file name
+ * cannot hold, with spaces collapsed.
+ */
+export function reportFileName(report: Pick<Report, "title" | "from" | "to">, extension: "pdf" | "xlsx"): string {
+  const safe = report.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim() || REPORT_TITLE;
+  return `${safe} ${report.from} to ${report.to}.${extension}`;
 }
 
 /** KMPlus colours both renderers draw with (DESIGN.md tokens). */
@@ -156,5 +197,6 @@ export const REPORT_COLORS = {
   tint: "#EDFFFE",
   accent: "#1A7870",
   warning: "#8A5E10",
+  accentHover: "#145F59",
   white: "#FFFFFF",
 } as const;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_FILTERS } from "./report-model";
+import { REPORT_DEFAULTS } from "./report-model";
 import { parseReportSettings, reportFilterError, reportMonthLink, reportRangeError, serializeReportSettings } from "./report-settings";
 
 const TODAY = "2026-10-13";
@@ -8,18 +8,18 @@ const parse = (query: string) => parseReportSettings(new URLSearchParams(query),
 
 describe("Report settings in the page address", () => {
   it("keeps a range through serialize and parse", () => {
-    const config = { ...NO_FILTERS, from: "2026-09-21", to: "2026-10-20" };
+    const config = { ...REPORT_DEFAULTS, from: "2026-09-21", to: "2026-10-20" };
     expect(parse(serializeReportSettings(config))).toEqual(config);
   });
 
   it("opens the month the Reports panel passed, or this Asia/Jakarta month when nothing is passed", () => {
     expect(reportMonthLink(2026, 1)).toBe("/project-admin/export?month=2026-02");
-    expect(parse(reportMonthLink(2026, 1).split("?")[1])).toEqual({ ...NO_FILTERS, from: "2026-02-01", to: "2026-02-28" });
-    expect(parse("")).toEqual({ ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" });
+    expect(parse(reportMonthLink(2026, 1).split("?")[1])).toEqual({ ...REPORT_DEFAULTS, from: "2026-02-01", to: "2026-02-28" });
+    expect(parse("")).toEqual({ ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" });
   });
 
   it("falls back to the default month when the address holds a bad, reversed, or too-long range", () => {
-    const october = { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" };
+    const october = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
     expect(parse("from=2026-13-40&to=2026-10-20")).toEqual(october);
     expect(parse("from=2026-10-20&to=2026-10-01")).toEqual(october);
     expect(parse("from=2025-10-01&to=2026-10-01")).toEqual(october);
@@ -33,10 +33,18 @@ describe("Report settings in the page address", () => {
   });
 
   it("keeps Project and People filters and the no-project switch through serialize and parse", () => {
-    const projects = { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31", projectIds: ["p2"], personIds: ["person-eka", "person-rayhan"], includeNoProject: false };
+    const projects = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", projectIds: ["p2"], personIds: ["person-eka", "person-rayhan"], includeNoProject: false };
     expect(parse(serializeReportSettings(projects))).toEqual(projects);
-    const noInternal = { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31", includeNoProject: false };
+    const noInternal = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", includeNoProject: false };
     expect(parse(serializeReportSettings(noInternal))).toEqual(noInternal);
+  });
+
+  it("keeps the title and Prepared for, and falls back when either is longer than 80 characters", () => {
+    const named = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", title: "Samudra Energi, October hours", preparedFor: "PT Samudra Energi" };
+    expect(parse(serializeReportSettings(named))).toEqual(named);
+    expect(serializeReportSettings({ ...named, title: "Project report", preparedFor: "" })).toBe("from=2026-10-01&to=2026-10-31");
+    const long = "x".repeat(81);
+    expect(parse(`from=2026-10-01&to=2026-10-31&title=${long}&preparedFor=${long}`)).toMatchObject({ title: "Project report", preparedFor: "" });
   });
 
   it("drops Project and Person ids the tenant does not have", () => {
@@ -50,7 +58,7 @@ describe("Report settings in the page address", () => {
   });
 
   it("refuses a filter that chooses no Project or no Person", () => {
-    expect(reportFilterError(NO_FILTERS)).toBeNull();
+    expect(reportFilterError(REPORT_DEFAULTS)).toBeNull();
     expect(reportFilterError({ projectIds: [], personIds: null })).toBe("Choose at least one project.");
     expect(reportFilterError({ projectIds: null, personIds: [] })).toBe("Choose at least one person.");
   });

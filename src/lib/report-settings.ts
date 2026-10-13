@@ -1,5 +1,5 @@
 import { monthSpan } from "@/lib/project-admin-view";
-import type { ReportConfig } from "@/lib/report-model";
+import { REPORT_DEFAULTS, REPORT_TEXT_MAX, type ReportConfig } from "@/lib/report-model";
 import { addDaysIso } from "@/lib/work-delivery-query";
 
 function isIsoDate(value: string): boolean {
@@ -37,6 +37,8 @@ export function serializeReportSettings(config: ReportConfig): string {
   if (config.projectIds) params.set("projects", config.projectIds.join(","));
   if (config.personIds) params.set("people", config.personIds.join(","));
   if (!config.projectIds && !config.includeNoProject) params.set("noProject", "0");
+  if (config.title !== REPORT_DEFAULTS.title) params.set("title", config.title);
+  if (config.preparedFor) params.set("preparedFor", config.preparedFor);
   return params.toString();
 }
 
@@ -72,7 +74,14 @@ export function parseReportSettings(params: URLSearchParams, today: string, know
     personIds: idList(params.get("people"), known.personIds),
     // A Project filter forces time with no Project off.
     includeNoProject: !projectIds && params.get("noProject") !== "0",
+    title: text(params.get("title"), REPORT_DEFAULTS.title),
+    preparedFor: text(params.get("preparedFor"), REPORT_DEFAULTS.preparedFor),
   };
+}
+
+/** Free text from the address, or the default when it is missing or longer than a Report holds. */
+function text(value: string | null, fallback: string): string {
+  return value !== null && value.length <= REPORT_TEXT_MAX ? value : fallback;
 }
 
 /** Why the filters cannot make a Report, in the words the page shows, or null when they can. */
