@@ -145,7 +145,7 @@ Collapsible left sidebar on `--paper` with 1.5px `--line`. Expanded: icon + labe
 
 **Top bar:** official KM/PLUS mark, product name People, the signed-in Person and their access (e.g. "Employee · Admin"), Reminders. No payslip.
 
-**Sidebar groups:** Home, People, Organization; Performance (My KPI, Team KPIs, KPI Admin, KPI Tree); Work (Projects, Timesheet, Leave, Reimbursement, and for Admin: Leave requests, Project Admin). CV review is a People subpage, not a top-level item. See ADR-0010.
+**Sidebar groups:** Home, People, Organization; Performance (My KPI, Team KPIs, KPI Admin, KPI Tree); Work (Projects, Timesheet, Leave, Reimbursement, and for Admin: Leave requests, Reimbursement requests, Project Admin). CV review is a People subpage, not a top-level item. See ADR-0010.
 
 **Sign-in:** the sign-in pages are not a work surface. On desktop they split into a deep-sage brand panel (mark, "KMPlus People", tagline, the brand-kit wave) and a light form panel; on mobile the brand panel becomes a short band above the form. Still no navy.
 

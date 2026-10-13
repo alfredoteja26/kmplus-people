@@ -1,6 +1,6 @@
 import { nid } from "./domain";
 import { hasAdminGrant } from "./domain-query";
-import type { AppState, ReimbursementEvidence, ReimbursementRequest } from "./types";
+import type { AppState, ReimbursementDecision, ReimbursementEvidence, ReimbursementRequest } from "./types";
 import { TENANT_ID } from "./types";
 import {
   EVIDENCE_TYPE_REFUSAL,
@@ -148,4 +148,68 @@ export function fileReimbursementRequest(
     reimbursementRequestId,
     error: null,
   };
+}
+
+export type DecideReimbursementInput = {
+  decision: ReimbursementDecision;
+  /** Only on an approval below the asked amount; a full approval leaves it out. */
+  approvedAmount?: number;
+  /** Required on a rejection and on an approval at a lower amount. */
+  note?: string;
+};
+
+/**
+ * Any Admin other than the Person the request is for decides it, once, while it is pending (ADR-0013). An
+ * approval may lower the amount; a lower amount or a rejection carries a note the Person reads.
+ */
+export function decideReimbursementRequest(
+  state: AppState,
+  reimbursementRequestId: string,
+  input: DecideReimbursementInput,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  if (!hasAdminGrant(state)) return { state, error: "Admin grant required" };
+  const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
+  if (!row) return { state, error: "Reimbursement not found" };
+  if (row.personId === state.currentPersonId) return { state, error: "An Admin cannot decide their own reimbursement" };
+  if (row.withdrawnOn) return { state, error: "A withdrawn reimbursement cannot be decided" };
+  if (row.decision) return { state, error: "This reimbursement is already decided" };
+
+  const note = String(input?.note ?? "").trim();
+  let approvedAmount: number | null = null;
+  if (input?.decision === "approved") {
+    approvedAmount = row.amount;
+    if (input.approvedAmount !== undefined && input.approvedAmount !== row.amount) {
+      const lower = input.approvedAmount;
+      if (typeof lower !== "number" || !Number.isInteger(lower) || lower < 1 || lower >= row.amount) {
+        return { state, error: "A lower amount must be at least Rp 1 and below the asked amount" };
+      }
+      if (!note) return { state, error: "A lower amount needs a note" };
+      approvedAmount = lower;
+    }
+  } else if (input?.decision === "rejected") {
+    if (!note) return { state, error: "A rejection needs a note" };
+  } else {
+    return { state, error: "Decision must be approved or rejected" };
+  }
+
+  const decided: ReimbursementRequest = {
+    ...row,
+    decision: input.decision,
+    approvedAmount,
+    decisionNote: note || null,
+    decidedByPersonId: state.currentPersonId,
+    decidedOn: jakartaTodayIso(),
+  };
+  const next = {
+    ...state,
+    reimbursementRequests: state.reimbursementRequests.map((item) => (item.id === row.id ? decided : item)),
+  };
+  const detail =
+    input.decision === "rejected"
+      ? "Rejected"
+      : approvedAmount === row.amount
+        ? "Approved"
+        : `Approved ${approvedAmount} of ${row.amount}`;
+  return { state: audit(next, "update", "ReimbursementRequest", row.id, detail), error: null };
 }

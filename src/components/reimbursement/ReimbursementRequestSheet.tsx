@@ -34,6 +34,11 @@ const PLAIN: Record<string, string> = {
   "A description is required": "Add a description: what the expense was for.",
   "Every receipt must be uploaded first": "Wait for every receipt to finish uploading.",
   "A receipt is already on another request": "One of these receipts is already on another request. Upload it again here.",
+  "Admin grant required": "Only an Admin can decide reimbursements.",
+  "An Admin cannot decide their own reimbursement": "This is your own reimbursement. Another Admin decides it.",
+  "This reimbursement is already decided": "This reimbursement already has a decision.",
+  "A lower amount needs a note": "Add a note: why the amount is lower.",
+  "A rejection needs a note": "Add a note: why it is rejected.",
 };
 
 /** A command refusal in plain words; messages without an entry already read as a sentence. */

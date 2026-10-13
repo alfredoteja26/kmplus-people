@@ -151,3 +151,98 @@ describe("receipt files stay with one request", () => {
   });
 });
 
+
+function decide(state: AppState, session: { personId: string; role: Role }, id: string, input: Record<string, unknown>) {
+  return executeCommand(state, session, { name: "decideReimbursementRequest", args: [id, input] });
+}
+
+function filedBy(session: { personId: string; role: Role }, patch: Record<string, unknown> = {}, state = createInitialState()) {
+  const outcome = file(state, session, taxi(patch));
+  if (outcome.kind !== "applied") throw new Error(outcome.error);
+  return { state: outcome.next, id: outcome.result.reimbursementRequestId as string };
+}
+
+function withSecondAdmin(state: AppState, personId: string): AppState {
+  return { ...state, users: state.users.map((row) => (row.personId === personId ? { ...row, adminGrant: true } : row)) };
+}
+
+describe("deciding a reimbursement", () => {
+  it("approves at the full amount and shows the outcome to the Person", () => {
+    const { state, id } = filedBy(DIGIT);
+    const outcome = decide(state, ALFREDO, id, { decision: "approved" });
+    expect(outcome.kind).toBe("applied");
+    if (outcome.kind !== "applied") return;
+    const mine = viewAs(outcome.next, DIGIT).reimbursementRequests[0];
+    expect(mine).toMatchObject({
+      decision: "approved",
+      approvedAmount: 85000,
+      decisionNote: null,
+      decidedByPersonId: "person-alfredo",
+      decidedOn: "2026-10-13",
+    });
+  });
+
+  it("approves at a lower amount only with a note and an amount below the asked one", () => {
+    const { state, id } = filedBy(DIGIT);
+    expect(decide(state, ALFREDO, id, { decision: "approved", approvedAmount: 60000 })).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/note/),
+    });
+    for (const approvedAmount of [0, -1, 90000, 60000.5]) {
+      expect(decide(state, ALFREDO, id, { decision: "approved", approvedAmount, note: "Over the limit" })).toMatchObject({
+        kind: "refused",
+        error: expect.stringMatching(/lower amount/),
+      });
+    }
+    const sameAmount = decide(state, ALFREDO, id, { decision: "approved", approvedAmount: 85000 });
+    expect(sameAmount.kind === "applied" && sameAmount.next.reimbursementRequests[0].approvedAmount).toBe(85000);
+    const lowered = decide(state, ALFREDO, id, { decision: "approved", approvedAmount: 60000, note: "Meal limit is Rp 60.000" });
+    if (lowered.kind !== "applied") throw new Error(lowered.kind === "refused" ? lowered.error : "invalid");
+    expect(lowered.next.reimbursementRequests[0]).toMatchObject({
+      approvedAmount: 60000,
+      decisionNote: "Meal limit is Rp 60.000",
+    });
+  });
+
+  it("rejects only with a note", () => {
+    const { state, id } = filedBy(DIGIT);
+    expect(decide(state, ALFREDO, id, { decision: "rejected", note: "  " })).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/note/),
+    });
+    const rejected = decide(state, ALFREDO, id, { decision: "rejected", note: "Receipt is for a personal trip" });
+    if (rejected.kind !== "applied") throw new Error("not applied");
+    expect(rejected.next.reimbursementRequests[0]).toMatchObject({ decision: "rejected", approvedAmount: null });
+  });
+
+  it("refuses a non-Admin, a second decision, and an unknown request", () => {
+    const { state, id } = filedBy(DIGIT);
+    expect(decide(state, RAYHAN, id, { decision: "approved" })).toMatchObject({ kind: "refused" });
+    expect(decide(state, DIGIT, id, { decision: "approved" })).toMatchObject({ kind: "refused" });
+    const once = decide(state, ALFREDO, id, { decision: "approved" });
+    if (once.kind !== "applied") throw new Error("not applied");
+    expect(decide(once.next, ALFREDO, id, { decision: "rejected", note: "Changed my mind" })).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/already decided/),
+    });
+    expect(decide(state, ALFREDO, "reimb-nope", { decision: "approved" })).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/not found/),
+    });
+  });
+
+  it("never lets an Admin decide their own request, so a lone Admin's request waits for a second Admin", () => {
+    const { state, id } = filedBy(ALFREDO);
+    expect(decide(state, ALFREDO, id, { decision: "approved" })).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/own/),
+    });
+    const second = withSecondAdmin(state, "person-rayhan");
+    expect(decide(second, RAYHAN, id, { decision: "approved" }).kind).toBe("applied");
+  });
+
+  it("lets the Admin who filed for another Person decide it", () => {
+    const { state, id } = filedBy(ALFREDO, { personId: "person-digit" });
+    expect(decide(state, ALFREDO, id, { decision: "approved" }).kind).toBe("applied");
+  });
+});
