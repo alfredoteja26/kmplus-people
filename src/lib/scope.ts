@@ -19,9 +19,10 @@ export function scopeStateForViewer(full: AppState): AppState {
   const reports = new Set(lineManagerReportPersonIds(full, me));
   const canSeeProfile = (personId: string) => personId === me || hr || reports.has(personId) || canReadPerson(full, personId);
 
-  // A ReimbursementRequest and its receipts reach the Person it is for, the Admin who filed it, and every Admin.
+  // A ReimbursementRequest and its evidence reach the Person it is for, the Admin who filed it, that Person's
+  // current Line Manager on any Assignment (read-only, ADR-0013), and every Admin.
   const myReimbursements = full.reimbursementRequests.filter(
-    (row) => row.personId === me || row.filedByPersonId === me,
+    (row) => row.personId === me || row.filedByPersonId === me || reports.has(row.personId),
   );
   const myReimbursementIds = new Set(myReimbursements.map((row) => row.id));
 

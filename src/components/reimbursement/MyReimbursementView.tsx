@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/coss/button";
 import { EmptyBlock } from "@/components/work-delivery/project/parts";
-import { hasAdminGrant } from "@/lib/domain-query";
+import { hasAdminGrant, lineManagerReportPersonIds } from "@/lib/domain-query";
 import { plural } from "@/lib/labels";
 import {
   formatExpenseMonth,
@@ -40,6 +40,11 @@ export function MyReimbursementView() {
   const mine = reimbursementsFor(state, state.currentPersonId);
   const waiting = mine.filter((row) => reimbursementState(row) === "pending");
   const months = groupByExpenseMonth(mine);
+  // Read-only: the requests of the People this viewer is Line Manager for, newest expense first (ADR-0013).
+  const reports = new Set(lineManagerReportPersonIds(state, state.currentPersonId));
+  const team = state.reimbursementRequests
+    .filter((row) => reports.has(row.personId))
+    .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate) || b.id.localeCompare(a.id));
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
@@ -129,6 +134,23 @@ export function MyReimbursementView() {
           </p>
         </div>
       )}
+
+      {team.length > 0 ? (
+        <section aria-label="Your team" className="@container overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+          <h2 className="m-0 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-3.5 text-base font-medium">
+            <span className="flex items-baseline gap-2">
+              Your team
+              <span className="text-sm font-normal text-muted tabular-nums">{team.length}</span>
+            </span>
+            <span className="text-sm font-normal text-muted">Read only. An Admin decides.</span>
+          </h2>
+          <ul className="m-0 list-none p-0">
+            {team.map((row) => (
+              <ReimbursementRow key={row.id} state={state} row={row} showPerson />
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {editing ? (
         <ReimbursementRequestSheet

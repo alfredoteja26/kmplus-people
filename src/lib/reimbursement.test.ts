@@ -453,3 +453,48 @@ describe("linking a Project", () => {
     expect(unlinked.kind === "applied" && unlinked.next.reimbursementRequests.at(-1)?.projectId).toBeNull();
   });
 });
+
+const MARCELINO = { personId: "person-marcelino", role: "manager" as Role }; // Digit's Line Manager
+const PUTI = { personId: "person-puti", role: "manager" as Role }; // Line Manager of the Sales seats
+const EKA = { personId: "person-eka", role: "employee" as Role }; // Digit's teammate under Marcelino
+
+/** Digit also holds a Sales seat, so Puti becomes a second Line Manager. */
+function withSecondAssignment(state: AppState): AppState {
+  const digit = state.assignments.find((row) => row.personId === "person-digit" && row.endDate === null)!;
+  return { ...state, assignments: [...state.assignments, { ...digit, id: "asg-digit-sales", positionId: "pos-sales-spec" }] };
+}
+
+describe("a Line Manager reading the team's reimbursements", () => {
+  it("shows a report's requests and receipts to their Line Manager, and not a teammate's or HR's view", () => {
+    const { state } = filedBy(DIGIT);
+    const path = receipt().storagePath;
+    const manager = viewAs(state, MARCELINO);
+    expect(manager.reimbursementRequests.map((row) => row.personId)).toEqual(["person-digit"]);
+    expect(readableStoredFile(manager, path)).toEqual({ fileName: "taxi.jpg" });
+
+    for (const session of [EKA, DENNY, PUTI]) {
+      expect(viewAs(state, session).reimbursementRequests).toEqual([]);
+      expect(readableStoredFile(viewAs(state, session), path)).toBeNull();
+    }
+  });
+
+  it("does not show the Line Manager anyone outside their reports", () => {
+    const { state } = filedBy(ALFREDO);
+    expect(viewAs(state, MARCELINO).reimbursementRequests).toEqual([]);
+  });
+
+  it("shows a Person with two current Assignments to both Line Managers", () => {
+    const { state } = filedBy(DIGIT, {}, withSecondAssignment(createInitialState()));
+    expect(viewAs(state, MARCELINO).reimbursementRequests).toHaveLength(1);
+    expect(viewAs(state, PUTI).reimbursementRequests).toHaveLength(1);
+  });
+
+  it("refuses every change from the Line Manager", () => {
+    const { state, id } = filedBy(DIGIT);
+    expect(edit(state, MARCELINO, id, taxi({ amount: 1 }))).toMatchObject({ kind: "refused" });
+    expect(withdraw(state, MARCELINO, id)).toMatchObject({ kind: "refused" });
+    expect(decide(state, MARCELINO, id, { decision: "approved" })).toMatchObject({ kind: "refused" });
+    const { state: paidReady, id: approvedId } = approved();
+    expect(markPaid(paidReady, MARCELINO, approvedId, "2026-10-13")).toMatchObject({ kind: "refused" });
+  });
+});
