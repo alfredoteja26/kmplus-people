@@ -81,14 +81,11 @@ function scoreGauge(score: number | null, stored: boolean) {
 export function PhaseFacts({
   cycle,
   score,
-  weight,
   extra,
 }: {
   cycle: KpiCycle;
-  /** Pass a number or null when this page owns one KPI Portfolio. Omit on Team, KPI Admin, and KPI tree. */
+  /** Team, KPI Admin, and KPI tree omit it. My KPI shows its own facts strip instead (my-kpi/my-kpi-facts.tsx). */
   score?: number | null;
-  /** Weight total, only while the owner can still edit and submit the KPI Portfolio. */
-  weight?: number;
   extra?: ReactNode;
 }) {
   const phase = kpiYearPhase(cycle);
@@ -114,22 +111,6 @@ export function PhaseFacts({
   } else if (phase === "closed") {
     const stored = scoreGauge(score ?? null, true);
     gauges.push(<StatGauge key="stored" {...stored} />);
-  }
-
-  if (weight !== undefined) {
-    const ready = weight === 100;
-    gauges.push(
-      <StatGauge
-        key="weight"
-        label="Weight"
-        value={String(weight)}
-        unit="%"
-        percent={Math.min(1, weight / 100)}
-        tone={ready ? "accent" : "warning"}
-        target="Target 100%"
-        detail={ready ? "Weights add up to 100%." : `Weights must add up to 100% (now ${weight}%).`}
-      />,
-    );
   }
 
   if (gauges.length === 0 && !extra) return null;

@@ -38,6 +38,7 @@ import {
   personIdForKpiSet,
   portfolioApprovalGaps,
 } from "@/lib/domain-query";
+import { plainKpiError } from "@/lib/my-kpi-view";
 import { liveMonitoringScore } from "@/lib/phase-desk";
 import { useStore } from "@/lib/store";
 import type { CascadeMode, KpiCycle, KpiItem, Polarity } from "@/lib/types";
@@ -104,7 +105,8 @@ export function KpiDetailSheet({
         {waiting ? <Callout tone="accent">{waiting}.</Callout> : null}
         {kpiSet.returnComment && (kpiSet.status === "returned" || kpiSet.status === "draft") ? (
           <Callout tone="warning">
-            <span className="font-medium">Returned:</span> {kpiSet.returnComment}
+            <p className="m-0 font-medium">Returned for changes</p>
+            <p className="mt-1 mb-0 whitespace-pre-line">{kpiSet.returnComment}</p>
           </Callout>
         ) : null}
 
@@ -202,10 +204,10 @@ function PortfolioBody({
           kpiSet={kpiSet}
           assignmentId={assignment.id}
           items={items}
-          onSaveItem={(patch) => upsertKpiItem(patch)}
+          onSaveItem={(patch) => setError(plainKpiError(upsertKpiItem(patch)) || null)}
         />
       ) : (
-        <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-[12px] border border-line p-0">
+        <ul className="m-0 list-none divide-y divide-line overflow-clip rounded-[12px] border border-line p-0">
           {items.length === 0 ? (
             <li className="px-3 py-3 text-sm text-muted">No KPIs on this KPI Portfolio yet.</li>
           ) : (
@@ -213,7 +215,7 @@ function PortfolioBody({
               <li key={item.id}>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-tint"
+                  className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--tint)_60%,var(--paper))] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
                   onClick={() => onOpenItem(item.id)}
                 >
                   <span>
@@ -234,7 +236,7 @@ function PortfolioBody({
           <Button
             type="button"
             onClick={() => {
-              setError(onAgree(kpiSetId));
+              setError(plainKpiError(onAgree(kpiSetId)) || null);
             }}
           >
             Approve
@@ -279,7 +281,7 @@ function PortfolioBody({
                   <Button
                     type="button"
                     aria-label={`Approve KPI Check-In for ${what}`}
-                    onClick={() => setError(onAgreeCheckIn(checkIn.id))}
+                    onClick={() => setError(plainKpiError(onAgreeCheckIn(checkIn.id)) || null)}
                   >
                     Approve
                   </Button>
@@ -333,7 +335,7 @@ function ItemEditor({
   const rootAssignment = isRootAssignment(state, assignmentId);
 
   function save(patch: KpiItem) {
-    setError(onSave(patch));
+    setError(plainKpiError(onSave(patch)) || null);
   }
 
   return (
@@ -429,10 +431,26 @@ function ItemEditor({
           onChange={(checkInCadence) => save({ ...item, checkInCadence })}
         />
       ) : null}
-      <p className="m-0 text-sm">
-        Latest actual <span className="tabular-nums">{latestActualText(state, item)}</span>
-      </p>
-      <HealthBadge health={itemHealth(state, item)} />
+      <dl className="m-0 grid grid-cols-[8rem_minmax(0,1fr)] items-center gap-x-4 gap-y-2.5 border-t border-line pt-4 text-sm">
+        {canEdit ? null : (
+          <>
+            <dt className="text-muted">Frequency</dt>
+            <dd className="m-0">{frequencyLabel(effectiveCadence(cycle, item))}</dd>
+          </>
+        )}
+        {!canEdit && item.polarity === "lower-better" ? (
+          <>
+            <dt className="text-muted">Polarity</dt>
+            <dd className="m-0">Lower is better</dd>
+          </>
+        ) : null}
+        <dt className="text-muted">Latest actual</dt>
+        <dd className="m-0 tabular-nums">{latestActualText(state, item)}</dd>
+        <dt className="text-muted">Health</dt>
+        <dd className="m-0">
+          <HealthBadge health={itemHealth(state, item)} />
+        </dd>
+      </dl>
       {state.checkIns
         .filter((row) => row.kpiItemId === item.id)
         .map((row) => {
@@ -495,7 +513,7 @@ function CheckInForm({
       onSubmit={(event) => {
         event.preventDefault();
         const message = onSave(item.id, Number(actual), note);
-        setError(message);
+        setError(message ? plainKpiError(message) : null);
         if (message) return;
         setActual("");
         setNote("");
@@ -567,7 +585,7 @@ function AddKpiForm({
           parentKpiItemId: rootAssignment ? null : parentKpiItemId || null,
           cascadeMode,
         });
-        setError(message);
+        setError(message ? plainKpiError(message) : null);
         if (!message) onDone();
       }}
     >

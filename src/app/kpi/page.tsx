@@ -1,44 +1,35 @@
 "use client";
 
 import { KpiDetailSheet } from "@/components/kpi/KpiDetailSheet";
-import { kpiYearName, periodDueDate, periodLabel, remainingApprovers } from "@/components/kpi/kpi-copy";
-import { PhaseFacts } from "@/components/kpi/PhaseFacts";
+import { kpiYearName, remainingApprovers } from "@/components/kpi/kpi-copy";
+import { KpiItemRows, KpiItemsPanel } from "@/components/kpi/my-kpi/kpi-item-rows";
+import { FactsStrip, ScoreFact, ToneFact, WeightFact, Fact } from "@/components/kpi/my-kpi/my-kpi-facts";
 import { Button } from "@/components/coss/button";
-import { Callout, Card, PageColumn, PageHeader } from "@/components/product/Card";
+import { Callout, PageColumn, PageHeader } from "@/components/product/Card";
 import { Field } from "@/components/product/Field";
 import { Select } from "@/components/product/Select";
-import { HealthBadge, StatusBadge } from "@/components/product/StatusBadge";
-import { effectiveCadence, windowFor } from "@/lib/cadence";
+import { StatusBadge } from "@/components/product/StatusBadge";
+import { EmptyBlock } from "@/components/work-delivery/project/parts";
 import { isRootAssignment } from "@/lib/cascade";
-import { blocksOwnCheckIn } from "@/lib/direct";
+import { currentAssignments, itemsForSet, kpiSetForAssignment, positionById, readableKpiYear, todayIso, weightSum } from "@/lib/domain";
+import { kpiYearPhase, portfolioApprovalGaps } from "@/lib/domain-query";
+import { plural } from "@/lib/labels";
 import {
-  currentAssignments,
-  itemHealth,
-  itemsForSet,
-  kpiSetForAssignment,
-  positionById,
-  readableKpiYear,
-  todayIso,
-  weightSum,
-} from "@/lib/domain";
-import { effectiveCheckInStatus, isPortfolioDualApproved, kpiYearPhase, portfolioApprovalGaps } from "@/lib/domain-query";
-import { liveMonitoringScore, needsCheckInThisWindow, planningItemGap } from "@/lib/phase-desk";
+  approvalDetail,
+  dueItems,
+  plainKpiError,
+  portfolioStep,
+  rankItems,
+  rowNote,
+  scoreFact,
+  submitBlocker,
+  timeFact,
+  type PortfolioStep,
+} from "@/lib/my-kpi-view";
+import { liveMonitoringScore } from "@/lib/phase-desk";
 import { useStore } from "@/lib/store";
-import type { AppState, KpiCycle, KpiItem, KpiSet, KpiYearPhase } from "@/lib/types";
-import { useState } from "react";
-
-/**
- * What the owner can do with this KPI Portfolio right now. Copy only: the same domain queries
- * that gate editing and KPI Check-Ins decide which one applies.
- */
-type PortfolioStep = "plan" | "waiting" | "approved" | "check-in" | "closed";
-
-function portfolioStep(state: AppState, phase: KpiYearPhase | null, kpiSet: KpiSet): PortfolioStep {
-  if (phase === "closed") return "closed";
-  if (kpiSet.status === "draft" || kpiSet.status === "returned") return "plan";
-  if (!isPortfolioDualApproved(state, kpiSet.id)) return "waiting";
-  return phase === "monitoring" ? "check-in" : "approved";
-}
+import { PlusIcon, TargetIcon } from "lucide-react";
+import { useId, useState } from "react";
 
 export default function MyKpiPage() {
   const { state, submitKpiSet } = useStore();
@@ -48,6 +39,7 @@ export default function MyKpiPage() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ itemId: string } | { add: true } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const reasonId = useId();
 
   const assignment =
     assignments.find((row) => row.id === selectedAssignmentId) ??
@@ -55,162 +47,188 @@ export default function MyKpiPage() {
     assignments[0];
   const kpiSet = cycle && assignment ? kpiSetForAssignment(state, assignment.id, cycle.id) : undefined;
   const items = kpiSet ? itemsForSet(state, kpiSet.id) : [];
-  const sum = weightSum(items);
   const rootAssignment = assignment ? isRootAssignment(state, assignment.id) : false;
   const today = todayIso();
 
   if (!cycle) {
     return (
-      <div>
-        <PageHeader title="My KPI" />
+      <PageColumn>
+        <PageHeader className="mb-0" title="My KPI" />
         <Callout tone="warning">No KPI year is open yet. An Admin starts planning from KPI Admin.</Callout>
-      </div>
+      </PageColumn>
     );
   }
 
   const yearName = kpiYearName(cycle);
+  const positionTitle = assignment ? (positionById(state, assignment.positionId)?.title ?? null) : null;
+  const multiSeat = assignments.length > 1;
+  // With one Position its title rides on the context line; with several the switcher names it.
+  const context = positionTitle && !multiSeat ? `${yearName} · ${positionTitle}` : yearName;
+
+  const positionSwitch = multiSeat && assignment ? (
+    <Field label="Position" className="w-full sm:w-64">
+      <Select
+        value={assignment.id}
+        onChange={(event) => {
+          setSelectedAssignmentId(event.target.value);
+          setSheet(null);
+          setError(null);
+        }}
+      >
+        {assignments.map((row) => (
+          <option key={row.id} value={row.id}>
+            {positionById(state, row.positionId)?.title ?? "Position"}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  ) : null;
 
   if (!assignment || !kpiSet) {
     return (
-      <div>
-        <PageHeader title="My KPI" description={yearName} />
+      <PageColumn>
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <PageHeader className="mb-0" title="My KPI" description={context} />
+          {positionSwitch}
+        </header>
         <Callout tone="warning">
-          You don&apos;t have a KPI Portfolio for {yearName} yet. An Admin can create it from KPI Admin.
+          You don&apos;t have a KPI Portfolio for {yearName}
+          {multiSeat && positionTitle ? ` on ${positionTitle}` : ""} yet. An Admin can create it from KPI Admin.
         </Callout>
-      </div>
+      </PageColumn>
     );
   }
 
   const step = portfolioStep(state, phase, kpiSet);
   const canEdit = step === "plan";
-  const score =
-    phase === "monitoring" ? liveMonitoringScore(state, kpiSet.id) : phase === "closed" ? (kpiSet.score ?? null) : undefined;
-
-  const ranked = [...items].sort((left, right) => {
-    const leftRank = rowRank(step, state, cycle, left, rootAssignment, today);
-    const rightRank = rowRank(step, state, cycle, right, rootAssignment, today);
-    if (leftRank !== rightRank) return leftRank - rightRank;
-    return left.name.localeCompare(right.name);
-  });
-
+  const ranked = rankItems(step, state, cycle, items, rootAssignment, today);
+  const due = step === "check-in" ? dueItems(state, cycle, ranked, today) : [];
+  const blocker = canEdit ? submitBlocker(state, kpiSet.id) : null;
   const approvers = remainingApprovers(portfolioApprovalGaps(state, kpiSet.id), "you");
+  const time = timeFact(state, cycle, phase, step, items, today);
+  const score = scoreFact(phase, phase === "monitoring" ? liveMonitoringScore(state, kpiSet.id) : null, kpiSet.score);
+  const approval = approvalDetail(state, kpiSet);
+  const openItemId = sheet && "itemId" in sheet ? sheet.itemId : null;
+
   const header: Record<PortfolioStep, { title: string; description: string }> = {
     plan: {
       title: "Plan your KPI Portfolio",
       description:
         kpiSet.status === "returned"
-          ? `${yearName}. Your KPI Portfolio was returned. Make the changes, then submit it for approval again.`
-          : `${yearName}. Add your KPIs, make the weights add up to 100%, then submit for approval.`,
+          ? "Make the changes asked for below, then submit it for approval again."
+          : "Add your KPIs, make the weights add up to 100%, then submit for approval.",
     },
     waiting: {
       title: "Waiting for approval",
-      description: approvers
-        ? `${yearName}. You submitted your KPI Portfolio. It still needs approval from ${approvers}.`
-        : `${yearName}. You submitted your KPI Portfolio. It is waiting for approval.`,
+      description: approvers ? `You submitted your KPI Portfolio. It still needs approval from ${approvers}.` : "You submitted your KPI Portfolio.",
     },
-    approved: {
-      title: "KPI Portfolio approved",
-      description: `${yearName}. KPI Check-Ins open when an Admin starts monitoring.`,
-    },
-    "check-in": {
-      title: "KPI Check-In",
-      description: `${yearName}. Enter your actual result for each KPI by the end of its period.`,
-    },
-    closed: {
-      title: "KPI year closed",
-      description: `${yearName} is closed. Your KPI Portfolio is view only.`,
-    },
+    approved: { title: "KPI Portfolio approved", description: "KPI Check-Ins open when an Admin starts monitoring." },
+    "check-in": { title: "KPI Check-In", description: "Enter your actual result for each KPI by the end of its period." },
+    closed: { title: "KPI year closed", description: "This KPI year is closed. Your KPI Portfolio is view only." },
   };
   const { title, description } = header[step];
 
-  return (
-    <PageColumn className={sheet ? "lg:pr-[440px]" : undefined}>
-      <PageHeader
-        className="mb-0"
-        title={title}
-        description={description}
-        actions={<StatusBadge status={kpiSet.status} />}
-      />
-      <PhaseFacts cycle={cycle} score={score} weight={canEdit ? sum : undefined} />
-      <Card>
-        {assignments.length > 1 ? (
-          <Field label="Position" className="mb-4 max-w-sm">
-            <Select
-              value={assignment.id}
-              onChange={(event) => {
-                setSelectedAssignmentId(event.target.value);
-                setSheet(null);
-              }}
-            >
-              {assignments.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {positionById(state, row.positionId)?.title ?? row.positionId}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        ) : null}
-        {canEdit && kpiSet.returnComment ? (
-          <Callout tone="warning" className="mb-4">
-            <span className="font-medium">Comment from your approver:</span> {kpiSet.returnComment}
-          </Callout>
-        ) : null}
-        {error ? (
-          <Callout tone="danger" className="mb-4">
-            {error}
-          </Callout>
-        ) : null}
-
-        {items.length === 0 ? (
-          <p className="m-0 text-sm text-muted">
-            {canEdit ? "No KPIs yet. Add your first KPI, then set weights that add up to 100%." : "No KPIs on this KPI Portfolio."}
+  const footer =
+    items.length === 0 ? null : canEdit ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button type="button" variant="outline" onClick={() => setSheet({ add: true })}>
+          <PlusIcon aria-hidden="true" />
+          Add KPI
+        </Button>
+        <Button
+          type="button"
+          disabled={blocker !== null}
+          aria-describedby={blocker ? reasonId : undefined}
+          onClick={() => {
+            const message = submitKpiSet(kpiSet.id);
+            setError(message ? plainKpiError(message) : null);
+          }}
+        >
+          Submit for approval
+        </Button>
+        {blocker ? (
+          <p id={reasonId} className="m-0 text-sm text-muted">
+            {blocker}
           </p>
         ) : (
-          <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-[12px] border border-line p-0">
-            {ranked.map((item) => {
-              const reason = rowReason(step, state, cycle, item, rootAssignment, today);
-              const open = sheet !== null && "itemId" in sheet && sheet.itemId === item.id;
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    aria-haspopup="dialog"
-                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-                    onClick={() => setSheet({ itemId: item.id })}
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-medium">{item.name}</span>
-                      <span className="block text-sm text-muted">{reason}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm tabular-nums text-muted">{item.weight}%</span>
-                      <HealthBadge health={itemHealth(state, item)} />
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <p className="m-0 text-sm text-muted">Ready to send to your Line Manager and an Admin.</p>
         )}
+      </div>
+    ) : step === "check-in" ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button type="button" disabled={due.length === 0} aria-describedby={reasonId} onClick={() => due[0] && setSheet({ itemId: due[0].id })}>
+          Check in
+        </Button>
+        <p id={reasonId} className="m-0 text-sm text-muted">
+          {due.length === 0 ? "Every KPI is checked in for its current period." : `${plural(due.length, "KPI")} to check in. Starts with “${due[0].name}”.`}
+        </p>
+      </div>
+    ) : null;
 
-        {canEdit ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
-            <Button variant="outline" type="button" onClick={() => setSheet({ add: true })}>
-              Add KPI
-            </Button>
-            <Button
-              type="button"
-              disabled={sum !== 100}
-              onClick={() => {
-                setError(submitKpiSet(kpiSet.id));
-              }}
-            >
-              Submit for approval
-            </Button>
+  return (
+    <PageColumn className={sheet ? "lg:pr-[440px]" : undefined}>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="m-0 font-heading text-h1 font-medium text-balance">{title}</h1>
+            <StatusBadge status={kpiSet.status} />
           </div>
-        ) : null}
-      </Card>
+          <p className="mt-2 mb-0 max-w-[65ch] text-muted">
+            {context}. {description}
+          </p>
+        </div>
+        {positionSwitch}
+      </header>
+
+      {canEdit && kpiSet.returnComment ? (
+        <Callout tone="warning" live="status">
+          <p className="m-0 font-medium">Returned for changes</p>
+          <p className="mt-1 mb-0 whitespace-pre-line">{kpiSet.returnComment}</p>
+        </Callout>
+      ) : null}
+
+      <FactsStrip>
+        {/* The status badge sits beside the title (DESIGN.md); the strip says what that status waits on. */}
+        <Fact label="Approval">{approval}</Fact>
+        <WeightFact sum={weightSum(items)} />
+        <ScoreFact {...score} />
+        <ToneFact {...time} />
+      </FactsStrip>
+
+      {error ? <Callout tone="danger">{error}</Callout> : null}
+
+      <KpiItemsPanel title="KPIs" count={items.length} footer={footer}>
+        {items.length === 0 ? (
+          <EmptyBlock
+            className="py-8"
+            icon={<TargetIcon aria-hidden="true" />}
+            title="No KPIs yet"
+            description={
+              canEdit
+                ? "Add the KPIs you are measured on this year, with weights that add up to 100%."
+                : "This KPI Portfolio has no KPIs."
+            }
+            action={
+              canEdit ? (
+                <Button type="button" onClick={() => setSheet({ add: true })}>
+                  <PlusIcon aria-hidden="true" />
+                  Add KPI
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <KpiItemRows
+            state={state}
+            cycle={cycle}
+            items={ranked}
+            rootAssignment={rootAssignment}
+            noteFor={(item) => rowNote(step, state, cycle, item, rootAssignment, today)}
+            openItemId={openItemId}
+            onOpen={(itemId) => setSheet({ itemId })}
+          />
+        )}
+      </KpiItemsPanel>
 
       {sheet ? (
         <KpiDetailSheet
@@ -222,28 +240,4 @@ export default function MyKpiPage() {
       ) : null}
     </PageColumn>
   );
-}
-
-function rowRank(step: PortfolioStep, state: AppState, cycle: KpiCycle, item: KpiItem, rootAssignment: boolean, today: string) {
-  if (step === "check-in") {
-    if (blocksOwnCheckIn(state, item)) return 2;
-    return needsCheckInThisWindow(state, cycle, item, today) ? 0 : 1;
-  }
-  if (step === "plan") return planningItemGap(item, rootAssignment) ? 0 : 1;
-  return 0;
-}
-
-function rowReason(step: PortfolioStep, state: AppState, cycle: KpiCycle, item: KpiItem, rootAssignment: boolean, today: string) {
-  const target = `Target ${item.target} ${item.unit}`.trim();
-  if (step === "plan") return planningItemGap(item, rootAssignment) ?? target;
-  if (step !== "check-in") return target;
-  if (blocksOwnCheckIn(state, item)) return "Adds up from its Direct child KPIs";
-  const windowId = windowFor(today, effectiveCadence(cycle, item));
-  if (needsCheckInThisWindow(state, cycle, item, today)) return `KPI Check-In due by ${periodDueDate(windowId)}`;
-  const pending = state.checkIns.some(
-    (row) => row.kpiItemId === item.id && row.window === windowId && effectiveCheckInStatus(row) === "pending",
-  );
-  return pending
-    ? `KPI Check-In for ${periodLabel(windowId)} waiting for approval`
-    : `Checked in for ${periodLabel(windowId)}`;
 }
