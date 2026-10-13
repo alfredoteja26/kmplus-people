@@ -254,7 +254,7 @@ export function ReimbursementRequestSheet({
           <option value="">No Project</option>
           {projectOptions.map((row) => (
             <option key={row.id} value={row.id}>
-              {row.code} · {row.name}
+              {`${row.code} · ${row.name}`}
             </option>
           ))}
         </Select>

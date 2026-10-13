@@ -159,18 +159,23 @@ export function ReimbursementDecideView() {
             {mineCount ? ` ${plural(mineCount, "request")} of yours ${mineCount === 1 ? "waits" : "wait"} for another Admin.` : ""}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setNotice("");
-            setError("");
-            setFiling(true);
-          }}
-        >
-          <PlusIcon aria-hidden="true" />
-          File for someone
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" render={<Link href="/reimbursement/report" />}>
+            Monthly report
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setNotice("");
+              setError("");
+              setFiling(true);
+            }}
+          >
+            <PlusIcon aria-hidden="true" />
+            File for someone
+          </Button>
+        </div>
       </header>
 
       {notice ? (
