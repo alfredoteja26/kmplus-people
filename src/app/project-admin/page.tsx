@@ -19,10 +19,11 @@ import {
   timesheetByPerson,
 } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
+import { reportMonthLink } from "@/lib/report-settings";
 import { jakartaTodayIso, workbookRows } from "@/lib/work-delivery-query";
 import { buildXlsx, XLSX_MIME } from "@/lib/xlsx";
 import { useStore } from "@/lib/store";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, FileOutputIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -213,10 +214,16 @@ export default function ProjectAdminPage() {
         timesheet={timesheet}
         leave={leave}
         download={
-          <Button type="button" variant="outline" size="sm" disabled={!hasRows} onClick={() => downloadWorkbook(state)}>
-            <DownloadIcon aria-hidden="true" />
-            Download workbook
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" disabled={!hasRows} onClick={() => downloadWorkbook(state)}>
+              <DownloadIcon aria-hidden="true" />
+              Download workbook
+            </Button>
+            <Button variant="outline" size="sm" render={<Link href={reportMonthLink(cursor.year, cursor.month)} />}>
+              <FileOutputIcon aria-hidden="true" />
+              Export report
+            </Button>
+          </>
         }
         pager={
           <MonthPager

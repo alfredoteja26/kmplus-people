@@ -1,0 +1,131 @@
+import type ExcelJSModule from "exceljs";
+import { REPORT_COLORS, REPORT_TITLE, reportRange, type Report } from "@/lib/report-model";
+
+/**
+ * The Report as an xlsx workbook. ExcelJS is passed in so the page can load it only when Download xlsx is
+ * pressed, and tests can use the Node build. Figures come from the Report model; this file only lays them out.
+ */
+type ExcelJS = typeof ExcelJSModule;
+type Sheet = ExcelJSModule.Worksheet;
+type Cell = ExcelJSModule.Cell;
+
+const FONT = "Calibri";
+/** ARGB, as ExcelJS wants it, from the shared Report palette. */
+const COLOR = Object.fromEntries(Object.entries(REPORT_COLORS).map(([key, hex]) => [key, `FF${hex.slice(1)}`])) as Record<keyof typeof REPORT_COLORS, string>;
+const HOURS_FORMAT = "#,##0.0";
+
+const solid = (argb: string): ExcelJSModule.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+const hairline = { style: "thin" as const, color: { argb: COLOR.line } };
+
+/** Title and context rows at the top of a sheet. */
+function heading(sheet: Sheet, title: string, context: string, width: number) {
+  sheet.mergeCells(1, 1, 1, width);
+  Object.assign(sheet.getCell(1, 1), { value: title, font: { name: FONT, size: 16, bold: true, color: { argb: COLOR.ink } } });
+  sheet.getRow(1).height = 26;
+  sheet.mergeCells(2, 1, 2, width);
+  Object.assign(sheet.getCell(2, 1), { value: context, font: { name: FONT, size: 10, color: { argb: COLOR.muted } } });
+  sheet.getRow(2).height = 18;
+}
+
+type Align = "left" | "right";
+
+/** A sage header band: white bold labels on the accent fill. */
+function band(sheet: Sheet, row: number, labels: [string, Align][]) {
+  labels.forEach(([label, align], index) => {
+    const cell = sheet.getCell(row, index + 1);
+    cell.value = label;
+    cell.font = { name: FONT, size: 10, bold: true, color: { argb: COLOR.white } };
+    cell.fill = solid(COLOR.accent);
+    cell.alignment = { vertical: "middle", horizontal: align, indent: align === "left" ? 1 : 0 };
+  });
+  sheet.getRow(row).height = 22;
+}
+
+function bodyCell(cell: Cell, value: ExcelJSModule.CellValue, options: { numFmt?: string; align?: Align; warn?: boolean } = {}) {
+  const align = options.align ?? (typeof value === "number" || options.numFmt ? "right" : "left");
+  cell.value = value;
+  cell.font = { name: FONT, size: 10, color: { argb: options.warn ? COLOR.warning : COLOR.ink }, bold: options.warn || undefined };
+  if (options.numFmt) cell.numFmt = options.numFmt;
+  cell.alignment = { vertical: "middle", horizontal: align, indent: align === "left" ? 1 : 0 };
+  cell.border = { bottom: hairline };
+}
+
+function totalCell(cell: Cell, value: ExcelJSModule.CellValue, numFmt?: string) {
+  bodyCell(cell, value, { numFmt });
+  cell.font = { name: FONT, size: 10, bold: true, color: { argb: COLOR.ink } };
+  cell.fill = solid(COLOR.tint);
+  cell.border = { top: { style: "medium", color: { argb: COLOR.accent } } };
+}
+
+/** A4 landscape, the Confidential header, and a "range · sheet · Page X of N" footer. */
+function printSetup(sheet: Sheet, report: Report) {
+  sheet.pageSetup = {
+    paperSize: 9,
+    orientation: "landscape",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 },
+  };
+  sheet.headerFooter = {
+    oddHeader: `&L&"${FONT},Bold"&9KMPlus People&R&"${FONT},Bold"&9&K8A5E10CONFIDENTIAL`,
+    oddFooter: `&L&"${FONT}"&8${reportRange(report)}&C&"${FONT}"&8${sheet.name}&R&"${FONT}"&8Page &P of &N`,
+  };
+}
+
+function summarySheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  const sheet = workbook.addWorksheet("Summary");
+  const summary = report.summary;
+  sheet.columns = [{ width: 36 }, { width: 14 }, { width: 12 }];
+  heading(sheet, "Summary", `${reportRange(report)} · ${summary.workingDays} working days`, 3);
+
+  band(sheet, 4, [["Figure", "left"], ["Value", "right"]]);
+  const facts: [string, number, string, boolean][] = [
+    ["Hours logged", summary.totalHours, HOURS_FORMAT, false],
+    ["On projects", summary.projectHours, HOURS_FORMAT, false],
+    ["With no project", summary.noProjectHours, HOURS_FORMAT, false],
+    ["People in the report", summary.people, "0", false],
+    ["People past 100% load", summary.overloaded, "0", summary.overloaded > 0],
+  ];
+  facts.forEach(([label, value, numFmt, warn], index) => {
+    bodyCell(sheet.getCell(5 + index, 1), label);
+    bodyCell(sheet.getCell(5 + index, 2), value, { numFmt, warn });
+  });
+
+  const head = 5 + facts.length + 1;
+  band(sheet, head, [["Hours by project", "left"], ["Hours", "right"], ["Share", "right"]]);
+  const first = head + 1;
+  const last = head + report.hoursByProject.length;
+  report.hoursByProject.forEach((row, index) => {
+    const r = first + index;
+    bodyCell(sheet.getCell(r, 1), row.project ? `${row.project.code} · ${row.project.name}` : "No project");
+    bodyCell(sheet.getCell(r, 2), row.hours, { numFmt: HOURS_FORMAT });
+    bodyCell(sheet.getCell(r, 3), { formula: `IF(SUM($B$${first}:$B$${last})=0,0,B${r}/SUM($B$${first}:$B$${last}))`, result: summary.totalHours ? row.hours / summary.totalHours : 0 }, { numFmt: "0%" });
+  });
+  if (report.hoursByProject.length === 0) {
+    sheet.mergeCells(first, 1, first, 3);
+    bodyCell(sheet.getCell(first, 1), `No hours between ${reportRange(report)}`);
+    sheet.getCell(first, 1).font = { name: FONT, size: 10, italic: true, color: { argb: COLOR.muted } };
+  } else {
+    const r = last + 1;
+    totalCell(sheet.getCell(r, 1), "Total");
+    totalCell(sheet.getCell(r, 2), { formula: `SUM(B${first}:B${last})`, result: summary.totalHours }, HOURS_FORMAT);
+    totalCell(sheet.getCell(r, 3), "");
+  }
+  for (let r = 5; r <= last + 1; r += 1) sheet.getRow(r).height = 20;
+
+  // Freeze through the first header band and the label column.
+  sheet.views = [{ state: "frozen", xSplit: 1, ySplit: 4, showGridLines: false }];
+  printSetup(sheet, report);
+}
+
+export async function buildReportWorkbook(ExcelJSLib: ExcelJS, report: Report): Promise<Uint8Array> {
+  const workbook = new ExcelJSLib.Workbook();
+  workbook.creator = "KMPlus People";
+  workbook.title = `${REPORT_TITLE} ${report.from} to ${report.to}`;
+  summarySheet(workbook, report);
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Uint8Array(buffer as ArrayBuffer);
+}
+
+export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
