@@ -18,12 +18,12 @@ type Store = {
   dismissSyncError: () => void;
   createPerson: (input: CreatePersonInput) => string;
   updatePerson: (personId: string, patch: Partial<Person>) => void;
-  confirmHire: (personId: string) => void;
-  assignPosition: (personId: string, positionId: string, startDate: string) => void;
+  confirmHire: (personId: string) => string | null;
+  assignPosition: (personId: string, positionId: string, startDate: string) => string | null;
   createPosition: (input: Omit<Position, "id" | "tenantId">) => string;
-  updatePosition: (positionId: string, patch: Partial<Omit<Position, "id" | "tenantId">>) => void;
-  requestCorrection: (personId: string, field: string, currentValue: string, proposedValue: string) => void;
-  resolveCorrection: (id: string, status: "accepted" | "rejected") => void;
+  updatePosition: (positionId: string, patch: Partial<Omit<Position, "id" | "tenantId">>) => string | null;
+  requestCorrection: (personId: string, field: string, currentValue: string, proposedValue: string) => string | null;
+  resolveCorrection: (id: string, status: "accepted" | "rejected") => string | null;
   addCv: (cv: Omit<CurriculumVitae, "id" | "tenantId">) => string;
   decideCvField: (cvId: string, key: string, decision: FieldDecision, editedValue?: string) => void;
   applyCv: (cvId: string, mode: ApplyCvMode) => string | null;
@@ -209,22 +209,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         commit("updatePerson", [personId, patch]);
       },
       confirmHire(personId) {
-        commit("confirmHire", [personId]);
+        return commit("confirmHire", [personId]).error ?? null;
       },
       assignPosition(personId, positionId, startDate) {
-        commit("assignPosition", [personId, positionId, startDate]);
+        return commit("assignPosition", [personId, positionId, startDate]).error ?? null;
       },
       createPosition(input) {
         return commit("createPosition", [input]).positionId;
       },
       updatePosition(positionId, patch) {
-        commit("updatePosition", [positionId, patch]);
+        return commit("updatePosition", [positionId, patch]).error ?? null;
       },
       requestCorrection(personId, field, currentValue, proposedValue) {
-        commit("requestCorrection", [personId, field, currentValue, proposedValue]);
+        return commit("requestCorrection", [personId, field, currentValue, proposedValue]).error ?? null;
       },
       resolveCorrection(id, status) {
-        commit("resolveCorrection", [id, status]);
+        return commit("resolveCorrection", [id, status]).error ?? null;
       },
       addCv(cv) {
         return commit("addCv", [cv]).cvId;

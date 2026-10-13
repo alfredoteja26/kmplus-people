@@ -70,6 +70,10 @@ export default function PersonPage() {
   } = useStore();
   const [open, setOpen] = useState<Open>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  // One line for every action's outcome: the command's refusal in plain words, or what changed.
+  function report(error: string | null, success: string) {
+    setNotice(error ? { tone: "danger", text: plainPeopleError(error) } : { tone: "accent", text: success });
+  }
   const [allTime, setAllTime] = useState(false);
   const person = state.people.find((row) => row.id === params.id);
 
@@ -235,7 +239,7 @@ export default function PersonPage() {
                 </div>
                 {hr && row.status === "open" ? (
                   <div className="flex gap-2">
-                    <Button size="sm" type="button" onClick={() => resolveCorrection(row.id, "accepted")}>
+                    <Button size="sm" type="button" onClick={() => report(resolveCorrection(row.id, "accepted"), "Correction accepted. The profile now shows the new value.")}>
                       Accept
                     </Button>
                     <ConfirmAction
@@ -247,7 +251,7 @@ export default function PersonPage() {
                       title={`Reject the ${correctionFieldLabel(row.field).toLowerCase()} correction?`}
                       description={`${person.legalName} asked to change it to “${row.proposedValue}”. The profile keeps its current value and the request closes as rejected.`}
                       confirmLabel="Reject request"
-                      onConfirm={() => resolveCorrection(row.id, "rejected")}
+                      onConfirm={() => report(resolveCorrection(row.id, "rejected"), "Correction rejected. The profile is unchanged.")}
                     />
                   </div>
                 ) : null}
@@ -278,7 +282,7 @@ export default function PersonPage() {
             <p className="m-0 max-w-[65ch] text-sm">
               This person is a draft hire. They join the active roster once you confirm the hire.
             </p>
-            <Button type="button" size="sm" onClick={() => confirmHire(person.id)}>
+            <Button type="button" size="sm" onClick={() => report(confirmHire(person.id), "Hire confirmed. Employment is active.")}>
               Confirm hire
             </Button>
           </div>
@@ -598,8 +602,10 @@ export default function PersonPage() {
           requests={corrections}
           onClose={() => setOpen(null)}
           onSend={(field, currentValue, proposedValue) => {
-            requestCorrection(person.id, field, currentValue, proposedValue);
-            setNotice({ tone: "accent", text: `Sent to HR. Your ${correctionFieldLabel(field).toLowerCase()} changes once HR accepts it.` });
+            report(
+              requestCorrection(person.id, field, currentValue, proposedValue),
+              `Sent to HR. Your ${correctionFieldLabel(field).toLowerCase()} changes once HR accepts it.`,
+            );
           }}
         />
       ) : null}
@@ -613,8 +619,7 @@ export default function PersonPage() {
           heldCount={seats.length}
           onClose={() => setOpen(null)}
           onAssign={(positionId) => {
-            assignPosition(person.id, positionId, todayIso());
-            setNotice({ tone: "accent", text: `${displayName} is assigned to the new Position from today.` });
+            report(assignPosition(person.id, positionId, todayIso()), `${displayName} is assigned to the new Position from today.`);
           }}
         />
       ) : null}

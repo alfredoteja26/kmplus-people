@@ -1,5 +1,7 @@
 "use client";
 
+import { plainOrgError } from "@/components/org/errors";
+
 import { Button } from "@/components/coss/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/coss/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/coss/toggle-group";
@@ -305,7 +307,8 @@ export default function OrgPage() {
           position={editing}
           onClose={() => setSheet(null)}
           onSave={(input) => {
-            updatePosition(editing.id, input);
+            const message = updatePosition(editing.id, input);
+            if (message) return plainOrgError(message);
             reveal(editing.id, input.reportsToPositionId);
             return null;
           }}
@@ -319,8 +322,7 @@ export default function OrgPage() {
           positionId={sheet.positionId}
           onClose={() => setSheet(null)}
           onAssign={(personId) => {
-            assignPosition(personId, sheet.positionId, todayIso());
-            return null;
+            return plainOrgError(assignPosition(personId, sheet.positionId, todayIso())) || null;
           }}
         />
       ) : null}
