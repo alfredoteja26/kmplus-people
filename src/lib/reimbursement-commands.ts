@@ -10,7 +10,7 @@ import {
   storagePathPrefix,
 } from "./upload-rules";
 import { audit, ensureWorkDeliveryCollections, type CommandResult } from "./work-delivery-commands";
-import { addDaysIso, jakartaTodayIso } from "./work-delivery-query";
+import { addDaysIso, isStaffedOnProject, jakartaTodayIso } from "./work-delivery-query";
 
 export type ReimbursementEvidenceInput = {
   storagePath: string;
@@ -26,6 +26,8 @@ export type FileReimbursementInput = {
   amount: number;
   reimbursementTypeId: string;
   description: string;
+  /** Optional; only a Project where the Person has Staffing on the expense date. */
+  projectId?: string | null;
   evidence: ReimbursementEvidenceInput[];
 };
 
@@ -49,6 +51,7 @@ function isCalendarDate(value: string): boolean {
  */
 function reimbursementFieldsRefusal(
   state: AppState,
+  personId: string,
   input: FileReimbursementInput,
   filedOn: string,
   requestId: string | null,
@@ -66,6 +69,13 @@ function reimbursementFieldsRefusal(
   if (!String(input.description ?? "").trim()) return "A description is required";
   if (!state.reimbursementTypes.some((row) => row.id === input.reimbursementTypeId)) {
     return "Choose a reimbursement type";
+  }
+  const projectId = input.projectId ?? null;
+  if (projectId !== null) {
+    if (!state.projects.some((row) => row.id === projectId)) return "Project not found";
+    if (!isStaffedOnProject(state, personId, projectId, expenseDate)) {
+      return "The Person is not staffed on that Project on the expense date";
+    }
   }
   const evidence = Array.isArray(input.evidence) ? input.evidence : [];
   if (evidence.length === 0) return "Attach at least one receipt";
@@ -104,7 +114,7 @@ export function fileReimbursementRequest(
     return { state, reimbursementRequestId: null, error: "Person not found" };
   }
   const filedOn = jakartaTodayIso();
-  const refusal = reimbursementFieldsRefusal(state, input, filedOn, null);
+  const refusal = reimbursementFieldsRefusal(state, personId, input, filedOn, null);
   if (refusal) return { state, reimbursementRequestId: null, error: refusal };
 
   const reimbursementRequestId = nid("reimb");
@@ -118,7 +128,7 @@ export function fileReimbursementRequest(
     amount: input.amount,
     reimbursementTypeId: input.reimbursementTypeId,
     description: input.description.trim(),
-    projectId: null,
+    projectId: input.projectId ?? null,
     withdrawnOn: null,
     decision: null,
     approvedAmount: null,
@@ -185,7 +195,7 @@ export function editReimbursementRequest(
   const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
   const denied = pendingChangeRefusal(state, row);
   if (denied || !row) return { state, error: denied };
-  const refusal = reimbursementFieldsRefusal(state, input, row.filedOn, row.id);
+  const refusal = reimbursementFieldsRefusal(state, row.personId, input, row.filedOn, row.id);
   if (refusal) return { state, error: refusal };
 
   const edited: ReimbursementRequest = {
@@ -194,6 +204,7 @@ export function editReimbursementRequest(
     amount: input.amount,
     reimbursementTypeId: input.reimbursementTypeId,
     description: input.description.trim(),
+    projectId: input.projectId ?? null,
   };
   const kept = state.reimbursementEvidence.filter((item) => item.reimbursementRequestId !== row.id);
   const current = state.reimbursementEvidence.filter((item) => item.reimbursementRequestId === row.id);

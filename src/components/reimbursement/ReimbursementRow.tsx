@@ -39,6 +39,7 @@ export function ReimbursementRow({
   const payer = row.paidByPersonId ? state.people.find((item) => item.id === row.paidByPersonId) : undefined;
   const lowered = row.decision === "approved" && row.approvedAmount !== null && row.approvedAmount < row.amount;
   const evidence = evidenceFor(state, row.id);
+  const project = row.projectId ? state.projects.find((item) => item.id === row.projectId) : undefined;
 
   return (
     <li className="flex gap-3 border-t border-line px-5 py-4 first:border-t-0">
@@ -64,6 +65,7 @@ export function ReimbursementRow({
           <p className="m-0 text-sm text-muted tabular-nums">
             Spent {formatDate(row.expenseDate)} · Filed {formatDate(row.filedOn)}
             {filer ? ` by ${personName(filer)}` : ""}
+            {project ? ` · ${project.code} · ${project.name}` : ""}
           </p>
           <p className="m-0 text-sm whitespace-pre-line">{row.description}</p>
           {evidence.length > 0 ? (

@@ -401,3 +401,55 @@ describe("marking a reimbursement paid", () => {
     expect(clearPaid(paidBySecond.next, ALFREDO, own.id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/own/) });
   });
 });
+
+/** An Admin opens a Project and staffs Digit on it from Sept 1 to Oct 10. */
+function withProject(): { state: AppState; projectId: string } {
+  const opened = executeCommand(createInitialState(), ALFREDO, {
+    name: "openProject",
+    args: [{ code: "PLN-01", name: "PLN audit", startDate: "2026-09-01" }],
+  });
+  if (opened.kind !== "applied") throw new Error("project not opened");
+  const projectId = opened.result.projectId as string;
+  const staffed = executeCommand(opened.next, ALFREDO, {
+    name: "addStaffing",
+    args: [{ personId: "person-digit", projectId, startDate: "2026-09-01", endDate: "2026-10-10", load: 50 }],
+  });
+  if (staffed.kind !== "applied") throw new Error(staffed.kind === "refused" ? staffed.error : "invalid");
+  return { state: staffed.next, projectId };
+}
+
+describe("linking a Project", () => {
+  it("files with a Project the Person is staffed on that date, and without one", () => {
+    const { state, projectId } = withProject();
+    const linked = file(state, DIGIT, taxi({ projectId, expenseDate: "2026-10-10" }));
+    expect(linked.kind === "applied" && linked.next.reimbursementRequests[0].projectId).toBe(projectId);
+    expect(file(state, DIGIT, taxi()).kind).toBe("applied");
+  });
+
+  it("refuses a Project not covered by the Person's Staffing on the expense date", () => {
+    const { state, projectId } = withProject();
+    expect(file(state, DIGIT, taxi({ projectId, expenseDate: "2026-10-11" }))).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/staffed/),
+    });
+    expect(file(state, RAYHAN, taxi({ projectId, expenseDate: "2026-10-01" }))).toMatchObject({ kind: "refused" });
+    expect(file(state, DIGIT, taxi({ projectId: "prj-nope" }))).toMatchObject({ kind: "refused" });
+  });
+
+  it("checks the Person's Staffing, not the Admin's, when an Admin files for them", () => {
+    const { state, projectId } = withProject();
+    expect(file(state, ALFREDO, taxi({ personId: "person-digit", projectId, expenseDate: "2026-10-01" })).kind).toBe("applied");
+    expect(file(state, ALFREDO, taxi({ projectId, expenseDate: "2026-10-01" }))).toMatchObject({ kind: "refused" });
+  });
+
+  it("rechecks the Project when an edit moves the expense date", () => {
+    const { state, projectId } = withProject();
+    const filed = filedBy(DIGIT, { projectId, expenseDate: "2026-10-05" }, state);
+    expect(edit(filed.state, DIGIT, filed.id, taxi({ projectId, expenseDate: "2026-10-12" }))).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/staffed/),
+    });
+    const unlinked = edit(filed.state, DIGIT, filed.id, taxi({ projectId: null, expenseDate: "2026-10-12" }));
+    expect(unlinked.kind === "applied" && unlinked.next.reimbursementRequests.at(-1)?.projectId).toBeNull();
+  });
+});

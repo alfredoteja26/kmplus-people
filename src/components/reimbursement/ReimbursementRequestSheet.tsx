@@ -19,7 +19,7 @@ import {
   REIMBURSEMENT_EVIDENCE_ACCEPT,
   reimbursementEvidenceAllowed,
 } from "@/lib/upload-rules";
-import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
+import { addDaysIso, isStaffedOnProject, jakartaTodayIso } from "@/lib/work-delivery-query";
 import { FileTextIcon, LoaderCircleIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -35,6 +35,8 @@ const PLAIN: Record<string, string> = {
   "Every receipt must be uploaded first": "Wait for every receipt to finish uploading.",
   "A receipt is already on another request": "One of these receipts is already on another request. Upload it again here.",
   "Admin grant required": "Only an Admin can decide reimbursements.",
+  "Project not found": "That Project no longer exists. Choose another or leave it blank.",
+  "The Person is not staffed on that Project on the expense date": "You're not staffed on that Project on the expense date. Choose another or leave it blank.",
   "An Admin cannot mark their own reimbursement Paid": "This is your own reimbursement. Another Admin marks it paid.",
   "Only an approved reimbursement can be Paid": "Only an approved reimbursement can be marked paid.",
   "Paid date is required": "Choose the day the money went out.",
@@ -80,6 +82,7 @@ export function ReimbursementRequestSheet({
   const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
   const [reimbursementTypeId, setReimbursementTypeId] = useState(editing?.reimbursementTypeId ?? types[0]?.id ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
+  const [projectId, setProjectId] = useState(editing?.projectId ?? "");
   const [receipts, setReceipts] = useState<Receipt[]>(() =>
     editing
       ? evidenceFor(state, editing.id).map(({ id, storagePath, fileName, contentType, size }) => ({
@@ -96,6 +99,11 @@ export function ReimbursementRequestSheet({
 
   const forSomeoneElse = personId !== state.currentPersonId;
   const personLabel = personName(state.people.find((row) => row.id === personId));
+  // Only Projects this Person is staffed on for the expense date; a pick that no longer fits drops out.
+  const projectOptions = [...state.projects]
+    .filter((row) => expenseDate && isStaffedOnProject(state, personId, row.id, expenseDate))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const chosenProjectId = projectOptions.some((row) => row.id === projectId) ? projectId : "";
   const amountValue = Number(amount);
   const amountOk = /^\d+$/.test(amount) && amountValue > 0;
   const uploading = receipts.some((row) => row.uploading);
@@ -177,6 +185,7 @@ export function ReimbursementRequestSheet({
           amount: amountValue,
           reimbursementTypeId,
           description: description.trim(),
+          projectId: chosenProjectId || null,
           evidence: receipts.map(({ storagePath, fileName, contentType, size }) => ({ storagePath, fileName, contentType, size })),
         });
         if (message) setError(plainReimbursementError(message));
@@ -228,6 +237,24 @@ export function ReimbursementRequestSheet({
           {types.map((row) => (
             <option key={row.id} value={row.id}>
               {row.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field
+        label="Project"
+        hint={
+          projectOptions.length
+            ? "Optional. Only Projects you're staffed on for the expense date."
+            : "No Project has you staffed on this date. Leave it blank."
+        }
+      >
+        <Select value={chosenProjectId} disabled={projectOptions.length === 0} onChange={(event) => setProjectId(event.target.value)}>
+          <option value="">No Project</option>
+          {projectOptions.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.code} · {row.name}
             </option>
           ))}
         </Select>
