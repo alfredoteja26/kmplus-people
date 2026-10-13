@@ -1,235 +1,176 @@
 "use client";
 
 import { Button } from "@/components/coss/button";
-import { Field } from "@/components/product/Field";
-import { Input } from "@/components/coss/input";
-import { childPositions, rootPositions } from "@/lib/domain";
-import { useStore } from "@/lib/store";
-import type { Position } from "@/lib/types";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AssignSeatModal } from "./AssignSeatModal";
-import { OrgTreeNode } from "./OrgTreeNode";
-import {
-  defaultCollapsedIds,
-  positionSearchBlob,
-  visiblePositionIds,
-} from "./org-tree-utils";
+import type { OrgIndex } from "@/lib/org-view";
+import { cn } from "@/lib/utils";
+import { Maximize2Icon, Minimize2Icon } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { OrgTreeNode, type NodeMark } from "./OrgTreeNode";
 
-function OrgTreeBranch({
-  position,
-  collapsedIds,
-  searchQuery,
-  visibleFilter,
-  onToggleCollapse,
-  onEdit,
-  onAssignEmpty,
-  hr,
-}: {
-  position: Position;
-  collapsedIds: Set<string>;
-  searchQuery: string;
-  visibleFilter: Set<string> | null;
-  onToggleCollapse: (id: string) => void;
-  onEdit?: (position: Position) => void;
-  onAssignEmpty: (positionId: string) => void;
+type Branches = {
+  index: OrgIndex;
+  collapsed: ReadonlySet<string>;
+  markOf: (positionId: string) => NodeMark;
+  query: string;
   hr: boolean;
-}) {
-  const { state } = useStore();
-  const children = childPositions(state, position.id).filter(
-    (child) => !visibleFilter || visibleFilter.has(child.id),
-  );
-  const searchActive = visibleFilter !== null;
-  const collapsed = searchActive ? false : collapsedIds.has(position.id);
-  const showChildren = children.length > 0 && !collapsed;
-  const highlighted =
-    searchQuery.trim().length > 0 && positionSearchBlob(state, position).includes(searchQuery.trim().toLowerCase());
+  onToggle: (positionId: string) => void;
+  onEdit?: (positionId: string) => void;
+  onAssign: (positionId: string) => void;
+};
 
-  if (visibleFilter && !visibleFilter.has(position.id)) {
-    return null;
-  }
+/** Canvas padding on each side (px-4), so fit-to-screen leaves the same margin a scrolled chart has. */
+const GUTTER = 16;
+/** Below this the cards stop being readable; the chart scrolls instead of shrinking further. */
+const MIN_SCALE = 0.3;
 
+function Stem() {
+  return <span aria-hidden="true" className="block h-5 w-[1.5px] shrink-0 bg-line-strong" />;
+}
+
+function Branch({ id, top, ctx }: { id: string; top: boolean; ctx: Branches }) {
+  const seat = ctx.index.seats.get(id)!;
+  const folded = ctx.collapsed.has(id);
+  const reports = seat.reports;
   return (
-    <div className="inline-flex flex-col items-center">
+    <div className="flex flex-col items-center">
       <OrgTreeNode
-        position={position}
-        collapsed={collapsed}
-        onToggleCollapse={() => onToggleCollapse(position.id)}
-        highlighted={highlighted}
-        searchQuery={searchQuery}
-        onEdit={onEdit}
-        onAssignEmpty={onAssignEmpty}
-        hr={hr}
+        seat={seat}
+        top={top}
+        folded={folded}
+        onToggle={() => ctx.onToggle(id)}
+        mark={ctx.markOf(id)}
+        query={ctx.query}
+        hr={ctx.hr}
+        onEdit={ctx.onEdit}
+        onAssign={ctx.onAssign}
       />
-      {showChildren ? (
+      {reports.length > 0 && !folded ? (
         <>
-          <div className="h-5 w-[1.5px] shrink-0 bg-line-strong" aria-hidden />
-          <div
-            className="relative flex flex-wrap items-start justify-center gap-x-6 gap-y-8 pt-0"
-            role="group"
-            aria-label={`Reports to ${position.title}`}
-          >
-            {children.length > 1 ? (
-              <div
-                className="pointer-events-none absolute top-0 h-[1.5px] bg-line-strong"
-                style={{
-                  left: `${50 / children.length}%`,
-                  right: `${50 / children.length}%`,
-                }}
-                aria-hidden
-              />
-            ) : null}
-            {children.map((child) => (
-              <div key={child.id} className="flex flex-col items-center">
-                <div className="h-5 w-[1.5px] shrink-0 bg-line-strong" aria-hidden />
-                <OrgTreeBranch
-                  position={child}
-                  collapsedIds={collapsedIds}
-                  searchQuery={searchQuery}
-                  visibleFilter={visibleFilter}
-                  onToggleCollapse={onToggleCollapse}
-                  onEdit={onEdit}
-                  onAssignEmpty={onAssignEmpty}
-                  hr={hr}
-                />
-              </div>
+          <Stem />
+          <ul aria-label={`Reports to ${seat.position.title}`} className="m-0 flex list-none items-start justify-center p-0">
+            {reports.map((child, at) => (
+              <li key={child} className="relative flex flex-col items-center px-3">
+                {/* Each report draws its share of the bar, so the bar always ends on the outer stems whatever the card widths. */}
+                {reports.length > 1 ? (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute top-0 h-[1.5px] bg-line-strong",
+                      at === 0 ? "right-0 left-1/2" : at === reports.length - 1 ? "right-1/2 left-0" : "inset-x-0",
+                    )}
+                  />
+                ) : null}
+                <Stem />
+                <Branch id={child} top={false} ctx={ctx} />
+              </li>
             ))}
-          </div>
+          </ul>
         </>
       ) : null}
     </div>
   );
 }
 
+/**
+ * The seat tree: top-down cards on stems and bars. Wider than the panel, it scrolls sideways, or
+ * "Fit to screen" scales it down to the panel width (layout is untouched, so links and buttons still work).
+ */
 export function OrgTree({
-  hr,
-  onEdit,
-  onCreatePosition,
-}: {
-  hr: boolean;
-  onEdit?: (position: Position) => void;
-  onCreatePosition?: () => void;
+  toolbar,
+  focusId,
+  ...ctx
+}: Branches & {
+  /** Controls for the start of the panel's toolbar row. */
+  toolbar: ReactNode;
+  /** A position to bring into view: the current search match, or one just created. */
+  focusId: string | null;
 }) {
-  const { state } = useStore();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
-  const [assignPositionId, setAssignPositionId] = useState<string | null>(null);
-  const [initializedCollapse, setInitializedCollapse] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const centeredRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const centered = useRef(false);
+  const [fit, setFit] = useState(false);
+  const [size, setSize] = useState<{ width: number; height: number; room: number } | null>(null);
 
   useEffect(() => {
-    if (initializedCollapse) return;
-    setCollapsedIds(defaultCollapsedIds(state));
-    setInitializedCollapse(true);
-  }, [state, initializedCollapse]);
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    // offsetWidth ignores transforms, so this is the chart's natural size even while it is scaled.
+    const measure = () =>
+      setSize((before) => {
+        const next = { width: content.offsetWidth, height: content.offsetHeight, room: scroller.clientWidth - GUTTER * 2 };
+        return before && before.width === next.width && before.height === next.height && before.room === next.room ? before : next;
+      });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
-  // On narrow screens the chart is wider than the viewport; start scrolled so the top position is in view.
+  const overflowing = size ? size.width > size.room + 1 : false;
+  const scale = fit && size && overflowing ? Math.max(MIN_SCALE, size.room / size.width) : 1;
+
+  // A chart wider than the panel opens on its middle, where the top position sits.
   useEffect(() => {
-    if (!initializedCollapse || centeredRef.current) return;
-    const el = scrollerRef.current;
-    if (!el) return;
-    centeredRef.current = true;
-    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
-  }, [initializedCollapse]);
+    const scroller = scrollerRef.current;
+    if (!scroller || !size || centered.current) return;
+    centered.current = true;
+    scroller.scrollLeft = Math.max(0, (scroller.scrollWidth - scroller.clientWidth) / 2);
+  }, [size]);
 
-  const visibleFilter = useMemo(() => visiblePositionIds(state, searchQuery), [state, searchQuery]);
-
-  const roots = useMemo(() => {
-    return rootPositions(state).filter((root) => !visibleFilter || visibleFilter.has(root.id));
-  }, [state, visibleFilter]);
-
-  const toggleCollapse = (id: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const expandAll = () => setCollapsedIds(new Set());
-  const collapseDeep = () => setCollapsedIds(defaultCollapsedIds(state));
-  const catalogEmpty = state.positions.length === 0;
-
-  if (catalogEmpty) {
-    return (
-      <div className="mt-6">
-        <div
-          className="rounded-[16px] bg-paper px-6 py-14 text-center shadow-[var(--shadow)]"
-          role="region"
-          aria-label="Organization chart"
-        >
-          <p className="m-0 text-base font-medium text-ink">No positions yet</p>
-          <p className="mx-auto mt-2 mb-0 max-w-md text-sm text-muted">
-            The chart shows positions and who holds them. Start with the top position, then add the positions that
-            report to it.
-          </p>
-          {hr && onCreatePosition ? (
-            <Button type="button" className="mt-6" onClick={onCreatePosition}>
-              Add first position
-            </Button>
-          ) : (
-            <p className="mt-6 mb-0 text-sm text-muted">HR adds positions here. Ask HR if you expected to see the chart.</p>
-          )}
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!focusId) return;
+    const node = scrollerRef.current?.querySelector<HTMLElement>(`[data-org-node="${CSS.escape(focusId)}"]`);
+    if (!node) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "nearest", inline: "center" });
+  }, [focusId, scale]);
 
   return (
-    <div className="mt-6">
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="min-w-[220px] flex-1 max-w-md">
-          <Field label="Search positions or people">
-            <Input
-              type="search"
-              placeholder="Position title or person name"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="flex gap-2 pb-0.5">
-          <Button type="button" variant="ghost" size="sm" onClick={expandAll}>
-            Expand all
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={collapseDeep}>
-            Show top levels only
-          </Button>
-        </div>
+    <section aria-label="Organization chart" className="overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1">{toolbar}</div>
+        {overflowing || fit ? (
+          <div className="flex items-center gap-2">
+            {scale < 1 ? (
+              <span className="text-label font-normal text-muted tabular-nums" aria-live="polite">
+                {Math.round(scale * 100)}%
+              </span>
+            ) : null}
+            <Button type="button" variant="ghost" size="sm" aria-pressed={fit} onClick={() => setFit((value) => !value)}>
+              {fit ? <Maximize2Icon aria-hidden="true" /> : <Minimize2Icon aria-hidden="true" />}
+              {fit ? "Actual size" : "Fit to screen"}
+            </Button>
+          </div>
+        ) : null}
       </div>
-
-      {searchQuery.trim() && roots.length === 0 ? (
-        <p className="text-sm text-muted">No positions or people match &ldquo;{searchQuery.trim()}&rdquo;.</p>
-      ) : (
+      <div
+        ref={scrollerRef}
+        tabIndex={0}
+        role="region"
+        aria-label="Chart canvas. Scroll sideways to see wider levels."
+        className="overflow-x-auto bg-bg px-4 py-8 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+      >
         <div
-          ref={scrollerRef}
-          className="overflow-x-auto rounded-[16px] border border-line bg-bg px-4 py-8"
-          role="region"
-          aria-label="Organization chart"
+          className="mx-auto w-max"
+          style={scale < 1 && size ? { width: size.width * scale, height: size.height * scale } : undefined}
         >
-          <div className="flex min-w-max justify-center gap-10">
-            {roots.map((root) => (
-              <div key={root.id} className="shrink-0">
-                <OrgTreeBranch
-                  position={root}
-                  collapsedIds={collapsedIds}
-                  searchQuery={searchQuery}
-                  visibleFilter={visibleFilter}
-                  onToggleCollapse={toggleCollapse}
-                  onEdit={onEdit}
-                  onAssignEmpty={setAssignPositionId}
-                  hr={hr}
-                />
-              </div>
-            ))}
+          <div
+            ref={contentRef}
+            className="w-max origin-top-left motion-safe:transition-transform motion-safe:duration-200"
+            style={scale < 1 ? { transform: `scale(${scale})` } : undefined}
+          >
+            <ul aria-label="Top positions" className="m-0 flex list-none items-start gap-12 p-0">
+              {ctx.index.roots.map((id) => (
+                <li key={id}>
+                  <Branch id={id} top ctx={ctx} />
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-      )}
-
-      {assignPositionId && hr ? (
-        <AssignSeatModal positionId={assignPositionId} onClose={() => setAssignPositionId(null)} />
-      ) : null}
-    </div>
+      </div>
+    </section>
   );
 }
