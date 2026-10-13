@@ -5,25 +5,30 @@ import { Callout, PageHeader } from "@/components/product/Card";
 import { Table, Td, Th } from "@/components/product/Table";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { formatDate, formatDateRange } from "@/lib/labels";
-import { leaveIsApproved, workbookRows } from "@/lib/work-delivery-query";
+import { jakartaTodayIso, leaveIsApproved, workbookRows } from "@/lib/work-delivery-query";
+import { buildXlsx, XLSX_MIME } from "@/lib/xlsx";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
 
+const NUMERIC_COLUMNS = new Set(["hours", "load"]);
+
 function downloadWorkbook(state: ReturnType<typeof useStore>["state"]) {
-  const sheets = workbookRows(state);
-  const text = sheets
-    .map((sheet) => {
-      const lines = [sheet.columns.join("\t"), ...sheet.rows.map((row) => row.join("\t"))];
-      return `## ${sheet.name}\n${lines.join("\n")}`;
-    })
-    .join("\n\n");
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const sheets = workbookRows(state).map((sheet) => ({
+    ...sheet,
+    rows: sheet.rows.map((row) =>
+      row.map((cell, index) =>
+        NUMERIC_COLUMNS.has(sheet.columns[index] ?? "") && cell !== "" ? Number(cell) : cell,
+      ),
+    ),
+  }));
+  const bytes = buildXlsx(sheets);
+  const blob = new Blob([bytes as BlobPart], { type: XLSX_MIME });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "project-admin-report.txt";
+  anchor.download = `kmplus-project-report-${jakartaTodayIso()}.xlsx`;
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function ProjectAdminPage() {
