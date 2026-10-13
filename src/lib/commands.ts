@@ -1269,9 +1269,15 @@ export {
   updatePersonContact,
 } from "./work-delivery-commands";
 
-export { decideReimbursementRequest, fileReimbursementRequest } from "./reimbursement-commands";
+export {
+  decideReimbursementRequest,
+  editReimbursementRequest,
+  fileReimbursementRequest,
+  withdrawReimbursementRequest,
+} from "./reimbursement-commands";
 export type {
   DecideReimbursementInput,
+  EditReimbursementInput,
   FileReimbursementInput,
   ReimbursementEvidenceInput,
 } from "./reimbursement-commands";

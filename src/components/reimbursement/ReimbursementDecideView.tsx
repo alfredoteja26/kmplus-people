@@ -12,13 +12,16 @@ import type { ReimbursementRequest } from "@/lib/types";
 import { InboxIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { PendingChangeActions } from "./PendingChangeActions";
 import { ReimbursementDecideSheet } from "./ReimbursementDecideSheet";
 import { ReimbursementRequestSheet, plainReimbursementError } from "./ReimbursementRequestSheet";
 import { ReimbursementRow } from "./ReimbursementRow";
 
 export function ReimbursementDecideView() {
-  const { state, fileReimbursementRequest, decideReimbursementRequest } = useStore();
+  const { state, fileReimbursementRequest, editReimbursementRequest, withdrawReimbursementRequest, decideReimbursementRequest } =
+    useStore();
   const [deciding, setDeciding] = useState<{ row: ReimbursementRequest; mode: "lower" | "reject" } | null>(null);
+  const [editing, setEditing] = useState<ReimbursementRequest | null>(null);
   const [filing, setFiling] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +68,30 @@ export function ReimbursementDecideView() {
     setNotice(`${outcome}: ${label(row)}.`);
     return null;
   }
+
+  function withdraw(row: ReimbursementRequest) {
+    const message = withdrawReimbursementRequest(row.id).error;
+    if (message) {
+      setNotice("");
+      setError(plainReimbursementError(message));
+      return;
+    }
+    setError("");
+    setNotice(`Withdrawn: ${label(row)}.`);
+  }
+
+  const changeActions = (row: ReimbursementRequest) => (
+    <PendingChangeActions
+      state={state}
+      row={row}
+      onEdit={() => {
+        setNotice("");
+        setError("");
+        setEditing(row);
+      }}
+      onWithdraw={() => withdraw(row)}
+    />
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
@@ -123,7 +150,10 @@ export function ReimbursementDecideView() {
                 showPerson
                 actions={
                   row.personId === state.currentPersonId ? (
-                    <p className="m-0 max-w-56 text-sm text-muted">Your own request. Another Admin decides it.</p>
+                    <>
+                      <p className="m-0 max-w-56 text-sm text-muted">Your own request. Another Admin decides it.</p>
+                      {changeActions(row)}
+                    </>
                   ) : (
                     <>
                       <Button type="button" size="sm" onClick={() => decide(row, { decision: "approved" })}>
@@ -141,6 +171,7 @@ export function ReimbursementDecideView() {
                       >
                         Reject
                       </Button>
+                      {changeActions(row)}
                     </>
                   )
                 }
@@ -157,6 +188,20 @@ export function ReimbursementDecideView() {
           mode={deciding.mode}
           onClose={() => setDeciding(null)}
           onDecide={(input) => decide(deciding.row, input)}
+        />
+      ) : null}
+
+      {editing ? (
+        <ReimbursementRequestSheet
+          state={state}
+          forOthers={false}
+          editing={editing}
+          onClose={() => setEditing(null)}
+          onFile={(input) => {
+            const result = editReimbursementRequest(editing.id, input);
+            if (!result.error) setNotice(`Changes saved: ${label({ ...editing, ...input })}.`);
+            return result.error;
+          }}
         />
       ) : null}
 

@@ -10,8 +10,8 @@ import { Select } from "@/components/product/Select";
 import type { FileReimbursementInput, ReimbursementEvidenceInput } from "@/lib/commands";
 import { personName } from "@/lib/project-view";
 import { REIMBURSEMENT_WINDOW_DAYS } from "@/lib/reimbursement-commands";
-import { formatRupiah } from "@/lib/reimbursement-view";
-import type { AppState } from "@/lib/types";
+import { evidenceFor, formatRupiah } from "@/lib/reimbursement-view";
+import type { AppState, ReimbursementRequest } from "@/lib/types";
 import { uploadWorkDeliveryFile } from "@/lib/upload-work-delivery";
 import {
   MAX_REIMBURSEMENT_FILES,
@@ -35,8 +35,10 @@ const PLAIN: Record<string, string> = {
   "Every receipt must be uploaded first": "Wait for every receipt to finish uploading.",
   "A receipt is already on another request": "One of these receipts is already on another request. Upload it again here.",
   "Admin grant required": "Only an Admin can decide reimbursements.",
+  "Only the Person or the Admin who filed it may change a reimbursement": "Only the person it is for, or the Admin who filed it, can change it.",
+  "This reimbursement is withdrawn": "This reimbursement was withdrawn, so it can't change.",
   "An Admin cannot decide their own reimbursement": "This is your own reimbursement. Another Admin decides it.",
-  "This reimbursement is already decided": "This reimbursement already has a decision.",
+  "This reimbursement is already decided": "This reimbursement already has a decision, so it can't change.",
   "A lower amount needs a note": "Add a note: why the amount is lower.",
   "A rejection needs a note": "Add a note: why it is rejected.",
 };
@@ -52,27 +54,44 @@ type Receipt = ReimbursementEvidenceInput & { key: string; uploading: boolean };
 export function ReimbursementRequestSheet({
   state,
   forOthers,
+  editing,
   onClose,
   onFile,
 }: {
   state: AppState;
-  /** An Admin may choose whose expense it is. */
+  /** An Admin may choose whose expense it is. Ignored when editing. */
   forOthers: boolean;
+  /** A pending request to correct; the form opens with its fields and receipts. */
+  editing?: ReimbursementRequest;
   onClose: () => void;
   onFile: (input: FileReimbursementInput) => string | null;
 }) {
   const today = jakartaTodayIso();
+  // The 90 days count back from the day the request was first filed, also when it is edited later.
+  const earliest = addDaysIso(editing?.filedOn ?? today, -REIMBURSEMENT_WINDOW_DAYS);
   const types = [...state.reimbursementTypes].sort((a, b) => a.sortOrder - b.sortOrder);
   const people = [...state.people].sort((a, b) => personName(a).localeCompare(personName(b)));
-  const [personId, setPersonId] = useState(state.currentPersonId);
-  const [expenseDate, setExpenseDate] = useState(today);
-  const [amount, setAmount] = useState("");
-  const [reimbursementTypeId, setReimbursementTypeId] = useState(types[0]?.id ?? "");
-  const [description, setDescription] = useState("");
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [personId, setPersonId] = useState(editing?.personId ?? state.currentPersonId);
+  const [expenseDate, setExpenseDate] = useState(editing?.expenseDate ?? today);
+  const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
+  const [reimbursementTypeId, setReimbursementTypeId] = useState(editing?.reimbursementTypeId ?? types[0]?.id ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [receipts, setReceipts] = useState<Receipt[]>(() =>
+    editing
+      ? evidenceFor(state, editing.id).map(({ id, storagePath, fileName, contentType, size }) => ({
+          key: id,
+          storagePath,
+          fileName,
+          contentType,
+          size,
+          uploading: false,
+        }))
+      : [],
+  );
   const [error, setError] = useState("");
 
   const forSomeoneElse = personId !== state.currentPersonId;
+  const personLabel = personName(state.people.find((row) => row.id === personId));
   const amountValue = Number(amount);
   const amountOk = /^\d+$/.test(amount) && amountValue > 0;
   const uploading = receipts.some((row) => row.uploading);
@@ -130,10 +149,22 @@ export function ReimbursementRequestSheet({
 
   return (
     <FormSheet
-      title={forSomeoneElse ? `File a reimbursement for ${personName(state.people.find((row) => row.id === personId))}` : "File a reimbursement"}
-      description="One expense per request. An Admin decides it; payment happens outside the app."
+      title={
+        editing
+          ? forSomeoneElse
+            ? `Edit ${personLabel}'s reimbursement`
+            : "Edit reimbursement"
+          : forSomeoneElse
+            ? `File a reimbursement for ${personLabel}`
+            : "File a reimbursement"
+      }
+      description={
+        editing
+          ? "You can change it until an Admin decides."
+          : "One expense per request. An Admin decides it; payment happens outside the app."
+      }
       onClose={onClose}
-      submitLabel={uploading ? "Uploading…" : "Send request"}
+      submitLabel={uploading ? "Uploading…" : editing ? "Save changes" : "Send request"}
       submitDisabled={!ready}
       onSubmit={() => {
         const message = onFile({
@@ -148,7 +179,7 @@ export function ReimbursementRequestSheet({
         else onClose();
       }}
     >
-      {forOthers ? (
+      {forOthers && !editing ? (
         <Field label="Expense for">
           <Select value={personId} onChange={(event) => setPersonId(event.target.value)}>
             {people.map((row) => (
@@ -161,11 +192,14 @@ export function ReimbursementRequestSheet({
       ) : null}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Expense date" hint={`Within the last ${REIMBURSEMENT_WINDOW_DAYS} days.`}>
+        <Field
+          label="Expense date"
+          hint={editing ? `Within ${REIMBURSEMENT_WINDOW_DAYS} days before it was filed.` : `Within the last ${REIMBURSEMENT_WINDOW_DAYS} days.`}
+        >
           <Input
             type="date"
             value={expenseDate}
-            min={addDaysIso(today, -REIMBURSEMENT_WINDOW_DAYS)}
+            min={earliest}
             max={today}
             onChange={(event) => setExpenseDate(event.target.value)}
           />

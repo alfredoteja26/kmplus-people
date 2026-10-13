@@ -246,3 +246,77 @@ describe("deciding a reimbursement", () => {
     expect(decide(state, ALFREDO, id, { decision: "approved" }).kind).toBe("applied");
   });
 });
+
+function edit(state: AppState, session: { personId: string; role: Role }, id: string, input: Record<string, unknown>) {
+  return executeCommand(state, session, { name: "editReimbursementRequest", args: [id, input] });
+}
+
+function withdraw(state: AppState, session: { personId: string; role: Role }, id: string) {
+  return executeCommand(state, session, { name: "withdrawReimbursementRequest", args: [id] });
+}
+
+describe("changing a pending reimbursement", () => {
+  it("edits the fields and swaps receipts while it is pending", () => {
+    const { state, id } = filedBy(DIGIT, { evidence: [receipt("a.jpg"), receipt("b.jpg")] });
+    const outcome = edit(state, DIGIT, id, taxi({ amount: 90000, description: "Taxi, both ways", evidence: [receipt("b.jpg"), receipt("c.pdf")] }));
+    if (outcome.kind !== "applied") throw new Error(outcome.kind === "refused" ? outcome.error : "invalid");
+    expect(outcome.next.reimbursementRequests[0]).toMatchObject({ amount: 90000, description: "Taxi, both ways", filedOn: "2026-10-13" });
+    expect(outcome.next.reimbursementEvidence.map((row) => [row.fileName, row.sortOrder])).toEqual([
+      ["b.jpg", 0],
+      ["c.pdf", 1],
+    ]);
+  });
+
+  it("measures the 90 days from the original filing date, not the edit date", () => {
+    const { state, id } = filedBy(DIGIT, { expenseDate: "2026-07-20" });
+    vi.setSystemTime(new Date("2026-11-30T03:00:00Z"));
+    expect(edit(state, DIGIT, id, taxi({ expenseDate: "2026-07-16" })).kind).toBe("applied");
+    expect(edit(state, DIGIT, id, taxi({ expenseDate: "2026-07-14" }))).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/90 days/),
+    });
+  });
+
+  it("reapplies every filing rule on edit", () => {
+    const { state, id } = filedBy(DIGIT);
+    expect(edit(state, DIGIT, id, taxi({ evidence: [] }))).toMatchObject({ kind: "refused", error: expect.stringMatching(/at least one/) });
+    expect(edit(state, DIGIT, id, taxi({ amount: 0 }))).toMatchObject({ kind: "refused" });
+    const other = filedBy(RAYHAN, { evidence: [receipt("rayhan.jpg")] }, state);
+    expect(edit(other.state, DIGIT, id, taxi({ evidence: [receipt("rayhan.jpg")] }))).toMatchObject({
+      kind: "refused",
+      error: expect.stringMatching(/another request/),
+    });
+  });
+
+  it("withdraws a pending request and keeps it, with its receipts, as history", () => {
+    const { state, id } = filedBy(DIGIT);
+    const outcome = withdraw(state, DIGIT, id);
+    if (outcome.kind !== "applied") throw new Error("not applied");
+    const mine = viewAs(outcome.next, DIGIT);
+    expect(mine.reimbursementRequests[0]).toMatchObject({ id, withdrawnOn: "2026-10-13" });
+    expect(mine.reimbursementEvidence).toHaveLength(1);
+    expect(withdraw(outcome.next, DIGIT, id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/withdrawn/) });
+    expect(edit(outcome.next, DIGIT, id, taxi())).toMatchObject({ kind: "refused", error: expect.stringMatching(/withdrawn/) });
+    expect(decide(outcome.next, ALFREDO, id, { decision: "approved" })).toMatchObject({ kind: "refused" });
+  });
+
+  it("lets only the Person it is for and the Admin who filed it change it", () => {
+    const own = filedBy(DIGIT);
+    expect(edit(own.state, RAYHAN, own.id, taxi())).toMatchObject({ kind: "refused", error: expect.stringMatching(/Only/) });
+    expect(withdraw(own.state, ALFREDO, own.id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/Only/) });
+
+    const forDigit = filedBy(ALFREDO, { personId: "person-digit" });
+    expect(edit(forDigit.state, ALFREDO, forDigit.id, taxi({ amount: 70000 })).kind).toBe("applied");
+    expect(withdraw(forDigit.state, DIGIT, forDigit.id).kind).toBe("applied");
+    const second = withSecondAdmin(forDigit.state, "person-rayhan");
+    expect(withdraw(second, RAYHAN, forDigit.id)).toMatchObject({ kind: "refused" });
+  });
+
+  it("locks the request once an Admin decides it", () => {
+    const { state, id } = filedBy(DIGIT);
+    const decided = decide(state, ALFREDO, id, { decision: "approved" });
+    if (decided.kind !== "applied") throw new Error("not applied");
+    expect(edit(decided.next, DIGIT, id, taxi({ amount: 1 }))).toMatchObject({ kind: "refused", error: expect.stringMatching(/decided/) });
+    expect(withdraw(decided.next, DIGIT, id)).toMatchObject({ kind: "refused", error: expect.stringMatching(/decided/) });
+  });
+});

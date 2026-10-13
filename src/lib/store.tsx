@@ -68,6 +68,11 @@ type Store = {
   fileReimbursementRequest: (
     input: commands.FileReimbursementInput,
   ) => { reimbursementRequestId: string | null; error: string | null };
+  editReimbursementRequest: (
+    reimbursementRequestId: string,
+    input: commands.EditReimbursementInput,
+  ) => { error: string | null };
+  withdrawReimbursementRequest: (reimbursementRequestId: string) => { error: string | null };
   decideReimbursementRequest: (
     reimbursementRequestId: string,
     input: commands.DecideReimbursementInput,
@@ -341,6 +346,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       fileReimbursementRequest(input) {
         return commit("fileReimbursementRequest", [input]);
+      },
+      editReimbursementRequest(reimbursementRequestId, input) {
+        return commit("editReimbursementRequest", [reimbursementRequestId, input]);
+      },
+      withdrawReimbursementRequest(reimbursementRequestId) {
+        return commit("withdrawReimbursementRequest", [reimbursementRequestId]);
       },
       decideReimbursementRequest(reimbursementRequestId, input) {
         return commit("decideReimbursementRequest", [reimbursementRequestId, input]);

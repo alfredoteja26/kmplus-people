@@ -12,15 +12,30 @@ import {
   reimbursementsFor,
 } from "@/lib/reimbursement-view";
 import { useStore } from "@/lib/store";
+import type { ReimbursementRequest } from "@/lib/types";
 import { PlusIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
-import { ReimbursementRequestSheet } from "./ReimbursementRequestSheet";
+import { PendingChangeActions } from "./PendingChangeActions";
+import { ReimbursementRequestSheet, plainReimbursementError } from "./ReimbursementRequestSheet";
 import { ReimbursementRow } from "./ReimbursementRow";
 
 export function MyReimbursementView() {
-  const { state, fileReimbursementRequest } = useStore();
+  const { state, fileReimbursementRequest, editReimbursementRequest, withdrawReimbursementRequest } = useStore();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<ReimbursementRequest | null>(null);
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  function withdraw(row: ReimbursementRequest) {
+    const message = withdrawReimbursementRequest(row.id).error;
+    if (message) {
+      setNotice("");
+      setError(plainReimbursementError(message));
+      return;
+    }
+    setError("");
+    setNotice(`Withdrawn: ${formatRupiah(row.amount)}. It stays below as history.`);
+  }
 
   const mine = reimbursementsFor(state, state.currentPersonId);
   const waiting = mine.filter((row) => reimbursementState(row) === "pending");
@@ -41,6 +56,7 @@ export function MyReimbursementView() {
           type="button"
           onClick={() => {
             setNotice("");
+            setError("");
             setOpen(true);
           }}
         >
@@ -52,6 +68,11 @@ export function MyReimbursementView() {
       {notice ? (
         <p role="status" className="m-0 text-sm">
           {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="m-0 text-sm text-destructive-foreground">
+          {error}
         </p>
       ) : null}
 
@@ -68,7 +89,7 @@ export function MyReimbursementView() {
           {months.map((group) => {
             const label = formatExpenseMonth(group.month);
             return (
-              <section key={group.month} aria-label={label} className="overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+              <section key={group.month} aria-label={label} className="@container overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
                 <h2 className="m-0 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-5 py-3.5 text-base font-medium">
                   <span className="flex items-baseline gap-2">
                     {label}
@@ -81,7 +102,23 @@ export function MyReimbursementView() {
                 </h2>
                 <ul className="m-0 list-none p-0">
                   {group.rows.map((row) => (
-                    <ReimbursementRow key={row.id} state={state} row={row} />
+                    <ReimbursementRow
+                      key={row.id}
+                      state={state}
+                      row={row}
+                      actions={
+                        <PendingChangeActions
+                          state={state}
+                          row={row}
+                          onEdit={() => {
+                            setNotice("");
+                            setError("");
+                            setEditing(row);
+                          }}
+                          onWithdraw={() => withdraw(row)}
+                        />
+                      }
+                    />
                   ))}
                 </ul>
               </section>
@@ -92,6 +129,20 @@ export function MyReimbursementView() {
           </p>
         </div>
       )}
+
+      {editing ? (
+        <ReimbursementRequestSheet
+          state={state}
+          forOthers={false}
+          editing={editing}
+          onClose={() => setEditing(null)}
+          onFile={(input) => {
+            const result = editReimbursementRequest(editing.id, input);
+            if (!result.error) setNotice("Changes saved.");
+            return result.error;
+          }}
+        />
+      ) : null}
 
       {open ? (
         <ReimbursementRequestSheet

@@ -128,16 +128,7 @@ export function fileReimbursementRequest(
     paidOn: null,
     paidByPersonId: null,
   };
-  const evidence: ReimbursementEvidence[] = input.evidence.map((file, sortOrder) => ({
-    id: nid("reimb-file"),
-    tenantId: TENANT_ID,
-    reimbursementRequestId,
-    storagePath: file.storagePath,
-    fileName: file.fileName,
-    contentType: file.contentType,
-    size: file.size,
-    sortOrder,
-  }));
+  const evidence = evidenceRows(reimbursementRequestId, input.evidence, []);
   const next = {
     ...state,
     reimbursementRequests: [...state.reimbursementRequests, row],
@@ -148,6 +139,88 @@ export function fileReimbursementRequest(
     reimbursementRequestId,
     error: null,
   };
+}
+
+/** Evidence rows in the order given; a file already on the request keeps its row id. */
+function evidenceRows(
+  reimbursementRequestId: string,
+  files: ReimbursementEvidenceInput[],
+  existing: ReimbursementEvidence[],
+): ReimbursementEvidence[] {
+  return files.map((file, sortOrder) => ({
+    id: existing.find((row) => row.storagePath === file.storagePath)?.id ?? nid("reimb-file"),
+    tenantId: TENANT_ID,
+    reimbursementRequestId,
+    storagePath: file.storagePath,
+    fileName: file.fileName,
+    contentType: file.contentType,
+    size: file.size,
+    sortOrder,
+  }));
+}
+
+/**
+ * Who may still change a request: the Person it is for or the Admin who filed it, and only while it waits for a
+ * decision. Null when the change may go ahead.
+ */
+function pendingChangeRefusal(state: AppState, row: ReimbursementRequest | undefined): string | null {
+  if (!row) return "Reimbursement not found";
+  if (state.currentPersonId !== row.personId && state.currentPersonId !== row.filedByPersonId) {
+    return "Only the Person or the Admin who filed it may change a reimbursement";
+  }
+  if (row.withdrawnOn) return "This reimbursement is withdrawn";
+  if (row.decision) return "This reimbursement is already decided";
+  return null;
+}
+
+export type EditReimbursementInput = Omit<FileReimbursementInput, "personId">;
+
+/** The filer corrects a pending request; every filing rule applies again, the 90 days counted from filedOn. */
+export function editReimbursementRequest(
+  state: AppState,
+  reimbursementRequestId: string,
+  input: EditReimbursementInput,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
+  const denied = pendingChangeRefusal(state, row);
+  if (denied || !row) return { state, error: denied };
+  const refusal = reimbursementFieldsRefusal(state, input, row.filedOn, row.id);
+  if (refusal) return { state, error: refusal };
+
+  const edited: ReimbursementRequest = {
+    ...row,
+    expenseDate: input.expenseDate,
+    amount: input.amount,
+    reimbursementTypeId: input.reimbursementTypeId,
+    description: input.description.trim(),
+  };
+  const kept = state.reimbursementEvidence.filter((item) => item.reimbursementRequestId !== row.id);
+  const current = state.reimbursementEvidence.filter((item) => item.reimbursementRequestId === row.id);
+  const next = {
+    ...state,
+    reimbursementRequests: state.reimbursementRequests.map((item) => (item.id === row.id ? edited : item)),
+    reimbursementEvidence: [...kept, ...evidenceRows(row.id, input.evidence, current)],
+  };
+  return { state: audit(next, "update", "ReimbursementRequest", row.id, `Edited ${input.amount}`), error: null };
+}
+
+/** The filer takes back a pending request. It stays, with its evidence, as withdrawn history. */
+export function withdrawReimbursementRequest(
+  state: AppState,
+  reimbursementRequestId: string,
+): CommandResult<{ error: string | null }> {
+  state = ensureWorkDeliveryCollections(state);
+  const row = state.reimbursementRequests.find((item) => item.id === reimbursementRequestId);
+  const denied = pendingChangeRefusal(state, row);
+  if (denied || !row) return { state, error: denied };
+  const next = {
+    ...state,
+    reimbursementRequests: state.reimbursementRequests.map((item) =>
+      item.id === row.id ? { ...item, withdrawnOn: jakartaTodayIso() } : item,
+    ),
+  };
+  return { state: audit(next, "update", "ReimbursementRequest", row.id, "Withdrawn"), error: null };
 }
 
 export type DecideReimbursementInput = {
