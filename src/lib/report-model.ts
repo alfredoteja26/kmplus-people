@@ -1,9 +1,23 @@
 import type { AppState, Project } from "@/lib/types";
 import { activeHolidays, isWeekendIso } from "@/lib/leave-view";
+import { personName } from "@/lib/project-view";
 import { addDaysIso, countedTimeBlocksForPerson, hoursBetween, personLoadSum } from "@/lib/work-delivery-query";
 
-/** What an Admin chose for one Report. Dates are ISO, `to` on or after `from`. */
-export type ReportConfig = { from: string; to: string };
+/**
+ * What an Admin chose for one Report. Dates are ISO, `to` on or after `from`. A null id list means every
+ * Project or everyone. `includeNoProject` is ignored while Projects are chosen: a client file carries no
+ * internal time.
+ */
+export type ReportConfig = {
+  from: string;
+  to: string;
+  projectIds: string[] | null;
+  personIds: string[] | null;
+  includeNoProject: boolean;
+};
+
+/** Every Project, everyone, and time with no Project included: the Report before any filter. */
+export const NO_FILTERS = { projectIds: null, personIds: null, includeNoProject: true } satisfies Omit<ReportConfig, "from" | "to">;
 
 /** Who generated the Report and when, in Asia/Jakarta wall time ("13 Oct 2026, 10:42"). */
 export type ReportStamp = { generatedBy: string; generatedAt: string };
@@ -23,6 +37,14 @@ function peakLoad(state: AppState, personId: string, from: string, to: string) {
   return Math.max(...[from, ...starts].map((day) => personLoadSum(state, personId, day)));
 }
 
+/** Monday to Friday from `from` to `to`, excluding active public holidays. */
+export function reportWorkingDays(state: AppState, from: string, to: string): number {
+  const holidays = new Set(activeHolidays(state).map((row) => row.date));
+  let count = 0;
+  for (let day = from; day <= to; day = addDaysIso(day, 1)) if (!isWeekendIso(day) && !holidays.has(day)) count += 1;
+  return count;
+}
+
 /**
  * The Report as figures, with no formatting or layout, so the spreadsheet and the PDF cannot disagree.
  * Hours stay exact; only display rounds them, so rows always add up to their totals. Rules: the Report
@@ -30,22 +52,26 @@ function peakLoad(state: AppState, personId: string, from: string, to: string) {
  */
 export function buildReport(state: AppState, config: ReportConfig, stamp: ReportStamp) {
   const { from, to } = config;
-  const days: string[] = [];
-  for (let day = from; day <= to; day = addDaysIso(day, 1)) days.push(day);
-  const holidays = new Set(activeHolidays(state).map((row) => row.date));
-  const workingDays = days.filter((day) => !isWeekendIso(day) && !holidays.has(day)).length;
-  const blocks = state.people.flatMap((person) =>
-    countedTimeBlocksForPerson(state, person.id)
-      .filter((block) => {
-        const day = block.startAt.slice(0, 10);
-        return day >= from && day <= to;
-      })
-      .map((block) => ({
-        personId: person.id,
-        project: block.projectId ? (state.projects.find((row) => row.id === block.projectId) ?? null) : null,
-        hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
-      })),
-  );
+  const projectFilter = config.projectIds ? new Set(config.projectIds) : null;
+  const personFilter = config.personIds ? new Set(config.personIds) : null;
+  const includeNoProject = projectFilter ? false : config.includeNoProject;
+  const workingDays = reportWorkingDays(state, from, to);
+  const blocks = state.people
+    .filter((person) => !personFilter || personFilter.has(person.id))
+    .flatMap((person) =>
+      countedTimeBlocksForPerson(state, person.id)
+        .filter((block) => {
+          const day = block.startAt.slice(0, 10);
+          if (day < from || day > to) return false;
+          if (projectFilter) return block.projectId !== null && projectFilter.has(block.projectId);
+          return block.projectId !== null || includeNoProject;
+        })
+        .map((block) => ({
+          personId: person.id,
+          project: block.projectId ? (state.projects.find((row) => row.id === block.projectId) ?? null) : null,
+          hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
+        })),
+    );
   const sum = (rows: typeof blocks) => rows.reduce((total, row) => total + row.hours, 0);
 
   const byProject = new Map<Project | null, typeof blocks>();
@@ -54,24 +80,42 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
     .map(([project, rows]) => ({ project, hours: sum(rows) }))
     .sort((a, b) => Number(a.project === null) - Number(b.project === null) || b.hours - a.hours || (a.project?.code ?? "").localeCompare(b.project?.code ?? ""));
 
-  // A Person is in the Report when they logged hours in it or their Staffing overlaps it.
-  const peopleIds = new Set([
-    ...blocks.map((row) => row.personId),
-    ...state.staffings.filter((row) => overlaps(row.startDate, row.endDate, from, to)).map((row) => row.personId),
-  ]);
+  // A Person is in the Report when they logged hours in it or their Staffing overlaps it; with filters, only
+  // counted hours and Staffing on the chosen Projects, and only the chosen People.
+  const staffings = state.staffings.filter(
+    (row) =>
+      overlaps(row.startDate, row.endDate, from, to) &&
+      (!projectFilter || projectFilter.has(row.projectId)) &&
+      (!personFilter || personFilter.has(row.personId)),
+  );
+  const peopleIds = new Set([...blocks.map((row) => row.personId), ...staffings.map((row) => row.personId)]);
+  const people = state.people.filter((row) => peopleIds.has(row.id)).sort((a, b) => personName(a).localeCompare(personName(b)));
+
+  const chosenProjects = projectFilter ? state.projects.filter((row) => projectFilter.has(row.id)).sort((a, b) => a.code.localeCompare(b.code)) : [];
+  const chosenPeople = personFilter ? state.people.filter((row) => personFilter.has(row.id)).map(personName).sort((a, b) => a.localeCompare(b)) : [];
 
   return {
     ...config,
+    includeNoProject,
     ...stamp,
+    /** The filters in plain words, one line each, for the Cover and the section context lines. */
+    filters: [
+      `Projects: ${projectFilter ? chosenProjects.map((row) => row.code).join(", ") || "None" : "All projects"}`,
+      `People: ${personFilter ? chosenPeople.join(", ") || "None" : "Everyone"}`,
+      includeNoProject ? "Time with no project included" : "Time with no project left out",
+    ],
     summary: {
       totalHours: sum(blocks),
       projectHours: sum(blocks.filter((row) => row.project)),
       noProjectHours: sum(blocks.filter((row) => !row.project)),
       workingDays,
-      people: peopleIds.size,
-      overloaded: [...peopleIds].filter((personId) => peakLoad(state, personId, from, to) > 100).length,
+      people: people.length,
+      // Peak Load counts all of a Person's Staffing, not only the filtered Projects.
+      overloaded: people.filter((person) => peakLoad(state, person.id, from, to) > 100).length,
     },
     hoursByProject,
+    /** Everyone in the Report with their counted hours, by name; a staffed Person with no hours shows 0. */
+    people: people.map((person) => ({ person, hours: sum(blocks.filter((row) => row.personId === person.id)) })),
   };
 }
 

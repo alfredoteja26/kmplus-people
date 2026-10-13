@@ -78,6 +78,8 @@ function summarySheet(workbook: ExcelJSModule.Workbook, report: Report) {
   const summary = report.summary;
   sheet.columns = [{ width: 36 }, { width: 14 }, { width: 12 }];
   heading(sheet, "Summary", `${reportRange(report)} · ${summary.workingDays} working days`, 3);
+  sheet.mergeCells(3, 1, 3, 3);
+  Object.assign(sheet.getCell(3, 1), { value: report.filters.join(" · "), font: { name: FONT, size: 10, color: { argb: COLOR.muted } } });
 
   band(sheet, 4, [["Figure", "left"], ["Value", "right"]]);
   const facts: [string, number, string, boolean][] = [

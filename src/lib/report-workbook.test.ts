@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./fixtures";
-import { buildReport } from "./report-model";
+import { buildReport, NO_FILTERS } from "./report-model";
 import { buildReportWorkbook } from "./report-workbook";
 import type { AppState, Project, TimeBlock } from "./types";
 
@@ -27,7 +27,7 @@ function state(): AppState {
 }
 
 async function readBack() {
-  const report = buildReport(state(), { from: "2026-10-01", to: "2026-10-31" }, { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" });
+  const report = buildReport(state(), { ...NO_FILTERS, from: "2026-10-01", to: "2026-10-31" }, { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" });
   const bytes = await buildReportWorkbook(ExcelJS, report);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(bytes.buffer as ArrayBuffer);
@@ -53,6 +53,11 @@ describe("Report workbook", () => {
     expect(rowOf(sheet!, "No project").getCell(2).value).toBe(1);
     const total = rowOf(sheet!, "Total").getCell(2).value as ExcelJS.CellFormulaValue;
     expect(total.formula).toMatch(/^SUM\(B\d+:B\d+\)$/);
+  });
+
+  it("names the filters in plain words under the range", async () => {
+    const sheet = (await readBack()).getWorksheet("Summary")!;
+    expect(sheet.getCell(3, 1).value).toBe("Projects: All projects · People: Everyone · Time with no project included");
   });
 
   it("styles the Summary like the brand and sets it up to print on A4 landscape", async () => {

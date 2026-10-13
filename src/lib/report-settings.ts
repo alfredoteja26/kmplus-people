@@ -33,7 +33,11 @@ export function reportRangeError(from: string, to: string): string | null {
  * Parsing never fails: a missing or invalid field falls back to its default.
  */
 export function serializeReportSettings(config: ReportConfig): string {
-  return new URLSearchParams({ from: config.from, to: config.to }).toString();
+  const params = new URLSearchParams({ from: config.from, to: config.to });
+  if (config.projectIds) params.set("projects", config.projectIds.join(","));
+  if (config.personIds) params.set("people", config.personIds.join(","));
+  if (!config.projectIds && !config.includeNoProject) params.set("noProject", "0");
+  return params.toString();
 }
 
 /** The export page opened on one month; `monthIndex` is 0-based. */
@@ -41,11 +45,39 @@ export function reportMonthLink(year: number, monthIndex: number): string {
   return `/project-admin/export?month=${year}-${String(monthIndex + 1).padStart(2, "0")}`;
 }
 
-export function parseReportSettings(params: URLSearchParams, today: string): ReportConfig {
+/** The Projects and People that exist, so ids the address names but the tenant lacks are dropped. */
+export type KnownIds = { projectIds: string[]; personIds: string[] };
+
+/** A comma list from the address, keeping only known ids, or null (all) when the field is absent. */
+function idList(value: string | null, known: string[]): string[] | null {
+  if (value === null) return null;
+  const ids = new Set(value.split(",").filter(Boolean));
+  return known.filter((id) => ids.has(id));
+}
+
+function parseRange(params: URLSearchParams, today: string) {
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
   if (reportRangeError(from, to) === null) return { from, to };
   const month = /^(\d{4})-(\d{2})$/.exec(params.get("month") ?? "");
   if (month && Number(month[2]) >= 1 && Number(month[2]) <= 12) return monthSpan(Number(month[1]), Number(month[2]) - 1);
   return monthSpan(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1);
+}
+
+export function parseReportSettings(params: URLSearchParams, today: string, known: KnownIds): ReportConfig {
+  const projectIds = idList(params.get("projects"), known.projectIds);
+  return {
+    ...parseRange(params, today),
+    projectIds,
+    personIds: idList(params.get("people"), known.personIds),
+    // A Project filter forces time with no Project off.
+    includeNoProject: !projectIds && params.get("noProject") !== "0",
+  };
+}
+
+/** Why the filters cannot make a Report, in the words the page shows, or null when they can. */
+export function reportFilterError(config: Pick<ReportConfig, "projectIds" | "personIds">): string | null {
+  if (config.projectIds?.length === 0) return "Choose at least one project.";
+  if (config.personIds?.length === 0) return "Choose at least one person.";
+  return null;
 }

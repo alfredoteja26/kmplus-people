@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "@/lib/fixtures";
-import { buildReport } from "@/lib/report-model";
+import { buildReport, NO_FILTERS } from "@/lib/report-model";
 import type { AppState, TimeBlock } from "@/lib/types";
 import { registerReportFonts, ReportPdf } from "./ReportPdf";
 
@@ -18,7 +18,7 @@ const stamp = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
 
 async function pages(from: string, to: string) {
   registerReportFonts(path.join(process.cwd(), "public/fonts/report"));
-  const pdf = await renderToBuffer(<ReportPdf report={buildReport(state, { from, to }, stamp)} />);
+  const pdf = await renderToBuffer(<ReportPdf report={buildReport(state, { ...NO_FILTERS, from, to }, stamp)} />);
   expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   return (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 }

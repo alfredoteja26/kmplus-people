@@ -112,7 +112,7 @@ function FactsStrip({ facts }: { facts: { label: string; value: string; warn?: b
 function Summary({ report }: { report: Report }) {
   const summary = report.summary;
   return (
-    <SectionPages report={report} title="Summary" context={`${reportRange(report)} · ${summary.workingDays} working days`}>
+    <SectionPages report={report} title="Summary" context={`${reportRange(report)} · ${summary.workingDays} working days\n${report.filters.join(" · ")}`}>
       <FactsStrip
         facts={[
           { label: "Hours logged", value: reportHours(summary.totalHours) },

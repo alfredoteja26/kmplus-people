@@ -1,19 +1,23 @@
 "use client";
 
 import { Button } from "@/components/coss/button";
+import { Checkbox } from "@/components/coss/checkbox";
+import { Field, FieldDescription, FieldLabel } from "@/components/coss/field";
 import { Input } from "@/components/coss/input";
+import { Switch } from "@/components/coss/switch";
 import { Toggle } from "@/components/coss/toggle";
+import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, reportDate, reportFileName, reportRange, type Report } from "@/lib/report-model";
-import { addMonthsIso, parseReportSettings, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
+import { buildReport, reportDate, reportWorkingDays, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { addMonthsIso, parseReportSettings, reportFilterError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
 import { ArrowLeftIcon, DownloadIcon, FileSpreadsheetIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 const REPORT_FONTS_URL = "/fonts/report";
 
@@ -47,6 +51,22 @@ function save(blob: Blob, name: string) {
   anchor.download = name;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** `ids` with `id` added or taken out; a null list (all) first becomes every id in `all`. */
+function toggleId(ids: string[] | null, all: string[], id: string): string[] {
+  const current = ids ?? all;
+  return current.includes(id) ? current.filter((row) => row !== id) : all.filter((row) => row === id || current.includes(row));
+}
+
+/** One named checkbox row: coss Field names base-ui's checkbox, a wrapping `<label>` does not. */
+function CheckRow({ checked, onChange, children }: { checked: boolean; onChange: () => void; children: ReactNode }) {
+  return (
+    <Field className="min-w-0 flex-row items-center gap-2">
+      <Checkbox checked={checked} onCheckedChange={onChange} />
+      <FieldLabel className="min-w-0 font-normal">{children}</FieldLabel>
+    </Field>
+  );
 }
 
 type Preview = { url: string; blob: Blob; pages: number };
@@ -110,16 +130,24 @@ function ExportReportForm() {
   const pathname = usePathname();
   const params = useSearchParams();
   const today = jakartaTodayIso();
-  const [initial] = useState(() => parseReportSettings(new URLSearchParams(params.toString()), today));
+  const projects = useMemo(() => [...state.projects].sort((a, b) => a.code.localeCompare(b.code)), [state.projects]);
+  const people = useMemo(() => [...state.people].sort((a, b) => personName(a).localeCompare(personName(b))), [state.people]);
+  const [initial] = useState(() =>
+    parseReportSettings(new URLSearchParams(params.toString()), today, { projectIds: projects.map((row) => row.id), personIds: people.map((row) => row.id) }),
+  );
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  const [projectIds, setProjectIds] = useState(initial.projectIds);
+  const [personIds, setPersonIds] = useState(initial.personIds);
+  const [includeNoProject, setIncludeNoProject] = useState(initial.includeNoProject);
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const rangeError = reportRangeError(from, to);
+  const settingsError = rangeError ?? reportFilterError({ projectIds, personIds });
   const generatedBy = personName(state.people.find((row) => row.id === state.currentPersonId));
   const report = useMemo(
-    () => (rangeError ? null : buildReport(state, { from, to }, { generatedBy, generatedAt: jakartaStamp() })),
-    [state, from, to, rangeError, generatedBy],
+    () => (settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject }, { generatedBy, generatedAt: jakartaStamp() })),
+    [state, from, to, projectIds, personIds, includeNoProject, settingsError, generatedBy],
   );
   // While the range is invalid the preview keeps the last Report that could be built, dimmed.
   const lastGood = useRef<Report | null>(null);
@@ -127,9 +155,9 @@ function ExportReportForm() {
   const { preview, building, failed, retry } = usePdfPreview(report);
 
   useEffect(() => {
-    if (rangeError) return;
-    router.replace(`${pathname}?${serializeReportSettings({ from, to })}`, { scroll: false });
-  }, [from, to, rangeError, pathname, router]);
+    if (settingsError) return;
+    router.replace(`${pathname}?${serializeReportSettings({ from, to, projectIds, personIds, includeNoProject })}`, { scroll: false });
+  }, [from, to, projectIds, personIds, includeNoProject, settingsError, pathname, router]);
 
   async function downloadXlsx() {
     if (!report) return;
@@ -154,7 +182,7 @@ function ExportReportForm() {
           Back to Project Admin
         </Link>
         <h1 className="m-0 font-heading text-h1 font-medium">Export report</h1>
-        <p className="m-0 max-w-[70ch] text-muted">Choose the range the report covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
+        <p className="m-0 max-w-[70ch] text-muted">Choose the range, projects, and people the report covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
       </header>
 
       <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -195,21 +223,69 @@ function ExportReportForm() {
               </p>
             ) : (
               <p id="report-range-note" className="m-0 text-sm text-muted tabular-nums">
-                {reportRange({ from, to })} · {report?.summary.workingDays ?? 0} working days
+                {reportRange({ from, to })} · {reportWorkingDays(state, from, to)} working days
               </p>
             )}
           </section>
 
+          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-projects">
+            <h2 id="report-projects" className="m-0 text-base font-medium">
+              Projects
+            </h2>
+            <CheckRow checked={projectIds === null} onChange={() => setProjectIds(projectIds === null ? [] : null)}>
+              All projects
+            </CheckRow>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 ps-1">
+              {projects.map((project) => (
+                <CheckRow
+                  key={project.id}
+                  checked={projectIds === null || projectIds.includes(project.id)}
+                  onChange={() => setProjectIds(toggleId(projectIds, projects.map((row) => row.id), project.id))}
+                >
+                  <CodeChip code={project.code} />
+                </CheckRow>
+              ))}
+            </div>
+            <Field disabled={projectIds !== null} className="mt-1 flex-row items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <FieldLabel className="font-normal">Include time with no project</FieldLabel>
+                {projectIds !== null ? <FieldDescription className="text-sm text-muted">Off while projects are chosen, so a client file carries no internal time.</FieldDescription> : null}
+              </div>
+              <Switch checked={projectIds === null && includeNoProject} onCheckedChange={setIncludeNoProject} />
+            </Field>
+          </section>
+
+          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-people">
+            <h2 id="report-people" className="m-0 flex items-baseline justify-between text-base font-medium">
+              People
+              <span className="text-sm font-normal text-muted tabular-nums">{personIds === null ? "Everyone" : `${personIds.length} chosen`}</span>
+            </h2>
+            <CheckRow checked={personIds === null} onChange={() => setPersonIds(personIds === null ? [] : null)}>
+              Everyone
+            </CheckRow>
+            <div className="grid max-h-40 grid-cols-2 gap-x-3 gap-y-1.5 overflow-y-auto ps-1">
+              {people.map((person) => (
+                <CheckRow
+                  key={person.id}
+                  checked={personIds === null || personIds.includes(person.id)}
+                  onChange={() => setPersonIds(toggleId(personIds, people.map((row) => row.id), person.id))}
+                >
+                  <span className="truncate">{personName(person)}</span>
+                </CheckRow>
+              ))}
+            </div>
+          </section>
+
           <div className="flex flex-col gap-2 border-t border-line bg-wash px-5 py-4">
-            <Button type="button" disabled={Boolean(rangeError) || !preview || building} onClick={() => preview && report && save(preview.blob, reportFileName(report, "pdf"))}>
+            <Button type="button" disabled={Boolean(settingsError) || !preview || building} onClick={() => preview && report && save(preview.blob, reportFileName(report, "pdf"))}>
               <DownloadIcon aria-hidden="true" />
               Download PDF
             </Button>
-            <Button type="button" variant="outline" disabled={Boolean(rangeError) || xlsxBusy} onClick={downloadXlsx}>
+            <Button type="button" variant="outline" disabled={Boolean(settingsError) || xlsxBusy} onClick={downloadXlsx}>
               <FileSpreadsheetIcon aria-hidden="true" />
               {xlsxBusy ? "Building spreadsheet…" : "Download xlsx"}
             </Button>
-            <p className="m-0 text-sm text-muted">{rangeError ? "Fix the date range to download." : "The spreadsheet holds the same figures as the PDF."}</p>
+            <p className="m-0 text-sm text-muted">{rangeError ? "Fix the date range to download." : (settingsError ?? "The spreadsheet holds the same figures as the PDF.")}</p>
           </div>
         </aside>
 
@@ -231,7 +307,7 @@ function ExportReportForm() {
             <iframe
               title={`Report preview, ${reportRange(previewed)}`}
               src={`${preview.url}#view=FitH`}
-              className={`h-[calc(100vh-9rem)] min-h-[640px] w-full border-0 bg-wash transition-opacity ${rangeError ? "opacity-50" : ""}`}
+              className={`h-[calc(100vh-9rem)] min-h-[640px] w-full border-0 bg-wash transition-opacity ${settingsError ? "opacity-50" : ""}`}
             />
           ) : (
             <div className="grid h-[480px] place-items-center text-sm text-muted">Building the preview…</div>
