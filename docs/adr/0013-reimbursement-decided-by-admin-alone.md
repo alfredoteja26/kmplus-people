@@ -1,0 +1,5 @@
+# A ReimbursementRequest is decided by Admin alone, and rejection is final
+
+Any Admin decides a **ReimbursementRequest**: approved, approved at a lower amount, or rejected, with a note on the last two. The LineManager may read the request and its evidence but plays no part in the decision. A rejection is final; the Person files a new request rather than editing the old one. The Admin who decides or marks it Paid must be a different Person from the one the request is for, so one Admin cannot pay themselves.
+
+We rejected LineManager approval and the dual LineManager-plus-Admin approval used for **KpiPortfolio** and **KpiCheckIn**: reimbursement is a company-money check against a receipt, not a judgement about the Person's work, and a second queue added no control that the Admin decision lacks. We rejected a Return-and-resubmit loop because approval at a lower amount already covers most partial cases, and a final rejection keeps each request's history to one decision. We rejected letting an Admin decide their own request, even though **LeaveRequest** allows it, because self-approving money is the standard audit finding.
