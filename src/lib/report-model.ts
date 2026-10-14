@@ -28,6 +28,29 @@ export const READY_SECTIONS: readonly SectionKey[] = SECTION_KEYS;
 /** Too many rows to draw quickly in a PDF (about 20s per 1,900): the PDF names the sheet instead. */
 export const SPREADSHEET_ONLY: readonly SectionKey[] = ["timesheetDetail"];
 
+/** The three fixed PDF layouts. A template changes how the PDF looks, never its figures or the spreadsheet. */
+export const REPORT_TEMPLATES = [
+  {
+    key: "standard",
+    name: "Standard",
+    line: "Cover page, summary, then each section.",
+    shapes: "Cover is a portrait cover page. Summary is a facts strip with the hours and leave tables.",
+  },
+  {
+    key: "letterhead",
+    name: "Letterhead",
+    line: "No cover page; a letterhead band opens page 1. Compact.",
+    shapes: "Cover is a letterhead band above the first section. Summary is the facts strip with compact tables.",
+  },
+  {
+    key: "briefing",
+    name: "Briefing",
+    line: "Cover with contents, a one-page chart summary, then the tables.",
+    shapes: "Cover lists the sections in this report. Summary is a one-page briefing of bar charts.",
+  },
+] as const;
+export type ReportTemplate = (typeof REPORT_TEMPLATES)[number]["key"];
+
 /** `keys` without repeats or unknown keys, in the fixed order. */
 export function orderSections(keys: readonly string[]): SectionKey[] {
   return SECTION_KEYS.filter((key) => keys.includes(key));
@@ -49,6 +72,8 @@ export type ReportConfig = {
   /** Optional client name, typed by hand. */
   preparedFor: string;
   sections: SectionKey[];
+  /** PDF only. */
+  template: ReportTemplate;
 };
 
 export const REPORT_TITLE = "Project report";
@@ -63,6 +88,7 @@ export const REPORT_DEFAULTS = {
   title: REPORT_TITLE,
   preparedFor: "",
   sections: DEFAULT_SECTIONS,
+  template: "standard" as ReportTemplate,
 } satisfies Omit<ReportConfig, "from" | "to">;
 
 function cleanText(value: string): string {
@@ -452,4 +478,8 @@ export const REPORT_COLORS = {
   sick: "#F3E5CD",
   wash: "#F4F4F4",
   weekend: "#FAFAFA",
+  /** Briefing bars: people with hours in accent-2, no hours in amber, time with no Project in line-strong. */
+  accent2: "#009D9A",
+  warningBar: "#C9891A",
+  lineStrong: "#949494",
 } as const;

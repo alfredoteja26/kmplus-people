@@ -253,4 +253,16 @@ describe("Report workbook", () => {
     expect(sheet.views[0]).toMatchObject({ state: "frozen", ySplit: 3 });
     expect(sheet.autoFilter).toBe("A3:I6");
   });
+
+  it("writes the same workbook for every template", async () => {
+    const sheets = async (template: "standard" | "letterhead" | "briefing") => {
+      const report = buildReport(state(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", template }, { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load((await buildReportWorkbook(ExcelJS, report, null)).buffer as ArrayBuffer);
+      return workbook.worksheets.map((sheet) => [sheet.name, sheet.getSheetValues()]);
+    };
+    const standard = await sheets("standard");
+    expect(await sheets("letterhead")).toEqual(standard);
+    expect(await sheets("briefing")).toEqual(standard);
+  });
 });

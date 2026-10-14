@@ -1,5 +1,5 @@
 import { monthSpan } from "@/lib/project-admin-view";
-import { orderSections, REPORT_DEFAULTS, REPORT_TEXT_MAX, type ReportConfig } from "@/lib/report-model";
+import { orderSections, REPORT_DEFAULTS, REPORT_TEMPLATES, REPORT_TEXT_MAX, type ReportConfig } from "@/lib/report-model";
 import { addDaysIso } from "@/lib/work-delivery-query";
 
 function isIsoDate(value: string): boolean {
@@ -40,6 +40,7 @@ export function serializeReportSettings(config: ReportConfig): string {
   if (config.title !== REPORT_DEFAULTS.title) params.set("title", config.title);
   if (config.preparedFor) params.set("preparedFor", config.preparedFor);
   params.set("sections", orderSections(config.sections).join(","));
+  if (config.template !== REPORT_DEFAULTS.template) params.set("template", config.template);
   return params.toString();
 }
 
@@ -78,6 +79,7 @@ export function parseReportSettings(params: URLSearchParams, today: string, know
     title: text(params.get("title"), REPORT_DEFAULTS.title),
     preparedFor: text(params.get("preparedFor"), REPORT_DEFAULTS.preparedFor),
     sections: sectionList(params.get("sections")),
+    template: REPORT_TEMPLATES.find((row) => row.key === params.get("template"))?.key ?? REPORT_DEFAULTS.template,
   };
 }
 

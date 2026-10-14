@@ -71,4 +71,11 @@ describe("Report settings in the page address", () => {
     expect(parse("from=2026-10-01&to=2026-10-31&sections=bogus").sections).toEqual(["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"]);
     expect(parse("from=2026-10-01&to=2026-10-31").sections).toEqual(REPORT_DEFAULTS.sections);
   });
+
+  it("keeps the template, leaves Standard out of the address, and falls back to Standard for an unknown one", () => {
+    const briefing = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", template: "briefing" as const };
+    expect(parse(serializeReportSettings(briefing))).toEqual(briefing);
+    expect(serializeReportSettings({ ...briefing, template: "standard" })).not.toContain("template");
+    expect(parse("from=2026-10-01&to=2026-10-31&template=fancy").template).toBe("standard");
+  });
 });

@@ -3,6 +3,7 @@
 import { Button } from "@/components/coss/button";
 import { Checkbox } from "@/components/coss/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@/components/coss/field";
+import { RadioGroupPrimitive, RadioPrimitive } from "@/components/coss/radio-group";
 import { Input } from "@/components/coss/input";
 import { Switch } from "@/components/coss/switch";
 import { Toggle } from "@/components/coss/toggle";
@@ -10,7 +11,7 @@ import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, orderSections, READY_SECTIONS, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, SPREADSHEET_ONLY, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { buildReport, orderSections, READY_SECTIONS, REPORT_TEMPLATES, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, SPREADSHEET_ONLY, suggestedPreparedFor, type ReportTemplate, reportFileName, reportRange, type Report } from "@/lib/report-model";
 import { addMonthsIso, parseReportSettings, reportChoiceError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
@@ -67,6 +68,48 @@ function CheckRow({ checked, onChange, children }: { checked: boolean; onChange:
       <Checkbox checked={checked} onCheckedChange={onChange} />
       <FieldLabel className="min-w-0 font-normal">{children}</FieldLabel>
     </Field>
+  );
+}
+
+/** A small schematic of each template's first pages, drawn in the app's own tokens. */
+function TemplateThumbnail({ template }: { template: ReportTemplate }) {
+  const sheet = "fill-paper stroke-line-strong";
+  return (
+    <svg viewBox="0 0 56 40" aria-hidden="true" className="h-10 w-14 shrink-0">
+      {template === "letterhead" ? (
+        <>
+          <rect x="1" y="5" width="54" height="34" rx="2" className={sheet} strokeWidth="0.75" />
+          <rect x="5" y="9" width="8" height="5" rx="1" className="fill-accent" />
+          <rect x="15" y="10" width="20" height="3" rx="1" className="fill-ink/60" />
+          <line x1="5" x2="51" y1="17" y2="17" className="stroke-accent" strokeWidth="1" />
+          <rect x="5" y="20" width="46" height="3" className="fill-tint stroke-accent" strokeWidth="0.4" />
+          {[25.5, 28.5, 31.5, 34.5].map((y) => (
+            <rect key={y} x="5" y={y} width="46" height="1.5" className="fill-line" />
+          ))}
+        </>
+      ) : (
+        <>
+          <rect x="1" y="1" width="20" height="38" rx="2" className={sheet} strokeWidth="0.75" />
+          <rect x="4" y="5" width="7" height="3.5" rx="1" className="fill-accent" />
+          <rect x="4" y="22" width="5" height="1.2" className="fill-accent" />
+          <rect x="4" y="25" width="13" height="2.5" rx="1" className="fill-ink/60" />
+          {template === "briefing"
+            ? [30, 32.5, 35].map((y) => <rect key={y} x="4" y={y} width="9" height="1.2" className="fill-line-strong" />)
+            : <rect x="4" y="30" width="12" height="1.5" className="fill-line" />}
+          <rect x="24" y="8" width="31" height="25" rx="2" className={sheet} strokeWidth="0.75" />
+          {template === "briefing" ? (
+            [12, 16, 20, 24, 28].map((y, index) => <rect key={y} x="27" y={y} width={22 - index * 4} height="2" rx="1" className="fill-accent" />)
+          ) : (
+            <>
+              <rect x="27" y="11" width="25" height="3" className="fill-accent" />
+              {[16, 19, 22, 25, 28].map((y) => (
+                <rect key={y} x="27" y={y} width="25" height="1.5" className="fill-line" />
+              ))}
+            </>
+          )}
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -142,6 +185,7 @@ function ExportReportForm() {
   const [personIds, setPersonIds] = useState(initial.personIds);
   const [includeNoProject, setIncludeNoProject] = useState(initial.includeNoProject);
   const [title, setTitle] = useState(initial.title);
+  const [template, setTemplate] = useState(initial.template);
   // Only sections both files can draw yet; the rest join as they are built.
   const [sections, setSections] = useState(() => initial.sections.filter((key) => READY_SECTIONS.includes(key)));
   // Prepared for follows the one chosen Project's client until the Admin types in it, or the link set it.
@@ -154,8 +198,8 @@ function ExportReportForm() {
   const generatedBy = personName(state.people.find((row) => row.id === state.currentPersonId));
   const report = useMemo(
     () =>
-      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections }, { generatedBy, generatedAt: jakartaStamp() }),
-    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, settingsError, generatedBy],
+      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template }, { generatedBy, generatedAt: jakartaStamp() }),
+    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template, settingsError, generatedBy],
   );
 
   function chooseProjects(next: string[] | null) {
@@ -169,9 +213,9 @@ function ExportReportForm() {
 
   useEffect(() => {
     if (settingsError) return;
-    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim(), sections };
+    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim(), sections, template };
     router.replace(`${pathname}?${serializeReportSettings(settings)}`, { scroll: false });
-  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, settingsError, pathname, router]);
+  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template, settingsError, pathname, router]);
 
   async function downloadXlsx() {
     if (!report) return;
@@ -207,7 +251,35 @@ function ExportReportForm() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="flex flex-col overflow-clip rounded-2xl bg-paper shadow-(--shadow) lg:sticky lg:top-4" aria-label="Report settings">
-          <section className="flex flex-col gap-3 px-5 py-4" aria-label="Title and client">
+          <section className="flex flex-col gap-2 px-5 py-4" aria-labelledby="report-template">
+            <h2 id="report-template" className="m-0 text-base font-medium">
+              Template
+            </h2>
+            <RadioGroupPrimitive value={template} onValueChange={(value) => setTemplate(value as ReportTemplate)} aria-labelledby="report-template" className="flex flex-col gap-1.5">
+              {REPORT_TEMPLATES.map((row) => (
+                <RadioPrimitive.Root
+                  key={row.key}
+                  value={row.key}
+                  aria-labelledby={`report-template-${row.key}`}
+                  aria-describedby={`report-template-${row.key}-line`}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-paper p-2.5 text-left outline-none transition-colors hover:bg-tint focus-visible:ring-2 focus-visible:ring-ring data-checked:border-accent data-checked:bg-tint"
+                >
+                  <TemplateThumbnail template={row.key} />
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span id={`report-template-${row.key}`} className="text-sm font-medium">
+                      {row.name}
+                    </span>
+                    <span id={`report-template-${row.key}-line`} className="text-xs text-muted">
+                      {row.line}
+                    </span>
+                  </span>
+                </RadioPrimitive.Root>
+              ))}
+            </RadioGroupPrimitive>
+            <p className="m-0 text-sm text-muted">{REPORT_TEMPLATES.find((row) => row.key === template)?.shapes} The spreadsheet is the same for every template.</p>
+          </section>
+
+          <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-label="Title and client">
             <label className="flex flex-col gap-1 text-sm font-medium">
               Title
               <Input

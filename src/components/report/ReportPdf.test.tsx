@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "@/lib/fixtures";
-import { buildReport, READY_SECTIONS, REPORT_DEFAULTS, type SectionKey } from "@/lib/report-model";
+import { buildReport, READY_SECTIONS, REPORT_DEFAULTS, REPORT_TEMPLATES, type ReportTemplate, type SectionKey } from "@/lib/report-model";
 import type { AppState, TimeBlock } from "@/lib/types";
 import { registerReportFonts, ReportPdf } from "./ReportPdf";
 
@@ -16,9 +16,9 @@ function block(id: string, day: string): TimeBlock {
 const state: AppState = { ...createInitialState(), timeBlocks: [block("a", "2026-10-05"), block("b", "2026-03-02")], invites: [] };
 const stamp = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
 
-async function pages(from: string, to: string, sections: SectionKey[] = REPORT_DEFAULTS.sections) {
+async function pages(from: string, to: string, sections: SectionKey[] = REPORT_DEFAULTS.sections, template: ReportTemplate = "standard") {
   registerReportFonts(path.join(process.cwd(), "public/fonts/report"));
-  const pdf = await renderToBuffer(<ReportPdf report={buildReport(state, { ...REPORT_DEFAULTS, from, to, sections, preparedFor: "Samudra Energi" }, stamp)} logo={path.join(process.cwd(), "public/brand/kmplus-logo-official.png")} />);
+  const pdf = await renderToBuffer(<ReportPdf report={buildReport(state, { ...REPORT_DEFAULTS, from, to, sections, template, preparedFor: "Samudra Energi" }, stamp)} logo={path.join(process.cwd(), "public/brand/kmplus-logo-official.png")} />);
   expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   return (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 }
@@ -46,5 +46,19 @@ describe("Report PDF", () => {
     const pdf = await renderToBuffer(<ReportPdf report={report} logo={path.join(process.cwd(), "public/brand/kmplus-logo-official.png")} />);
     expect(performance.now() - started).toBeLessThan(5000);
     expect((pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
+  }, 30_000);
+
+  it.each(REPORT_TEMPLATES.map((row) => row.key))("builds the %s template for one month, twelve months, and an empty range", async (template) => {
+    const all = [...READY_SECTIONS];
+    // Eight section pages for one month (twelve grid pages for twelve months). Letterhead has no cover page: its
+    // band sits on the first section's page, so it is one page shorter.
+    const coverPages = template === "letterhead" ? 0 : 1;
+    expect(await pages("2026-10-01", "2026-10-31", all, template)).toBe(coverPages + 8);
+    expect(await pages("2025-11-01", "2026-10-31", all, template)).toBeGreaterThanOrEqual(coverPages + 19);
+    expect(await pages("2027-03-01", "2027-03-31", all, template)).toBe(coverPages + 8);
+  }, 60_000);
+
+  it("prints a Letterhead with only Cover chosen as the band on a page of its own", async () => {
+    expect(await pages("2026-10-01", "2026-10-31", ["cover"], "letterhead")).toBe(1);
   }, 30_000);
 });
