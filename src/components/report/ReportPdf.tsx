@@ -176,6 +176,96 @@ function TimesheetByPerson({ report }: { report: Report }) {
   );
 }
 
+const LEAVE_WORD = { cuti: "Cuti", sick: "Sick" } as const;
+const PART_MARK = { cuti: "C", sick: "S", remote: "R" } as const;
+
+/** Hours in a grid cell: whole hours without a decimal, so 31 day columns stay legible. */
+const gridHours = (hours: number) => (Number.isInteger(hours) ? String(hours) : hours.toFixed(1));
+
+/** One page per calendar month: Person rows, day columns filling the width, totals, and a legend with the holidays. */
+function DailyGrid({ report }: { report: Report }) {
+  const nameWidth = 112;
+  const totalWidth = 44;
+  const usable = 842 - 64;
+  return (
+    <>
+      {report.dailyGrid.months.map((month) => {
+        const dayWidth = Math.min(44, (usable - nameWidth - totalWidth) / month.days.length);
+        const shade = (index: number) => (month.days[index].holiday ? C.tint : month.days[index].weekend ? C.weekend : undefined);
+        return (
+          <SectionPages key={month.from} report={report} title={`Daily grid · ${month.label}`} context={`${reportRange(month)} · hours per day`}>
+            <View style={[s.row, s.band, { minHeight: 24 }]} fixed>
+              <Text style={[s.cell, s.bandText, { width: nameWidth }]}>Person</Text>
+              {month.days.map((day) => (
+                <View key={day.date} style={{ width: dayWidth, alignItems: "center", opacity: day.weekend || day.holiday ? 0.65 : 1 }}>
+                  <Text style={[s.bandText, { fontSize: 6.5 }]}>{day.day}</Text>
+                  <Text style={[s.bandText, { fontSize: 5.5, fontWeight: 400 }]}>{day.weekday}</Text>
+                </View>
+              ))}
+              <Text style={[s.cell, s.bandText, { width: totalWidth, textAlign: "right" }]}>Total</Text>
+            </View>
+            {month.rows.length === 0 ? <Text style={s.empty}>{reportEmptyLine(month, "one logged hours or was staffed")}</Text> : null}
+            {month.rows.map((row) => (
+              <View key={row.person.id} style={[s.row, { minHeight: 15 }]} wrap={false}>
+                <Text style={[s.cell, { width: nameWidth, fontSize: 7.5 }]}>{personName(row.person)}</Text>
+                {row.cells.map((cell, index) => {
+                  const away = (cell.leave === "cuti" || cell.leave === "sick") && !cell.partial ? cell.leave : null;
+                  const background = cell.leave === "cuti" ? C.cuti : cell.leave === "sick" ? C.sick : cell.leave === "remote" ? C.wash : shade(index);
+                  return (
+                    <View key={month.days[index].date} style={{ width: dayWidth, alignSelf: "stretch", justifyContent: "center", alignItems: "center", backgroundColor: background, borderLeftWidth: 0.25, borderLeftColor: C.line }}>
+                      {away ? (
+                        <Text style={{ fontSize: 5, fontWeight: 600, color: away === "cuti" ? C.accentHover : C.warning }}>{LEAVE_WORD[away]}</Text>
+                      ) : cell.hours > 0 || cell.leave ? (
+                        <Text style={{ fontSize: 6.5 }}>
+                          {gridHours(cell.hours)}
+                          {cell.leave ? <Text style={{ fontSize: 4.5, color: C.muted }}> {PART_MARK[cell.leave]}</Text> : null}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+                <Text style={[s.cell, { width: totalWidth, textAlign: "right", fontSize: 7.5, fontWeight: 600 }]}>{reportHours(row.total)}</Text>
+              </View>
+            ))}
+            {month.rows.length > 0 ? (
+              <View style={[s.row, s.totals]} wrap={false}>
+                <Text style={[s.cell, { width: nameWidth, fontSize: 7.5, fontWeight: 700 }]}>Total</Text>
+                {month.dayTotals.map((total, index) => (
+                  <Text key={month.days[index].date} style={{ width: dayWidth, textAlign: "center", fontSize: 5.5, fontWeight: 600 }}>
+                    {total > 0 ? gridHours(total) : ""}
+                  </Text>
+                ))}
+                <Text style={[s.cell, { width: totalWidth, textAlign: "right", fontSize: 7.5, fontWeight: 700 }]}>{reportHours(month.total)}</Text>
+              </View>
+            ) : null}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 10, fontSize: 7, color: C.muted }} wrap={false}>
+              {[
+                [C.cuti, "Cuti"],
+                [C.sick, "Sick"],
+                [C.wash, "Remote, hours marked R"],
+                [C.tint, "Public holiday"],
+              ].map(([color, label]) => (
+                <View key={label} style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ width: 9, height: 9, backgroundColor: color, borderWidth: 0.5, borderColor: C.line, marginRight: 4 }} />
+                  <Text>{label}</Text>
+                </View>
+              ))}
+              <Text>Part of a day: hours worked, marked C or S</Text>
+              {month.days
+                .filter((day) => day.holiday)
+                .map((day) => (
+                  <Text key={day.date} style={{ color: C.ink }}>
+                    {day.day} · {day.holiday}
+                  </Text>
+                ))}
+            </View>
+          </SectionPages>
+        );
+      })}
+    </>
+  );
+}
+
 function ApprovedLeave({ report }: { report: Report }) {
   return (
     <SectionPages report={report} title="Approved leave" context={`${reportRange(report)} · working days inside the range`}>
@@ -229,6 +319,7 @@ export function ReportPdf({ report, logo }: { report: Report; logo: string }) {
       {report.sections.includes("cover") ? <Cover report={report} logo={logo} /> : null}
       {report.sections.includes("summary") ? <Summary report={report} /> : null}
       {report.sections.includes("timesheetByPerson") ? <TimesheetByPerson report={report} /> : null}
+      {report.sections.includes("dailyGrid") ? <DailyGrid report={report} /> : null}
       {report.sections.includes("leave") ? <ApprovedLeave report={report} /> : null}
     </Document>
   );

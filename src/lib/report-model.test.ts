@@ -273,6 +273,85 @@ describe("Report model", () => {
     });
   });
 
+  describe("daily grid", () => {
+    function gridState(): AppState {
+      return {
+        ...world(),
+        leaveTypes: [{ id: "lt-tahunan", tenantId: "kmplus", name: "Tahunan", sortOrder: 0 }],
+        publicHolidays: [holiday("Maulid", "2026-09-25")],
+        timeBlocks: [
+          block("work", "person-rayhan", "2026-09-22", 8, "p1"),
+          block("remote-work", "person-rayhan", "2026-09-23", 6, "p1"),
+          block("half-day", "person-eka", "2026-09-22", 4, "p2"),
+          block("october", "person-eka", "2026-10-02", 3, null),
+        ],
+        leaveRequests: [
+          leave("remote", "person-rayhan", "remote", "2026-09-23", "2026-09-23", "paid"),
+          // Thu 24 to Mon 28 Sep: the Friday holiday and the weekend are not marked.
+          leave("cuti", "person-rayhan", "cuti", "2026-09-24", "2026-09-28", "paid"),
+          leave("sick", "person-eka", "sick", "2026-09-29", "2026-09-30", "unpaid"),
+          leave("part", "person-eka", "cuti", "2026-09-22", "2026-09-22", "paid", ["13:00", "17:00"]),
+        ],
+      };
+    }
+    const RANGE = { ...REPORT_DEFAULTS, from: "2026-09-21", to: "2026-10-20" };
+
+    it("cuts month blocks at the range edges", () => {
+      const { months } = buildReport(gridState(), RANGE, AT).dailyGrid;
+      expect(months.map((month) => [month.label, month.from, month.to, month.days.length])).toEqual([
+        ["September 2026", "2026-09-21", "2026-09-30", 10],
+        ["October 2026", "2026-10-01", "2026-10-20", 20],
+      ]);
+      expect(months[0].days[0]).toEqual({ date: "2026-09-21", day: 21, weekday: "M", weekend: false, holiday: null });
+    });
+
+    it("gives each cell its hours and leave: cuti, sick, remote with hours, and part-day leave with the hours worked", () => {
+      const september = buildReport(gridState(), RANGE, AT).dailyGrid.months[0];
+      const cell = (personId: string, date: string) => september.rows.find((row) => row.person.id === personId)!.cells[september.days.findIndex((day) => day.date === date)];
+      expect(cell("person-rayhan", "2026-09-22")).toEqual({ hours: 8, leave: null, partial: false });
+      expect(cell("person-rayhan", "2026-09-23")).toEqual({ hours: 6, leave: "remote", partial: false });
+      expect(cell("person-rayhan", "2026-09-24")).toEqual({ hours: 0, leave: "cuti", partial: false });
+      expect(cell("person-rayhan", "2026-09-28")).toEqual({ hours: 0, leave: "cuti", partial: false });
+      expect(cell("person-eka", "2026-09-30")).toEqual({ hours: 0, leave: "sick", partial: false });
+      expect(cell("person-eka", "2026-09-22")).toEqual({ hours: 4, leave: "cuti", partial: true });
+    });
+
+    it("names the holiday on its column and leaves it and the weekend unmarked by full-day leave", () => {
+      const september = buildReport(gridState(), RANGE, AT).dailyGrid.months[0];
+      const index = (date: string) => september.days.findIndex((day) => day.date === date);
+      expect(september.days[index("2026-09-25")]).toMatchObject({ holiday: "Maulid", weekend: false });
+      expect(september.days[index("2026-09-26")]).toMatchObject({ weekday: "S", weekend: true });
+      const rayhan = september.rows.find((row) => row.person.id === "person-rayhan")!;
+      expect([rayhan.cells[index("2026-09-25")].leave, rayhan.cells[index("2026-09-26")].leave]).toEqual([null, null]);
+    });
+
+    it("totals each row, each day, and each month to the sum of its cells", () => {
+      const report = buildReport(gridState(), RANGE, AT);
+      for (const month of report.dailyGrid.months) {
+        for (const row of month.rows) expect(row.total).toBe(row.cells.reduce((total, cell) => total + cell.hours, 0));
+        month.days.forEach((_, index) => expect(month.dayTotals[index]).toBe(month.rows.reduce((total, row) => total + row.cells[index].hours, 0)));
+        expect(month.total).toBe(month.rows.reduce((total, row) => total + row.total, 0));
+      }
+      expect(report.dailyGrid.months.reduce((total, month) => total + month.total, 0)).toBe(report.summary.totalHours);
+    });
+
+    it("builds 12 months for 16 people and about 8,000 blocks well under a second", () => {
+      const base = world();
+      const people = Array.from({ length: 16 }, (_, index) => ({ ...base.people[0], id: `p-${index}`, preferredName: `Person ${index}` }));
+      const timeBlocks: TimeBlock[] = [];
+      for (let day = "2025-11-01"; day <= "2026-10-31"; day = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) {
+        if ([0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay())) continue;
+        for (const person of people) timeBlocks.push(block(`${person.id}-${day}-a`, person.id, day, 4, "p1"), block(`${person.id}-${day}-b`, person.id, day, 3, null));
+      }
+      const state: AppState = { ...base, people, timeBlocks, staffings: [] };
+      const started = performance.now();
+      const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2025-11-01", to: "2026-10-31" }, AT);
+      expect(performance.now() - started).toBeLessThan(1000);
+      expect(timeBlocks.length).toBeGreaterThan(8000);
+      expect(report.dailyGrid.months).toHaveLength(12);
+    });
+  });
+
   it("keeps the chosen sections in the fixed order", () => {
     const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave", "cover", "summary"] }, AT);
     expect(report.sections).toEqual(["cover", "summary", "leave"]);

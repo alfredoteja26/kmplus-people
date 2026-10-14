@@ -1,4 +1,4 @@
-import type { AppState, LeaveKind, Project } from "@/lib/types";
+import type { AppState, LeaveKind } from "@/lib/types";
 import { activeHolidays, isWeekendIso, KIND_LABEL, leaveDates } from "@/lib/leave-view";
 import { personName } from "@/lib/project-view";
 import { addDaysIso, countedTimeBlocksForPerson, hoursBetween, leaveIsApproved, personLoadSum } from "@/lib/work-delivery-query";
@@ -23,7 +23,7 @@ export const SECTION_LABEL: Record<SectionKey, string> = {
 export const DEFAULT_SECTIONS: SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
 
 /** The sections both files can draw so far; the page offers only these until the rest are built. */
-export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "timesheetByPerson", "leave"];
+export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
 
 /** `keys` without repeats or unknown keys, in the fixed order. */
 export function orderSections(keys: readonly string[]): SectionKey[] {
@@ -114,6 +114,23 @@ export function reportWorkingDays(state: AppState, from: string, to: string): nu
 
 const LEAVE_KINDS: LeaveKind[] = ["cuti", "sick", "remote"];
 
+/** `rows` grouped by `key` in one pass, keeping their order. */
+function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>();
+  for (const row of rows) {
+    const group = groups.get(key(row));
+    if (group) group.push(row);
+    else groups.set(key(row), [row]);
+  }
+  return groups;
+}
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+
+/** One Daily grid cell: counted hours, and the leave on that day, if any. */
+export type GridCell = { hours: number; leave: LeaveKind | null; partial: boolean };
+
 /**
  * The Report as figures, with no formatting or layout, so the spreadsheet and the PDF cannot disagree.
  * Hours stay exact; only display rounds them, so rows always add up to their totals. Rules: the Report
@@ -146,9 +163,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
 
   /** Hours per Project, most first, with time that names no Project last. */
   function splitByProject(rows: typeof blocks) {
-    const byProject = new Map<Project | null, typeof blocks>();
-    for (const row of rows) byProject.set(row.project, [...(byProject.get(row.project) ?? []), row]);
-    return [...byProject.entries()]
+    return [...groupBy(rows, (row) => row.project).entries()]
       .map(([project, mine]) => ({ project, hours: sum(mine) }))
       .sort((a, b) => Number(a.project === null) - Number(b.project === null) || b.hours - a.hours || (a.project?.code ?? "").localeCompare(b.project?.code ?? ""));
   }
@@ -165,8 +180,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   const peopleIds = new Set([...blocks.map((row) => row.personId), ...staffings.map((row) => row.personId)]);
   const people = state.people.filter((row) => peopleIds.has(row.id)).sort((a, b) => personName(a).localeCompare(personName(b)));
 
-  const blocksByPerson = new Map<string, typeof blocks>();
-  for (const row of blocks) blocksByPerson.set(row.personId, [...(blocksByPerson.get(row.personId) ?? []), row]);
+  const blocksByPerson = groupBy(blocks, (row) => row.personId);
 
   // May-be-taken leave of the People in the Report that overlaps the range. Full days count as working days
   // inside the range; part of a day carries its hours and counts as no day.
@@ -188,6 +202,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       };
     })
     .sort((a, b) => a.startDate.localeCompare(b.startDate) || personName(a.person).localeCompare(personName(b.person)));
+  const dailyGrid = buildDailyGrid(state, from, to, people, blocks, leave);
   const leaveDays = (kind: LeaveKind, paid: boolean) => leave.filter((row) => row.kind === kind && row.paid === paid).reduce((total, row) => total + row.workingDays, 0);
   const leaveByKind = LEAVE_KINDS.map((kind) => ({ kind, label: KIND_LABEL[kind], paid: leaveDays(kind, true), unpaid: leaveDays(kind, false) }));
 
@@ -230,7 +245,87 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       return { person, hours: sum(mine), daysLogged: new Set(mine.map((row) => row.day)).size, byProject: splitByProject(mine) };
     }),
     leave,
+    dailyGrid,
   };
+}
+
+/**
+ * The Daily grid as calendar months cut at the range edges, each with one row per Person and one cell per day,
+ * plus each row's total, each day's total, and the month's total. Hours are indexed per Person and day once.
+ * Full-day cuti and sick mark working days only, as leave is counted; part-day leave marks its one date and
+ * keeps the hours worked.
+ */
+function buildDailyGrid(
+  state: AppState,
+  from: string,
+  to: string,
+  people: AppState["people"],
+  blocks: { personId: string; day: string; hours: number }[],
+  leave: { person: { id: string }; kind: LeaveKind; startDate: string; endDate: string; partOfDay: unknown }[],
+) {
+  const hours = new Map<string, number>();
+  for (const row of blocks) hours.set(`${row.personId}|${row.day}`, (hours.get(`${row.personId}|${row.day}`) ?? 0) + row.hours);
+
+  const isWorkingDay = workingDayTest(state);
+  // A full day of cuti or sick outranks part of a day, which outranks remote.
+  const rank = (mark: { leave: LeaveKind; partial: boolean }) => (mark.leave === "remote" ? 0 : mark.partial ? 1 : 2);
+  const marks = new Map<string, { leave: LeaveKind; partial: boolean }>();
+  for (const row of leave) {
+    const partial = row.partOfDay !== null;
+    for (const day of leaveDates(row)) {
+      if (day < from || day > to || (!partial && row.kind !== "remote" && !isWorkingDay(day))) continue;
+      const key = `${row.person.id}|${day}`;
+      const mark = { leave: row.kind, partial };
+      const held = marks.get(key);
+      if (!held || rank(mark) > rank(held)) marks.set(key, mark);
+    }
+  }
+
+  const holidayNames = new Map(activeHolidays(state).map((row) => [row.date, row.name]));
+  type GridDay = { date: string; day: number; weekday: string; weekend: boolean; holiday: string | null };
+  const months: {
+    label: string;
+    from: string;
+    to: string;
+    days: GridDay[];
+    rows: { person: AppState["people"][number]; cells: GridCell[]; total: number }[];
+    dayTotals: number[];
+    total: number;
+  }[] = [];
+  for (let first = from; first <= to; ) {
+    const monthEnd = addDaysIso(`${nextMonth(first.slice(0, 7))}-01`, -1);
+    const last = monthEnd < to ? monthEnd : to;
+    const days: GridDay[] = [];
+    for (let day = first; day <= last; day = addDaysIso(day, 1)) {
+      days.push({ date: day, day: Number(day.slice(8, 10)), weekday: WEEKDAY_LETTERS[new Date(`${day}T00:00:00Z`).getUTCDay()], weekend: isWeekendIso(day), holiday: holidayNames.get(day) ?? null });
+    }
+    const rows = people.map((person) => {
+      const cells = days.map(({ date }): GridCell => {
+        const mark = marks.get(`${person.id}|${date}`);
+        return { hours: hours.get(`${person.id}|${date}`) ?? 0, leave: mark?.leave ?? null, partial: mark?.partial ?? false };
+      });
+      return { person, cells, total: cells.reduce((total, cell) => total + cell.hours, 0) };
+    });
+    const dayTotals = days.map((_, index) => rows.reduce((total, row) => total + row.cells[index].hours, 0));
+    months.push({
+      label: `${MONTH_NAMES[Number(first.slice(5, 7)) - 1]} ${first.slice(0, 4)}`,
+      from: first,
+      to: last,
+      days,
+      rows,
+      dayTotals,
+      total: dayTotals.reduce((total, value) => total + value, 0),
+    });
+    first = addDaysIso(last, 1);
+  }
+  return { months };
+}
+
+/** "2026-09" → "2026-10": the month after, as "YYYY-MM". */
+function nextMonth(month: string): string {
+  const year = Number(month.slice(0, 4));
+  const index = Number(month.slice(5, 7));
+  return index === 12 ? `${year + 1}-01` : `${year}-${String(index + 1).padStart(2, "0")}`;
 }
 
 export type Report = ReturnType<typeof buildReport>;
@@ -295,4 +390,9 @@ export const REPORT_COLORS = {
   warning: "#8A5E10",
   accentHover: "#145F59",
   white: "#FFFFFF",
+  /** Leave washes on white (DESIGN.md leave colours): cuti sage 20%, sick amber 22%, remote neutral. */
+  cuti: "#D1E4E2",
+  sick: "#F3E5CD",
+  wash: "#F4F4F4",
+  weekend: "#FAFAFA",
 } as const;

@@ -63,7 +63,7 @@ function totalCell(cell: Cell, value: ExcelJSModule.CellValue, numFmt?: string) 
 }
 
 /** A4 landscape, the Confidential header, a "range · sheet · Page X of N" footer, and `repeat` rows on every page. */
-function printSetup(sheet: Sheet, report: Report, repeat?: string) {
+function printSetup(sheet: Sheet, report: Report, repeat?: string, repeatColumns?: string) {
   sheet.pageSetup = {
     paperSize: 9,
     orientation: "landscape",
@@ -72,10 +72,12 @@ function printSetup(sheet: Sheet, report: Report, repeat?: string) {
     fitToHeight: 0,
     margins: { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 },
     ...(repeat ? { printTitlesRow: repeat } : {}),
+    ...(repeatColumns ? { printTitlesColumn: repeatColumns } : {}),
   };
   sheet.headerFooter = {
     oddHeader: `&L&"${FONT},Bold"&9KMPlus People&R&"${FONT},Bold"&9&K8A5E10CONFIDENTIAL`,
-    oddFooter: `&L&"${FONT}"&8${reportRange(report)}&C&"${FONT}"&8${sheet.name}&R&"${FONT}"&8Page &P of &N`,
+    // The space after "&8" keeps the range's leading digits from being read as part of the font size.
+    oddFooter: `&L&"${FONT}"&8 ${reportRange(report)}&C&"${FONT}"&8${sheet.name}&R&"${FONT}"&8Page &P of &N`,
   };
 }
 
@@ -212,6 +214,93 @@ function timesheetByPersonSheet(workbook: ExcelJSModule.Workbook, report: Report
   });
 }
 
+/** Part-day leave and remote keep their hours as numbers; the format only adds the mark. */
+const MARKED_HOURS = { cuti: '0.0" C"', sick: '0.0" S"', remote: '0.0" R"' } as const;
+
+/**
+ * The Daily grid: Person and Total, then one column per day under a merged month band, a day-number row, and a
+ * weekday row. Cuti and sick are tinted words; every hour figure stays a number, so the row and column `SUM`s hold.
+ */
+function dailyGridSheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  const sheet = workbook.addWorksheet(SECTION_LABEL.dailyGrid);
+  const months = report.dailyGrid.months;
+  const days = months.flatMap((month) => month.days);
+  const people = months[0]?.rows.map((row) => row.person) ?? [];
+  const lastColumn = 2 + days.length;
+  const letter = (column: number) => sheet.getColumn(column).letter;
+  sheet.columns = [{ width: Math.min(40, Math.max(12, ...people.map((person) => personName(person).length + 3))) }, { width: 9 }, ...days.map(() => ({ width: 5.5 }))];
+  heading(sheet, SECTION_LABEL.dailyGrid, `${reportRange(report)} · hours per day`, Math.min(lastColumn, 20));
+
+  const head = (cell: Cell, value: ExcelJSModule.CellValue, fill = COLOR.accent) => {
+    cell.value = value;
+    cell.font = { name: FONT, size: 9, bold: true, color: { argb: COLOR.white } };
+    cell.fill = solid(fill);
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+  };
+  sheet.mergeCells(3, 1, 5, 1);
+  head(sheet.getCell(3, 1), "Person");
+  sheet.getCell(3, 1).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  sheet.mergeCells(3, 2, 5, 2);
+  head(sheet.getCell(3, 2), "Total");
+  let column = 3;
+  for (const month of months) {
+    if (month.days.length > 1) sheet.mergeCells(3, column, 3, column + month.days.length - 1);
+    head(sheet.getCell(3, column), month.label);
+    sheet.getCell(3, column).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    month.days.forEach((day, index) => {
+      const off = day.holiday || day.weekend ? COLOR.accentHover : COLOR.accent;
+      head(sheet.getCell(4, column + index), day.day, off);
+      head(sheet.getCell(5, column + index), day.weekday, off);
+      sheet.getCell(5, column + index).font = { name: FONT, size: 8, color: { argb: COLOR.white } };
+      if (day.holiday) sheet.getCell(4, column + index).note = day.holiday;
+    });
+    column += month.days.length;
+  }
+  [3, 4, 5].forEach((row) => (sheet.getRow(row).height = 16));
+
+  const first = 6;
+  people.forEach((person, index) => {
+    const r = first + index;
+    bodyCell(sheet.getCell(r, 1), personName(person));
+    const cells = months.flatMap((month) => month.rows[index].cells);
+    cells.forEach((cell, d) => {
+      const target = sheet.getCell(r, 3 + d);
+      const away = (cell.leave === "cuti" || cell.leave === "sick") && !cell.partial ? cell.leave : null;
+      if (away) bodyCell(target, away === "cuti" ? "Cuti" : "Sick", { align: "left" });
+      else bodyCell(target, cell.hours > 0 || cell.leave ? cell.hours : null, { numFmt: cell.leave ? MARKED_HOURS[cell.leave] : "0.0" });
+      target.alignment = { vertical: "middle", horizontal: "center" };
+      const fill = cell.leave === "cuti" ? COLOR.cuti : cell.leave === "sick" ? COLOR.sick : cell.leave === "remote" ? COLOR.wash : days[d].holiday ? COLOR.tint : days[d].weekend ? COLOR.weekend : null;
+      if (fill) target.fill = solid(fill);
+      if (away) target.font = { name: FONT, size: 9, bold: true, color: { argb: away === "cuti" ? COLOR.accentHover : COLOR.warning } };
+    });
+    const total = months.reduce((sum, month) => sum + month.rows[index].total, 0);
+    bodyCell(sheet.getCell(r, 2), days.length ? { formula: `SUM(${letter(3)}${r}:${letter(lastColumn)}${r})`, result: total } : total, { numFmt: HOURS_FORMAT });
+    sheet.getCell(r, 2).font = { name: FONT, size: 10, bold: true, color: { argb: COLOR.ink } };
+    sheet.getRow(r).height = 18;
+  });
+
+  const last = first + people.length - 1;
+  if (people.length === 0) {
+    sheet.mergeCells(first, 1, first, Math.min(lastColumn, 20));
+    bodyCell(sheet.getCell(first, 1), reportEmptyLine(report, "one logged hours or was staffed"));
+    sheet.getCell(first, 1).font = { name: FONT, size: 10, italic: true, color: { argb: COLOR.muted } };
+  } else {
+    const r = last + 1;
+    const dayTotals = months.flatMap((month) => month.dayTotals);
+    totalCell(sheet.getCell(r, 1), "Total");
+    totalCell(sheet.getCell(r, 2), { formula: `SUM(B${first}:B${last})`, result: dayTotals.reduce((sum, value) => sum + value, 0) }, HOURS_FORMAT);
+    dayTotals.forEach((result, d) => {
+      const target = sheet.getCell(r, 3 + d);
+      // The empty third section shows a zero total as a blank cell.
+      totalCell(target, { formula: `SUM(${letter(3 + d)}${first}:${letter(3 + d)}${last})`, result }, "0.0;-0.0;;@");
+      target.alignment = { vertical: "middle", horizontal: "center" };
+    });
+    sheet.getRow(r).height = 18;
+  }
+  sheet.views = [{ state: "frozen", xSplit: 2, ySplit: 5, showGridLines: false }];
+  printSetup(sheet, report, "3:5", "A:B");
+}
+
 function leaveSheet(workbook: ExcelJSModule.Workbook, report: Report) {
   tableSheet(workbook, report, {
     name: SECTION_LABEL.leave,
@@ -235,6 +324,7 @@ function leaveSheet(workbook: ExcelJSModule.Workbook, report: Report) {
 const SECTION_SHEETS: { key: SectionKey; write: (workbook: ExcelJSModule.Workbook, report: Report) => void }[] = [
   { key: "summary", write: summarySheet },
   { key: "timesheetByPerson", write: timesheetByPersonSheet },
+  { key: "dailyGrid", write: dailyGridSheet },
   { key: "leave", write: leaveSheet },
 ];
 
