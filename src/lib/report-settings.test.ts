@@ -51,6 +51,11 @@ describe("Report settings in the page address", () => {
     expect(parse("from=2026-10-01&to=2026-10-31&projects=p1,gone&people=ghost,person-eka")).toMatchObject({ projectIds: ["p1"], personIds: ["person-eka"] });
   });
 
+  it("falls back to every Project and everyone when the address names no known id", () => {
+    expect(parse("from=2026-10-01&to=2026-10-31&projects=gone&people=ghost")).toMatchObject({ projectIds: null, personIds: null, includeNoProject: true });
+    expect(parse("from=2026-10-01&to=2026-10-31&projects=&people=")).toMatchObject({ projectIds: null, personIds: null });
+  });
+
   it("forces time with no project off while the address names a Project filter", () => {
     expect(parse("from=2026-10-01&to=2026-10-31&projects=p1").includeNoProject).toBe(false);
     expect(parse("from=2026-10-01&to=2026-10-31&noProject=0").includeNoProject).toBe(false);

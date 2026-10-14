@@ -4,10 +4,12 @@
  */
 import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import React, { createContext, useContext, type ReactNode } from "react";
+import { formatDate, plural } from "@/lib/labels";
 import { clientLabel, personName } from "@/lib/project-view";
 import {
+  gridCellLook,
+  LEAVE_COLORS,
   REPORT_COLORS as C,
-  reportDate,
   reportEmptyLine,
   reportFilterLine,
   reportHours,
@@ -73,6 +75,27 @@ const LOOKS = {
 
 const Look = createContext<(typeof LOOKS)[ReportTemplate]>(LOOKS.standard);
 
+/** The running head every page carries: the Report's title, then the section's name after page 1. `inset` matches the page's side margin. */
+function RunningHead({ report, section, inset = 32 }: { report: Report; section?: string; inset?: number }) {
+  return (
+    <View style={[s.runningHead, { left: inset, right: inset }]} fixed>
+      <Text>{report.title}</Text>
+      <Text render={({ pageNumber }) => (section && pageNumber > 1 ? section : "")} />
+    </View>
+  );
+}
+
+/** The footer every page carries: "KMPlus People · range · CONFIDENTIAL · Page X of Y". */
+function PageFooter({ report, inset = 32 }: { report: Report; inset?: number }) {
+  return (
+    <View style={[s.footer, { left: inset, right: inset }]} fixed>
+      <Text>KMPlus People · {reportRange(report)}</Text>
+      <Text style={s.confidential}>CONFIDENTIAL</Text>
+      <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+    </View>
+  );
+}
+
 /**
  * One section's pages: running head, title, context line, body, and the footer on every page. `lead` is the
  * Letterhead band, drawn above the title of the Report's first section.
@@ -81,19 +104,12 @@ function SectionPages({ report, title, context, children, lead }: { report: Repo
   const look = useContext(Look);
   return (
     <Page size="A4" orientation="landscape" style={s.page} wrap>
-      <View style={s.runningHead} fixed>
-        <Text>{report.title}</Text>
-        <Text render={({ pageNumber }) => (pageNumber > 1 ? title : "")} />
-      </View>
+      <RunningHead report={report} section={title} />
       {lead}
       <Text style={[s.title, { color: look.titleColor }]}>{title}</Text>
       <Text style={s.context}>{context}</Text>
       {children}
-      <View style={s.footer} fixed>
-        <Text>KMPlus People · {reportRange(report)}</Text>
-        <Text style={s.confidential}>CONFIDENTIAL</Text>
-        <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
-      </View>
+      <PageFooter report={report} />
     </Page>
   );
 }
@@ -260,8 +276,8 @@ function Summary({ report, lead }: { report: Report; lead?: ReactNode }) {
           empty=""
           columns={[
             { title: "Leave, working days", width: 130, render: (row) => row.label },
-            { title: "Paid", width: 70, align: "right", render: (row) => String(row.paid) },
-            { title: "Unpaid", width: 70, align: "right", render: (row) => String(row.unpaid) },
+            { title: "Paid", width: 70, align: "right", render: (row) => String(row.paid), total: (rows) => String(rows.reduce((total, row) => total + row.paid, 0)) },
+            { title: "Unpaid", width: 70, align: "right", render: (row) => String(row.unpaid), total: (rows) => String(rows.reduce((total, row) => total + row.unpaid, 0)) },
           ]}
         />
       </View>
@@ -328,11 +344,12 @@ function Staffing({ report, lead }: { report: Report; lead?: ReactNode }) {
         rows={report.staffing}
         empty={reportEmptyLine(report, "staffing")}
         columns={[
-          { title: "Person", width: 150, render: (row) => personName(row.person) },
-          { title: "Project", width: 270, render: (row) => projectLabel(row.project) },
+          // Summed Load means nothing, so the totals row counts the People and Projects staffed instead.
+          { title: "Person", width: 150, render: (row) => personName(row.person), total: (rows) => plural(new Set(rows.map((row) => row.person.id)).size, "person", "people") },
+          { title: "Project", width: 270, render: (row) => projectLabel(row.project), total: (rows) => plural(new Set(rows.map((row) => row.project?.id)).size, "project") },
           { title: "Load", width: 70, align: "right", render: (row) => percent(row.load) },
-          { title: "From", width: 85, render: (row) => reportDate(row.startDate) },
-          { title: "To", width: 85, render: (row) => (row.endDate ? reportDate(row.endDate) : "No end") },
+          { title: "From", width: 85, render: (row) => formatDate(row.startDate) },
+          { title: "To", width: 85, render: (row) => (row.endDate ? formatDate(row.endDate) : "No end") },
           { title: "Peak load", width: 80, align: "right", render: (row) => percent(row.peakLoad), warn: (row) => row.peakLoad > 100 },
         ]}
       />
@@ -350,8 +367,8 @@ function Projects({ report, lead }: { report: Report; lead?: ReactNode }) {
           { title: "Code", width: 80, render: (row) => row.project.code },
           { title: "Project", width: 210, render: (row) => row.project.name },
           { title: "Client", width: 160, render: (row) => clientLabel(row.project) },
-          { title: "From", width: 80, render: (row) => reportDate(row.project.startDate) },
-          { title: "To", width: 80, render: (row) => (row.project.endDate ? reportDate(row.project.endDate) : "No end") },
+          { title: "From", width: 80, render: (row) => formatDate(row.project.startDate) },
+          { title: "To", width: 80, render: (row) => (row.project.endDate ? formatDate(row.project.endDate) : "No end") },
           { title: "People", width: 60, align: "right", render: (row) => String(row.people) },
           { title: "Hours", width: 80, align: "right", render: (row) => reportHours(row.hours), total: (rows) => reportHours(rows.reduce((total, row) => total + row.hours, 0)) },
         ]}
@@ -366,14 +383,18 @@ function TimesheetDetailNote({ report, lead }: { report: Report; lead?: ReactNod
   return (
     <SectionPages report={report} title="Timesheet detail" context={`${reportRange(report)} · one row per counted time block`} lead={lead}>
       <Text style={{ fontSize: 10 }}>
+        {/* Not `plural()`: the count needs its thousands separator ("1,900"). */}
         Timesheet detail: {count.toLocaleString("en-US")} time {count === 1 ? "block" : "blocks"}, in the spreadsheet&apos;s Timesheet detail sheet.
       </Text>
     </SectionPages>
   );
 }
 
-const LEAVE_WORD = { cuti: "Cuti", sick: "Sick" } as const;
-const PART_MARK = { cuti: "C", sick: "S", remote: "R" } as const;
+/** "rgba(26, 120, 112, 0.24)": a `#RRGGBB` palette colour at some opacity, for Briefing's heat shading. */
+function withAlpha(hex: string, alpha: number) {
+  const [r, g, b] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
+}
 
 /** Hours in a grid cell: whole hours without a decimal, so 31 day columns stay legible. */
 const gridHours = (hours: number) => (Number.isInteger(hours) ? String(hours) : hours.toFixed(1));
@@ -392,7 +413,7 @@ function DailyGrid({ report, lead }: { report: Report; lead?: ReactNode }) {
         const dayWidth = Math.min(44, (usable - nameWidth - totalWidth) / month.days.length);
         const peak = Math.max(1, ...month.rows.flatMap((row) => row.cells.map((cell) => cell.hours)));
         const shade = (index: number, hours: number) =>
-          month.days[index].holiday ? C.tint : month.days[index].weekend ? C.weekend : heat && hours > 0 ? `rgba(26, 120, 112, ${(0.08 + 0.32 * (hours / peak)).toFixed(2)})` : undefined;
+          month.days[index].holiday ? C.tint : month.days[index].weekend ? C.weekend : heat && hours > 0 ? withAlpha(C.accent, 0.08 + 0.32 * (hours / peak)) : undefined;
         return (
           <SectionPages key={month.from} report={report} title={`Daily grid · ${month.label}`} context={`${reportRange(month)} · hours per day`} lead={monthIndex === 0 ? lead : undefined}>
             <View style={[s.row, look.band, { minHeight: 24 }]} fixed>
@@ -410,16 +431,16 @@ function DailyGrid({ report, lead }: { report: Report; lead?: ReactNode }) {
               <View key={row.person.id} style={[s.row, { minHeight: look.rowHeight - 2 }]} wrap={false}>
                 <Text style={[s.cell, { width: nameWidth, fontSize: 7.5 }]}>{personName(row.person)}</Text>
                 {row.cells.map((cell, index) => {
-                  const away = (cell.leave === "cuti" || cell.leave === "sick") && !cell.partial ? cell.leave : null;
-                  const background = cell.leave === "cuti" ? C.cuti : cell.leave === "sick" ? C.sick : cell.leave === "remote" ? C.wash : shade(index, cell.hours);
+                  const look = gridCellLook(cell);
+                  const background = look.tint ? LEAVE_COLORS[look.tint].wash : shade(index, cell.hours);
                   return (
                     <View key={month.days[index].date} style={{ width: dayWidth, alignSelf: "stretch", justifyContent: "center", alignItems: "center", backgroundColor: background, borderLeftWidth: 0.25, borderLeftColor: C.line }}>
-                      {away ? (
-                        <Text style={{ fontSize: 5, fontWeight: 600, color: away === "cuti" ? C.accentHover : C.warning }}>{LEAVE_WORD[away]}</Text>
-                      ) : cell.hours > 0 || cell.leave ? (
+                      {look.word && look.tint ? (
+                        <Text style={{ fontSize: 5, fontWeight: 600, color: LEAVE_COLORS[look.tint].ink }}>{look.word}</Text>
+                      ) : cell.hours > 0 || look.mark ? (
                         <Text style={{ fontSize: 6.5 }}>
                           {gridHours(cell.hours)}
-                          {cell.leave ? <Text style={{ fontSize: 4.5, color: C.muted }}> {PART_MARK[cell.leave]}</Text> : null}
+                          {look.mark ? <Text style={{ fontSize: 4.5, color: C.muted }}> {look.mark}</Text> : null}
                         </Text>
                       ) : null}
                     </View>
@@ -441,9 +462,9 @@ function DailyGrid({ report, lead }: { report: Report; lead?: ReactNode }) {
             ) : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 10, fontSize: 7, color: C.muted }} wrap={false}>
               {[
-                [C.cuti, "Cuti"],
-                [C.sick, "Sick"],
-                [C.wash, "Remote, hours marked R"],
+                [LEAVE_COLORS.cuti.wash, "Cuti"],
+                [LEAVE_COLORS.sick.wash, "Sick"],
+                [LEAVE_COLORS.remote.wash, "Remote, hours marked R"],
                 [C.tint, "Public holiday"],
               ].map(([color, label]) => (
                 <View key={label} style={{ flexDirection: "row", alignItems: "center" }}>
@@ -451,7 +472,7 @@ function DailyGrid({ report, lead }: { report: Report; lead?: ReactNode }) {
                   <Text>{label}</Text>
                 </View>
               ))}
-              <Text>Part of a day: hours worked, marked C or S</Text>
+              <Text>Hours worked on a leave day: marked C or S</Text>
               {month.days
                 .filter((day) => day.holiday)
                 .map((day) => (
@@ -476,8 +497,8 @@ function ApprovedLeave({ report, lead }: { report: Report; lead?: ReactNode }) {
         columns={[
           { title: "Person", width: 140, render: (row) => personName(row.person) },
           { title: "Leave", width: 175, render: reportLeaveLabel },
-          { title: "From", width: 75, render: (row) => reportDate(row.startDate) },
-          { title: "To", width: 75, render: (row) => reportDate(row.endDate) },
+          { title: "From", width: 75, render: (row) => formatDate(row.startDate) },
+          { title: "To", width: 75, render: (row) => formatDate(row.endDate) },
           { title: "Part of day", width: 80, render: (row) => (row.partOfDay ? `${row.partOfDay.start}–${row.partOfDay.end}` : "") },
           { title: "Hours", width: 60, align: "right", render: (row) => (row.partOfDay ? reportHours(row.hours) : ""), total: (rows) => reportHours(rows.reduce((total, row) => total + row.hours, 0)) },
           { title: "Working days", width: 85, align: "right", render: (row) => String(row.workingDays), total: (rows) => String(rows.reduce((total, row) => total + row.workingDays, 0)) },
@@ -507,6 +528,7 @@ function Cover({ report, logo }: { report: Report; logo: string }) {
   const briefing = report.template === "briefing";
   return (
     <Page size="A4" orientation="portrait" style={[s.page, { paddingHorizontal: 48, paddingTop: 54 }]}>
+      <RunningHead report={report} inset={48} />
       {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an HTML img and takes no alt */}
       <Image src={logo} style={{ width: 92, height: 46, marginBottom: briefing ? 150 : 200 }} />
       <View style={{ width: 36, height: 3, backgroundColor: C.accent, marginBottom: 14 }} />
@@ -531,10 +553,8 @@ function Cover({ report, logo }: { report: Report; logo: string }) {
             ))}
         </View>
       ) : null}
-      <View style={{ position: "absolute", left: 48, right: 48, bottom: 40, flexDirection: "row", justifyContent: "space-between", fontSize: 7.5, color: C.faint }}>
-        <Text>Read-only figures from KMPlus People. Hours are counted time blocks.</Text>
-        <Text style={s.confidential}>CONFIDENTIAL</Text>
-      </View>
+      <Text style={{ position: "absolute", left: 48, right: 48, bottom: 44, fontSize: 7.5, color: C.faint }}>Read-only figures from KMPlus People. Hours are counted time blocks.</Text>
+      <PageFooter report={report} inset={48} />
     </Page>
   );
 }
@@ -587,7 +607,9 @@ export function ReportPdf({ report, logo }: { report: Report; logo: string }) {
         {/* A Letterhead Report with only Cover chosen is the band on a page of its own. */}
         {band && pages.length === 0 ? (
           <Page size="A4" orientation="landscape" style={s.page}>
+            <RunningHead report={report} />
             {band}
+            <PageFooter report={report} />
           </Page>
         ) : null}
         {pages.map((key, index) => {

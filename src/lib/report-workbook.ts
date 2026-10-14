@@ -1,6 +1,7 @@
 import type ExcelJSModule from "exceljs";
+import { plural } from "@/lib/labels";
 import { clientLabel, personName } from "@/lib/project-view";
-import { REPORT_COLORS, reportEmptyLine, reportFilterLine, reportLeaveLabel, reportRange, SECTION_LABEL, type Report, type SectionKey } from "@/lib/report-model";
+import { gridCellLook, LEAVE_COLORS, REPORT_COLORS, reportEmptyLine, reportFilterLine, reportLeaveLabel, reportRange, SECTION_LABEL, type Report, type SectionKey } from "@/lib/report-model";
 
 /**
  * The Report as an xlsx workbook. ExcelJS is passed in so the page can load it only when Download xlsx is
@@ -75,7 +76,7 @@ function printSetup(sheet: Sheet, report: Report, repeat?: string, repeatColumns
     ...(repeatColumns ? { printTitlesColumn: repeatColumns } : {}),
   };
   sheet.headerFooter = {
-    oddHeader: `&L&"${FONT},Bold"&9KMPlus People&R&"${FONT},Bold"&9&K8A5E10CONFIDENTIAL`,
+    oddHeader: `&L&"${FONT},Bold"&9KMPlus People&R&"${FONT},Bold"&9&K${REPORT_COLORS.warning.slice(1)}CONFIDENTIAL`,
     // The space after "&8" keeps the range's leading digits from being read as part of the font size.
     oddFooter: `&L&"${FONT}"&8 ${reportRange(report)}&C&"${FONT}"&8${sheet.name}&R&"${FONT}"&8Page &P of &N`,
   };
@@ -115,7 +116,7 @@ function summarySheet(workbook: ExcelJSModule.Workbook, report: Report) {
   });
   if (report.hoursByProject.length === 0) {
     sheet.mergeCells(first, 1, first, 3);
-    bodyCell(sheet.getCell(first, 1), `No hours between ${reportRange(report)}`);
+    bodyCell(sheet.getCell(first, 1), reportEmptyLine(report, "hours"));
     sheet.getCell(first, 1).font = { name: FONT, size: 10, italic: true, color: { argb: COLOR.muted } };
   } else {
     const r = last + 1;
@@ -134,10 +135,21 @@ function summarySheet(workbook: ExcelJSModule.Workbook, report: Report) {
     bodyCell(sheet.getCell(r, 3), row.unpaid, { numFmt: "0" });
     sheet.getRow(r).height = 20;
   });
+  const leaveFirst = leaveHead + 1;
+  const leaveLast = leaveHead + summary.leaveByKind.length;
+  const leaveTotal = leaveLast + 1;
+  const sumOf = (pick: (row: (typeof summary.leaveByKind)[number]) => number) => summary.leaveByKind.reduce((total, row) => total + pick(row), 0);
+  totalCell(sheet.getCell(leaveTotal, 1), "Total");
+  totalCell(sheet.getCell(leaveTotal, 2), { formula: `SUM(B${leaveFirst}:B${leaveLast})`, result: sumOf((row) => row.paid) }, "0");
+  totalCell(sheet.getCell(leaveTotal, 3), { formula: `SUM(C${leaveFirst}:C${leaveLast})`, result: sumOf((row) => row.unpaid) }, "0");
+  sheet.getRow(leaveTotal).height = 20;
 
+  // The sheet stacks three small tables, and a sheet holds one autofilter: it goes on Hours by project, the one
+  // with rows to sort. Printing repeats the title, range, and filter rows.
+  if (report.hoursByProject.length > 0) sheet.autoFilter = { from: { row: head, column: 1 }, to: { row: last, column: 3 } };
   // Freeze through the first header band and the label column.
   sheet.views = [{ state: "frozen", xSplit: 1, ySplit: 4, showGridLines: false }];
-  printSetup(sheet, report);
+  printSetup(sheet, report, "1:3");
 }
 
 type Column<T> = {
@@ -147,8 +159,8 @@ type Column<T> = {
   align?: Align;
   /** A `SUM` of the column in the totals row. */
   sum?: boolean;
-  /** Another totals formula, for a column whose rows are not all the same kind; `letter` maps a column number. */
-  total?: (range: { first: number; last: number; letter: (column: number) => string }) => { formula: string; result: number };
+  /** Another total: a formula for a column whose rows are not all the same kind, or a value; `letter` maps a column number. */
+  total?: (range: { first: number; last: number; letter: (column: number) => string }) => ExcelJSModule.CellValue;
   warn?: (row: T) => boolean;
   /** Indents a breakdown row's label under its parent. */
   indent?: (row: T) => boolean;
@@ -231,8 +243,6 @@ function timesheetByPersonSheet(workbook: ExcelJSModule.Workbook, report: Report
   });
 }
 
-/** Part-day leave and remote keep their hours as numbers; the format only adds the mark. */
-const MARKED_HOURS = { cuti: '0.0" C"', sick: '0.0" S"', remote: '0.0" R"' } as const;
 
 /**
  * The Daily grid: Person and Total, then one column per day under a merged month band, a day-number row, and a
@@ -282,13 +292,14 @@ function dailyGridSheet(workbook: ExcelJSModule.Workbook, report: Report) {
     const cells = months.flatMap((month) => month.rows[index].cells);
     cells.forEach((cell, d) => {
       const target = sheet.getCell(r, 3 + d);
-      const away = (cell.leave === "cuti" || cell.leave === "sick") && !cell.partial ? cell.leave : null;
-      if (away) bodyCell(target, away === "cuti" ? "Cuti" : "Sick", { align: "left" });
-      else bodyCell(target, cell.hours > 0 || cell.leave ? cell.hours : null, { numFmt: cell.leave ? MARKED_HOURS[cell.leave] : "0.0" });
+      const look = gridCellLook(cell);
+      // Every hour stays a number, so the SUMs hold; a mark is only the number format (`0.0" R"`).
+      if (look.word) bodyCell(target, look.word, { align: "left" });
+      else bodyCell(target, cell.hours > 0 || look.mark ? cell.hours : null, { numFmt: look.mark ? `0.0" ${look.mark}"` : "0.0" });
       target.alignment = { vertical: "middle", horizontal: "center" };
-      const fill = cell.leave === "cuti" ? COLOR.cuti : cell.leave === "sick" ? COLOR.sick : cell.leave === "remote" ? COLOR.wash : days[d].holiday ? COLOR.tint : days[d].weekend ? COLOR.weekend : null;
-      if (fill) target.fill = solid(fill);
-      if (away) target.font = { name: FONT, size: 9, bold: true, color: { argb: away === "cuti" ? COLOR.accentHover : COLOR.warning } };
+      const fill = look.tint ? LEAVE_COLORS[look.tint].wash : days[d].holiday ? REPORT_COLORS.tint : days[d].weekend ? REPORT_COLORS.weekend : null;
+      if (fill) target.fill = solid(`FF${fill.slice(1)}`);
+      if (look.word && look.tint) target.font = { name: FONT, size: 9, bold: true, color: { argb: `FF${LEAVE_COLORS[look.tint].ink.slice(1)}` } };
     });
     const total = months.reduce((sum, month) => sum + month.rows[index].total, 0);
     bodyCell(sheet.getCell(r, 2), days.length ? { formula: `SUM(${letter(3)}${r}:${letter(lastColumn)}${r})`, result: total } : total, { numFmt: HOURS_FORMAT });
@@ -357,8 +368,9 @@ function staffingSheet(workbook: ExcelJSModule.Workbook, report: Report) {
     rows: report.staffing,
     empty: reportEmptyLine(report, "staffing"),
     columns: [
-      { header: "Person", value: (row) => personName(row.person) },
-      { header: "Project", value: (row) => projectLabel(row.project) },
+      // Summed Load means nothing, so the totals row counts the People and Projects staffed instead.
+      { header: "Person", value: (row) => personName(row.person), total: () => plural(new Set(report.staffing.map((row) => row.person.id)).size, "person", "people") },
+      { header: "Project", value: (row) => projectLabel(row.project), total: () => plural(new Set(report.staffing.map((row) => row.project?.id)).size, "project") },
       { header: "Load", value: (row) => row.load, numFmt: LOAD_FORMAT },
       { header: "From", value: (row) => sheetDate(row.startDate), numFmt: DATE_FORMAT, align: "left" },
       { header: "To", value: (row) => (row.endDate ? sheetDate(row.endDate) : "No end"), numFmt: DATE_FORMAT, align: "left" },

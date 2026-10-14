@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./fixtures";
-import { buildReport, REPORT_DEFAULTS, reportDate, reportEmptyLine, reportFileName, reportHours, suggestedPreparedFor } from "./report-model";
+import { buildReport, gridCellLook, REPORT_DEFAULTS, reportEmptyLine, reportFileName, reportHours, reportRange, suggestedPreparedFor } from "./report-model";
 import type { AppState, Invite, LeaveRequest, Project, PublicHoliday, Staffing, TimeBlock } from "./types";
 
 const AT = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
@@ -473,14 +473,28 @@ describe("Report model", () => {
     });
   });
 
+  it("reads a grid cell the same way for both files: the leave word on a free day off, otherwise hours with a mark", () => {
+    expect(gridCellLook({ hours: 0, leave: "cuti", partial: false })).toEqual({ word: "Cuti", mark: null, tint: "cuti" });
+    expect(gridCellLook({ hours: 0, leave: "sick", partial: false })).toEqual({ word: "Sick", mark: null, tint: "sick" });
+    // Hours logged on a leave day before it was approved still show, so no hour drops out of a total.
+    expect(gridCellLook({ hours: 3, leave: "cuti", partial: false })).toEqual({ word: null, mark: "C", tint: "cuti" });
+    expect(gridCellLook({ hours: 4, leave: "sick", partial: true })).toEqual({ word: null, mark: "S", tint: "sick" });
+    expect(gridCellLook({ hours: 6, leave: "remote", partial: false })).toEqual({ word: null, mark: "R", tint: "remote" });
+    expect(gridCellLook({ hours: 8, leave: null, partial: false })).toEqual({ word: null, mark: null, tint: null });
+  });
+
+  it("returns the file names for both formats", () => {
+    const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", title: "Samudra: October" }, AT);
+    expect(report.fileNames).toEqual({ pdf: "Samudra October 2026-10-01 to 2026-10-31.pdf", xlsx: "Samudra October 2026-10-01 to 2026-10-31.xlsx" });
+  });
+
   it("keeps the chosen sections in the fixed order", () => {
     const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave", "cover", "summary"] }, AT);
     expect(report.sections).toEqual(["cover", "summary", "leave"]);
   });
 
   it("writes dates with fixed month names and hours with one decimal and thousands separators", () => {
-    expect(reportDate("2026-09-21")).toBe("21 Sep 2026");
-    expect(reportDate("2026-01-05")).toBe("5 Jan 2026");
+    expect(reportRange({ from: "2026-09-21", to: "2026-10-05" })).toBe("21 Sep 2026 – 5 Oct 2026");
     expect(reportHours(2170)).toBe("2,170.0");
     expect(reportHours(7.25)).toBe("7.3");
   });

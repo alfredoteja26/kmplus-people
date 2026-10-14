@@ -265,4 +265,49 @@ describe("Report workbook", () => {
     expect(await sheets("letterhead")).toEqual(standard);
     expect(await sheets("briefing")).toEqual(standard);
   });
+
+  describe("review fixes", () => {
+    async function load(report: ReturnType<typeof buildReport>) {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load((await buildReportWorkbook(ExcelJS, report, null)).buffer as ArrayBuffer);
+      return workbook;
+    }
+    const AT = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
+
+    it("writes the Summary's empty line like the PDF, totals leave by kind, filters Hours by project, and repeats the title rows", async () => {
+      const empty = (await load(buildReport(state(), { ...REPORT_DEFAULTS, from: "2027-03-01", to: "2027-03-31", sections: ["summary"] }, AT))).getWorksheet("Summary")!;
+      expect(rowOf(empty, "No hours between 1 Mar and 31 Mar 2027.")).toBeDefined();
+      const summary = (await readBack()).getWorksheet("Summary")!;
+      const total = rowOf(summary, "Remote").number + 1;
+      expect(summary.getCell(total, 1).value).toBe("Total");
+      expect((summary.getCell(total, 2).value as ExcelJS.CellFormulaValue).formula).toMatch(/^SUM\(B\d+:B\d+\)$/);
+      expect(summary.autoFilter).toBe(`A${rowOf(summary, "Hours by project").number}:C${rowOf(summary, "No project").number}`);
+      expect(summary.pageSetup.printTitlesRow).toBe("1:3");
+    });
+
+    it("keeps hours logged on a full leave day as a marked number, so the grid SUMs match the PDF", async () => {
+      // Rayhan logged 2 hours on 12 Oct, before his cuti that day was approved.
+      const withHours: AppState = { ...state(), timeBlocks: [...state().timeBlocks, block("early", "person-rayhan", "2026-10-12", 2, "p1")] };
+      const report = buildReport(withHours, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["dailyGrid"] }, AT);
+      const sheet = (await load(report)).getWorksheet("Daily grid")!;
+      const rayhan = rowOf(sheet, "Rayhan");
+      expect([rayhan.getCell("N").value, rayhan.getCell("N").numFmt]).toEqual([2, '0.0" C"']);
+      expect(rayhan.getCell("O").value).toBe("Cuti");
+      expect((rayhan.getCell("B").value as ExcelJS.CellFormulaValue).result).toBe(8);
+    });
+
+    it("totals Staffing as the People and Projects staffed", async () => {
+      const staffed: AppState = {
+        ...state(),
+        staffings: [
+          { id: "s1", tenantId: "kmplus", personId: "person-rayhan", projectId: "p1", load: 80, startDate: "2026-09-01", endDate: null },
+          { id: "s2", tenantId: "kmplus", personId: "person-rayhan", projectId: "p2", load: 40, startDate: "2026-10-01", endDate: null },
+          { id: "s3", tenantId: "kmplus", personId: "person-eka", projectId: "p2", load: 50, startDate: "2026-10-01", endDate: null },
+        ],
+      };
+      const sheet = (await load(buildReport(staffed, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["staffing"] }, AT))).getWorksheet("Staffing")!;
+      const totals = sheet.getRow(7);
+      expect([totals.getCell(1).value, totals.getCell(2).value]).toEqual(["2 people", "2 projects"]);
+    });
+  });
 });

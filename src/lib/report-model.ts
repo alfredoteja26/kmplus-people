@@ -1,7 +1,9 @@
 import type { AppState, LeaveKind } from "@/lib/types";
-import { activeHolidays, isWeekendIso, KIND_LABEL, leaveDates } from "@/lib/leave-view";
+import { formatDate } from "@/lib/labels";
+import { activeHolidays, isWeekendIso, KIND_LABEL, leaveDates, spanSummary } from "@/lib/leave-view";
+import { countedHours } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { addDaysIso, countedTimeBlocksForPerson, hoursBetween, leaveIsApproved, personLoadSum } from "@/lib/work-delivery-query";
+import { addDaysIso, hoursBetween, leaveIsApproved, personLoadSum, rangesOverlap } from "@/lib/work-delivery-query";
 
 /** Every section a Report can hold, in the fixed order both files follow. */
 export const SECTION_KEYS = ["cover", "summary", "hoursByProject", "timesheetByPerson", "dailyGrid", "timesheetDetail", "staffing", "projects", "leave"] as const;
@@ -21,9 +23,6 @@ export const SECTION_LABEL: Record<SectionKey, string> = {
 
 /** On by default: serves management, billing, and payroll at once. */
 export const DEFAULT_SECTIONS: SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
-
-/** The sections both files can draw so far; the page offers only these until the rest are built. */
-export const READY_SECTIONS: readonly SectionKey[] = SECTION_KEYS;
 
 /** Too many rows to draw quickly in a PDF (about 20s per 1,900): the PDF names the sheet instead. */
 export const SPREADSHEET_ONLY: readonly SectionKey[] = ["timesheetDetail"];
@@ -112,10 +111,6 @@ export function suggestedPreparedFor(state: AppState, projectIds: string[] | nul
 /** Who generated the Report and when, in Asia/Jakarta wall time ("13 Oct 2026, 10:42"). */
 export type ReportStamp = { generatedBy: string; generatedAt: string };
 
-function overlaps(startDate: string, endDate: string | null, from: string, to: string) {
-  return startDate <= to && (!endDate || endDate >= from);
-}
-
 /**
  * The highest summed Load on any one day of the range, across all of the Person's Staffing. A sum only rises
  * where a row starts, so checking the range start and each start inside it is enough.
@@ -127,7 +122,10 @@ function peakLoad(state: AppState, personId: string, from: string, to: string) {
   return Math.max(...[from, ...starts].map((day) => personLoadSum(state, personId, day)));
 }
 
-/** Whether a date is Monday to Friday and not an active public holiday. */
+/**
+ * Whether a date is Monday to Friday and not an active public holiday, for checking day by day (leave inside the
+ * range, Daily grid cells). `spanSummary` gives the same rule as one count.
+ */
 function workingDayTest(state: AppState) {
   const holidays = new Set(activeHolidays(state).map((row) => row.date));
   return (day: string) => !isWeekendIso(day) && !holidays.has(day);
@@ -135,10 +133,7 @@ function workingDayTest(state: AppState) {
 
 /** Monday to Friday from `from` to `to`, excluding active public holidays. */
 export function reportWorkingDays(state: AppState, from: string, to: string): number {
-  const isWorkingDay = workingDayTest(state);
-  let count = 0;
-  for (let day = from; day <= to; day = addDaysIso(day, 1)) if (isWorkingDay(day)) count += 1;
-  return count;
+  return spanSummary(state, from, to)?.working ?? 0;
 }
 
 const LEAVE_KINDS: LeaveKind[] = ["cuti", "sick", "remote"];
@@ -160,6 +155,18 @@ const WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 /** One Daily grid cell: counted hours, and the leave on that day, if any. */
 export type GridCell = { hours: number; leave: LeaveKind | null; partial: boolean };
 
+const LEAVE_MARK: Record<LeaveKind, string> = { cuti: "C", sick: "S", remote: "R" };
+
+/**
+ * How a Daily grid cell reads in both files. A full day of cuti or sick with no hours is the word ("Cuti", "Sick").
+ * Any cell with hours shows them, with the leave's mark when it has one: part-day leave, remote, or hours logged
+ * on a leave day before it was approved. `tint` is the leave colour to draw.
+ */
+export function gridCellLook(cell: GridCell): { word: string | null; mark: string | null; tint: LeaveKind | null } {
+  const away = (cell.leave === "cuti" || cell.leave === "sick") && !cell.partial && cell.hours === 0;
+  return { word: away ? KIND_LABEL[cell.leave!] : null, mark: !away && cell.leave ? LEAVE_MARK[cell.leave] : null, tint: cell.leave };
+}
+
 /**
  * The Report as figures, with no formatting or layout, so the spreadsheet and the PDF cannot disagree.
  * Hours stay exact; only display rounds them, so rows always add up to their totals. Rules: the Report
@@ -174,28 +181,24 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   const projectById = new Map(state.projects.map((row) => [row.id, row]));
   const workItemById = new Map(state.workItems.map((row) => [row.id, row]));
   const typeById = new Map(state.timeBlockTypes.map((row) => [row.id, row]));
-  const blocks = state.people
-    .filter((person) => !personFilter || personFilter.has(person.id))
-    .flatMap((person) =>
-      countedTimeBlocksForPerson(state, person.id)
-        .filter((block) => {
-          const day = block.startAt.slice(0, 10);
-          if (day < from || day > to) return false;
-          if (projectFilter) return block.projectId !== null && projectFilter.has(block.projectId);
-          return block.projectId !== null || includeNoProject;
-        })
-        .map((block) => ({
-          personId: person.id,
-          day: block.startAt.slice(0, 10),
-          project: block.projectId ? (projectById.get(block.projectId) ?? null) : null,
-          workItem: block.workItemId ? (workItemById.get(block.workItemId) ?? null) : null,
-          start: block.startAt.slice(11, 16),
-          end: block.endAt.slice(11, 16),
-          type: typeById.get(block.typeId) ?? null,
-          title: block.title,
-          hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
-        })),
-    );
+  const leaveTypeById = new Map(state.leaveTypes.map((row) => [row.id, row]));
+  const blocks = countedHours(state, from, to)
+    .filter(({ person, block }) => {
+      if (personFilter && !personFilter.has(person.id)) return false;
+      if (projectFilter) return block.projectId !== null && projectFilter.has(block.projectId);
+      return block.projectId !== null || includeNoProject;
+    })
+    .map(({ person, block, day, hours }) => ({
+      personId: person.id,
+      day,
+      project: block.projectId ? (projectById.get(block.projectId) ?? null) : null,
+      workItem: block.workItemId ? (workItemById.get(block.workItemId) ?? null) : null,
+      start: block.startAt.slice(11, 16),
+      end: block.endAt.slice(11, 16),
+      type: typeById.get(block.typeId) ?? null,
+      title: block.title,
+      hours,
+    }));
   const sum = (rows: typeof blocks) => rows.reduce((total, row) => total + row.hours, 0);
 
   /** Hours per Project, most first, with time that names no Project last. */
@@ -213,7 +216,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   // counted hours and Staffing on the chosen Projects, and only the chosen People.
   const staffings = state.staffings.filter(
     (row) =>
-      overlaps(row.startDate, row.endDate, from, to) &&
+      rangesOverlap(row.startDate, row.endDate, from, to) &&
       (!projectFilter || projectFilter.has(row.projectId)) &&
       (!personFilter || personFilter.has(row.personId)),
   );
@@ -250,7 +253,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
 
   /** Projects overlapping the range that pass the Project filter, with hours in range and the People on them. */
   const projects = state.projects
-    .filter((row) => overlaps(row.startDate, row.endDate, from, to) && (!projectFilter || projectFilter.has(row.id)))
+    .filter((row) => rangesOverlap(row.startDate, row.endDate, from, to) && (!projectFilter || projectFilter.has(row.id)))
     .sort((a, b) => a.code.localeCompare(b.code))
     .map((project) => {
       const mine = blocksByProject.get(project) ?? [];
@@ -264,13 +267,13 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   // inside the range; part of a day carries its hours and counts as no day.
   const isWorkingDay = workingDayTest(state);
   const leave = state.leaveRequests
-    .filter((row) => leaveIsApproved(row) && peopleIds.has(row.personId) && overlaps(row.startDate, row.endDate || row.startDate, from, to))
+    .filter((row) => leaveIsApproved(row) && peopleIds.has(row.personId) && rangesOverlap(row.startDate, row.endDate || row.startDate, from, to))
     .map((row) => {
       const partOfDay = row.spanMode === "hours" && row.startTime && row.endTime ? { start: row.startTime, end: row.endTime } : null;
       return {
-        person: state.people.find((item) => item.id === row.personId)!,
+        person: personById.get(row.personId)!,
         kind: row.kind,
-        leaveType: row.leaveTypeId ? (state.leaveTypes.find((item) => item.id === row.leaveTypeId)?.name ?? null) : null,
+        leaveType: row.leaveTypeId ? (leaveTypeById.get(row.leaveTypeId)?.name ?? null) : null,
         startDate: row.startDate,
         endDate: row.endDate || row.startDate,
         partOfDay,
@@ -325,6 +328,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
     projects,
     leave,
     dailyGrid,
+    fileNames: { pdf: reportFileName({ ...config, title: reportTitle(config.title) }, "pdf"), xlsx: reportFileName({ ...config, title: reportTitle(config.title) }, "xlsx") },
     /** Every counted time block, by date then start time: a Person's own blocks and the Meetings they accepted. */
     timesheetDetail: blocks
       .map((row) => ({ ...row, person: personById.get(row.personId)! }))
@@ -413,13 +417,6 @@ function nextMonth(month: string): string {
 
 export type Report = ReturnType<typeof buildReport>;
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-09-21" → "21 Sep 2026". Fixed month names: en-GB Intl writes "Sept". */
-export function reportDate(iso: string): string {
-  return `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-}
-
 const HOURS = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** 2170 → "2,170.0". */
@@ -429,8 +426,8 @@ export function reportHours(hours: number): string {
 
 /** "21 Sep and 20 Oct 2026", or "21 Dec 2026 and 20 Jan 2027" across a year. */
 function reportBetween(report: Pick<Report, "from" | "to">): string {
-  const from = reportDate(report.from);
-  return `${report.from.slice(0, 4) === report.to.slice(0, 4) ? from.slice(0, -5) : from} and ${reportDate(report.to)}`;
+  const from = formatDate(report.from);
+  return `${report.from.slice(0, 4) === report.to.slice(0, 4) ? from.slice(0, -5) : from} and ${formatDate(report.to)}`;
 }
 
 /** The one line an empty section prints: "No approved leave between 21 Sep and 20 Oct 2026." */
@@ -445,7 +442,7 @@ export function reportLeaveLabel(row: Pick<Report["leave"][number], "kind" | "le
 
 /** "21 Sep 2026 – 20 Oct 2026". */
 export function reportRange(report: Pick<Report, "from" | "to">): string {
-  return `${reportDate(report.from)} – ${reportDate(report.to)}`;
+  return `${formatDate(report.from)} – ${formatDate(report.to)}`;
 }
 
 /** "Projects: AAA, BBB · People: Everyone · Time with no project: Left out". */
@@ -457,7 +454,7 @@ export function reportFilterLine(report: Pick<Report, "filters">): string {
  * "Samudra Energi, October hours 2026-10-01 to 2026-10-31.pdf": the title, less the characters a file name
  * cannot hold, with spaces collapsed.
  */
-export function reportFileName(report: Pick<Report, "title" | "from" | "to">, extension: "pdf" | "xlsx"): string {
+export function reportFileName(report: { title: string; from: string; to: string }, extension: "pdf" | "xlsx"): string {
   const safe = report.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim() || REPORT_TITLE;
   return `${safe} ${report.from} to ${report.to}.${extension}`;
 }
@@ -483,3 +480,10 @@ export const REPORT_COLORS = {
   warningBar: "#C9891A",
   lineStrong: "#949494",
 } as const;
+
+/** Each leave kind's wash, and the ink its word is written in (DESIGN.md leave colours). */
+export const LEAVE_COLORS: Record<LeaveKind, { wash: string; ink: string }> = {
+  cuti: { wash: REPORT_COLORS.cuti, ink: REPORT_COLORS.accentHover },
+  sick: { wash: REPORT_COLORS.sick, ink: REPORT_COLORS.warning },
+  remote: { wash: REPORT_COLORS.wash, ink: REPORT_COLORS.muted },
+};

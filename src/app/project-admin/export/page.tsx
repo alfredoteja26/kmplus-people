@@ -11,7 +11,8 @@ import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, orderSections, READY_SECTIONS, REPORT_TEMPLATES, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, SPREADSHEET_ONLY, suggestedPreparedFor, type ReportTemplate, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { formatDate, plural } from "@/lib/labels";
+import { buildReport, orderSections, REPORT_TEMPLATES, REPORT_TEXT_MAX, REPORT_TITLE, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, SPREADSHEET_ONLY, suggestedPreparedFor, type ReportConfig, type ReportTemplate, reportRange, type Report } from "@/lib/report-model";
 import { addMonthsIso, parseReportSettings, reportChoiceError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
@@ -43,7 +44,7 @@ function jakartaStamp(now = new Date()) {
       .formatToParts(now)
       .map((part) => [part.type, part.value]),
   );
-  return `${reportDate(`${parts.year}-${parts.month}-${parts.day}`)}, ${parts.hour}:${parts.minute}`;
+  return `${formatDate(`${parts.year}-${parts.month}-${parts.day}`)}, ${parts.hour}:${parts.minute}`;
 }
 
 function save(blob: Blob, name: string) {
@@ -212,32 +213,26 @@ function ExportReportForm() {
   const [initial] = useState(() =>
     parseReportSettings(new URLSearchParams(params.toString()), today, { projectIds: projects.map((row) => row.id), personIds: people.map((row) => row.id) }),
   );
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
-  const [projectIds, setProjectIds] = useState(initial.projectIds);
-  const [personIds, setPersonIds] = useState(initial.personIds);
-  const [includeNoProject, setIncludeNoProject] = useState(initial.includeNoProject);
-  const [title, setTitle] = useState(initial.title);
-  const [template, setTemplate] = useState(initial.template);
-  // Only sections both files can draw yet; the rest join as they are built.
-  const [sections, setSections] = useState(() => initial.sections.filter((key) => READY_SECTIONS.includes(key)));
   // Prepared for follows the one chosen Project's client until the Admin types in it, or the link set it.
   const [preparedForEdited, setPreparedForEdited] = useState(() => params.has("preparedFor"));
-  const [preparedFor, setPreparedFor] = useState(() => (params.has("preparedFor") ? initial.preparedFor : suggestedPreparedFor(state, initial.projectIds)));
+  const [config, setConfig] = useState<ReportConfig>(() => ({
+    ...initial,
+    preparedFor: params.has("preparedFor") ? initial.preparedFor : suggestedPreparedFor(state, initial.projectIds),
+  }));
+  const update = (patch: Partial<ReportConfig>) => setConfig((current) => ({ ...current, ...patch }));
+  const { from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template } = config;
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const rangeError = reportRangeError(from, to);
   const settingsError = rangeError ?? reportChoiceError({ projectIds, personIds, sections });
   const generatedBy = personName(state.people.find((row) => row.id === state.currentPersonId));
   const report = useMemo(
-    () =>
-      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template }, { generatedBy, generatedAt: jakartaStamp() }),
-    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template, settingsError, generatedBy],
+    () => (settingsError ? null : buildReport(state, config, { generatedBy, generatedAt: jakartaStamp() })),
+    [state, config, settingsError, generatedBy],
   );
 
   function chooseProjects(next: string[] | null) {
-    setProjectIds(next);
-    if (!preparedForEdited) setPreparedFor(suggestedPreparedFor(state, next));
+    update({ projectIds: next, ...(preparedForEdited ? {} : { preparedFor: suggestedPreparedFor(state, next) }) });
   }
   // While the range is invalid the preview keeps the last Report that could be built, dimmed.
   const lastGood = useRef<Report | null>(null);
@@ -246,9 +241,9 @@ function ExportReportForm() {
 
   useEffect(() => {
     if (settingsError) return;
-    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim(), sections, template };
+    const settings = { ...config, title: reportTitle(config.title), preparedFor: config.preparedFor.trim() };
     router.replace(`${pathname}?${serializeReportSettings(settings)}`, { scroll: false });
-  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, template, settingsError, pathname, router]);
+  }, [config, settingsError, pathname, router]);
 
   async function downloadXlsx() {
     if (!report) return;
@@ -262,18 +257,18 @@ function ExportReportForm() {
           .catch(() => null),
       ]);
       const bytes = await buildReportWorkbook(ExcelJS, report, logo ? new Uint8Array(logo) : null);
-      save(new Blob([bytes as BlobPart], { type: XLSX_TYPE }), reportFileName(report, "xlsx"));
+      save(new Blob([bytes as BlobPart], { type: XLSX_TYPE }), report.fileNames.xlsx);
     } finally {
       setXlsxBusy(false);
     }
   }
 
   const previewed = report ?? lastGood.current;
-  const status = failed && !building ? "Preview failed" : building || !preview ? "Updating…" : `${preview.pages} ${preview.pages === 1 ? "page" : "pages"}`;
+  const status = failed && !building ? "Preview failed" : building || !preview ? "Updating…" : plural(preview.pages, "page");
   // The PDF can be saved or opened only when the preview matches the current settings.
   const pdfBlocked = Boolean(settingsError) || !preview || building || failed;
   // The phone summary: "5 sections · 6 pages · 312 hours".
-  const summaryLine = [`${sections.length} ${sections.length === 1 ? "section" : "sections"}`, status, `${HOURS_WHOLE.format(previewed?.summary.totalHours ?? 0)} hours`].join(" · ");
+  const summaryLine = [plural(sections.length, "section"), status, `${HOURS_WHOLE.format(previewed?.summary.totalHours ?? 0)} hours`].join(" · ");
   const layoutRef = useRef<HTMLDivElement>(null);
   useFitToScroller(layoutRef);
 
@@ -295,7 +290,7 @@ function ExportReportForm() {
               <h2 id="report-template" className="m-0 text-base font-medium">
                 Template
               </h2>
-              <RadioGroupPrimitive value={template} onValueChange={(value) => setTemplate(value as ReportTemplate)} aria-labelledby="report-template" className="flex flex-col gap-1.5">
+              <RadioGroupPrimitive value={template} onValueChange={(value) => update({ template: value as ReportTemplate })} aria-labelledby="report-template" className="flex flex-col gap-1.5">
                 {REPORT_TEMPLATES.map((row) => (
                   <RadioPrimitive.Root
                     key={row.key}
@@ -325,8 +320,8 @@ function ExportReportForm() {
                 <Input
                   value={title}
                   maxLength={REPORT_TEXT_MAX}
-                  onChange={(event) => setTitle(event.target.value)}
-                  onBlur={() => setTitle(reportTitle(title))}
+                  onChange={(event) => update({ title: event.target.value })}
+                  onBlur={() => update({ title: reportTitle(title) })}
                   placeholder={REPORT_TITLE}
                 />
               </label>
@@ -338,7 +333,7 @@ function ExportReportForm() {
                   value={preparedFor}
                   maxLength={REPORT_TEXT_MAX}
                   onChange={(event) => {
-                    setPreparedFor(event.target.value);
+                    update({ preparedFor: event.target.value });
                     setPreparedForEdited(true);
                   }}
                   placeholder="Client name"
@@ -358,8 +353,7 @@ function ExportReportForm() {
                     size="sm"
                     pressed={from === range.from && to === range.to}
                     onPressedChange={() => {
-                      setFrom(range.from);
-                      setTo(range.to);
+                      update({ from: range.from, to: range.to });
                     }}
                   >
                     {range.label}
@@ -369,11 +363,11 @@ function ExportReportForm() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   From
-                  <Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
+                  <Input type="date" value={from} max={to || undefined} onChange={(event) => update({ from: event.target.value })} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   To
-                  <Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
+                  <Input type="date" value={to} min={from || undefined} onChange={(event) => update({ to: event.target.value })} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
                 </label>
               </div>
               {rangeError ? (
@@ -410,7 +404,7 @@ function ExportReportForm() {
                   <FieldLabel className="font-normal">Include time with no project</FieldLabel>
                   {projectIds !== null ? <FieldDescription className="text-sm text-muted">Off while projects are chosen, so a client file carries no internal time.</FieldDescription> : null}
                 </div>
-                <Switch checked={projectIds === null && includeNoProject} onCheckedChange={setIncludeNoProject} />
+                <Switch checked={projectIds === null && includeNoProject} onCheckedChange={(checked) => update({ includeNoProject: checked })} />
               </Field>
             </section>
 
@@ -419,7 +413,7 @@ function ExportReportForm() {
                 People
                 <span className="text-sm font-normal text-muted tabular-nums">{personIds === null ? "Everyone" : `${personIds.length} chosen`}</span>
               </h2>
-              <CheckRow checked={personIds === null} onChange={() => setPersonIds(personIds === null ? [] : null)}>
+              <CheckRow checked={personIds === null} onChange={() => update({ personIds: personIds === null ? [] : null })}>
                 Everyone
               </CheckRow>
               <div className="grid max-h-40 grid-cols-2 gap-x-3 gap-y-1.5 overflow-y-auto ps-1">
@@ -427,7 +421,7 @@ function ExportReportForm() {
                   <CheckRow
                     key={person.id}
                     checked={personIds === null || personIds.includes(person.id)}
-                    onChange={() => setPersonIds(toggleId(personIds, people.map((row) => row.id), person.id))}
+                    onChange={() => update({ personIds: toggleId(personIds, people.map((row) => row.id), person.id) })}
                   >
                     <span className="truncate">{personName(person)}</span>
                   </CheckRow>
@@ -440,11 +434,11 @@ function ExportReportForm() {
                 Sections
               </h2>
               <div className="flex flex-col gap-1.5">
-                {SECTION_KEYS.filter((key) => READY_SECTIONS.includes(key)).map((key) => (
+                {SECTION_KEYS.map((key) => (
                   <CheckRow
                     key={key}
                     checked={sections.includes(key)}
-                    onChange={() => setSections(orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]))}
+                    onChange={() => update({ sections: orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]) })}
                   >
                     {SECTION_LABEL[key]}
                     {SPREADSHEET_ONLY.includes(key) ? <span className="text-muted"> · Spreadsheet only</span> : null}
@@ -467,7 +461,7 @@ function ExportReportForm() {
               </Button>
             </div>
             <div className="grid gap-2 max-lg:grid-cols-2">
-              <Button type="button" disabled={pdfBlocked} onClick={() => preview && report && save(preview.blob, reportFileName(report, "pdf"))}>
+              <Button type="button" disabled={pdfBlocked} onClick={() => preview && report && save(preview.blob, report.fileNames.pdf)}>
                 <DownloadIcon aria-hidden="true" />
                 Download PDF
               </Button>

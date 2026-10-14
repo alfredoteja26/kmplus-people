@@ -12,7 +12,7 @@ import React from "react";
 import { it } from "vitest";
 import { registerReportFonts, ReportPdf } from "@/components/report/ReportPdf";
 import { createInitialState } from "@/lib/fixtures";
-import { buildReport, READY_SECTIONS, REPORT_DEFAULTS, REPORT_TEMPLATES } from "@/lib/report-model";
+import { buildReport, REPORT_DEFAULTS, REPORT_TEMPLATES, SECTION_KEYS } from "@/lib/report-model";
 import { buildReportWorkbook } from "@/lib/report-workbook";
 import type { AppState, LeaveRequest, Project, TimeBlock } from "@/lib/types";
 import { addDaysIso } from "@/lib/work-delivery-query";
@@ -105,7 +105,7 @@ it.skipIf(!OUT)("writes sample Reports for each template", async () => {
   registerReportFonts(path.join(process.cwd(), "public/fonts/report"));
   const logo = path.join(process.cwd(), "public/brand/kmplus-logo-official.png");
   const stamp = { generatedBy: "Alfredo", generatedAt: "14 Oct 2026, 12:00" };
-  const config = { ...REPORT_DEFAULTS, from: "2026-09-21", to: "2026-10-20", sections: [...READY_SECTIONS], title: "Samudra Energi, September hours", preparedFor: "PT Samudra Energi" };
+  const config = { ...REPORT_DEFAULTS, from: "2026-09-21", to: "2026-10-20", sections: [...SECTION_KEYS], title: "Samudra Energi, September hours", preparedFor: "PT Samudra Energi" };
   for (const { key } of REPORT_TEMPLATES) {
     const report = buildReport(sampleState(), { ...config, template: key }, stamp);
     writeFileSync(path.join(folder, `sample-${key}.pdf`), await renderToBuffer(<ReportPdf report={report} logo={logo} />));

@@ -52,11 +52,14 @@ export function reportMonthLink(year: number, monthIndex: number): string {
 /** The Projects and People that exist, so ids the address names but the tenant lacks are dropped. */
 export type KnownIds = { projectIds: string[]; personIds: string[] };
 
-/** A comma list from the address, keeping only known ids, or null (all) when the field is absent. */
+/**
+ * A comma list from the address, keeping only known ids. Absent, empty, or naming no known id, it falls back to
+ * null (all), so a link never opens on an empty choice.
+ */
 function idList(value: string | null, known: string[]): string[] | null {
-  if (value === null) return null;
-  const ids = new Set(value.split(",").filter(Boolean));
-  return known.filter((id) => ids.has(id));
+  const ids = new Set((value ?? "").split(",").filter(Boolean));
+  const kept = known.filter((id) => ids.has(id));
+  return kept.length > 0 ? kept : null;
 }
 
 function parseRange(params: URLSearchParams, today: string) {

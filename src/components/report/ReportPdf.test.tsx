@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "@/lib/fixtures";
-import { buildReport, READY_SECTIONS, REPORT_DEFAULTS, REPORT_TEMPLATES, type ReportTemplate, type SectionKey } from "@/lib/report-model";
+import { buildReport, REPORT_DEFAULTS, REPORT_TEMPLATES, SECTION_KEYS, type ReportTemplate, type SectionKey } from "@/lib/report-model";
 import type { AppState, TimeBlock } from "@/lib/types";
 import { registerReportFonts, ReportPdf } from "./ReportPdf";
 
@@ -34,7 +34,7 @@ describe("Report PDF", () => {
 
   it("builds every ready section, each on its own page", async () => {
     // Cover, Summary, Hours by project, Timesheet by person, one Daily grid month, Staffing, Projects, Approved leave.
-    expect(await pages("2026-10-01", "2026-10-31", [...READY_SECTIONS])).toBeGreaterThanOrEqual(8);
+    expect(await pages("2026-10-01", "2026-10-31", [...SECTION_KEYS])).toBeGreaterThanOrEqual(8);
   }, 30_000);
 
   it("names the Timesheet detail sheet in one line instead of drawing its rows, so 2,000 blocks stay quick", async () => {
@@ -49,7 +49,7 @@ describe("Report PDF", () => {
   }, 30_000);
 
   it.each(REPORT_TEMPLATES.map((row) => row.key))("builds the %s template for one month, twelve months, and an empty range", async (template) => {
-    const all = [...READY_SECTIONS];
+    const all = [...SECTION_KEYS];
     // Eight section pages for one month (twelve grid pages for twelve months). Letterhead has no cover page: its
     // band sits on the first section's page, so it is one page shorter.
     const coverPages = template === "letterhead" ? 0 : 1;
