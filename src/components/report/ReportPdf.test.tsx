@@ -36,4 +36,15 @@ describe("Report PDF", () => {
     // Cover, Summary, Hours by project, Timesheet by person, one Daily grid month, Staffing, Projects, Approved leave.
     expect(await pages("2026-10-01", "2026-10-31", [...READY_SECTIONS])).toBeGreaterThanOrEqual(8);
   }, 30_000);
+
+  it("names the Timesheet detail sheet in one line instead of drawing its rows, so 2,000 blocks stay quick", async () => {
+    registerReportFonts(path.join(process.cwd(), "public/fonts/report"));
+    const many: AppState = { ...state, timeBlocks: Array.from({ length: 2000 }, (_, index) => block(`b${index}`, `2026-10-${String(1 + (index % 28)).padStart(2, "0")}`)) };
+    const report = buildReport(many, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["timesheetDetail"] }, stamp);
+    expect(report.timesheetDetail).toHaveLength(2000);
+    const started = performance.now();
+    const pdf = await renderToBuffer(<ReportPdf report={report} logo={path.join(process.cwd(), "public/brand/kmplus-logo-official.png")} />);
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect((pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
+  }, 30_000);
 });

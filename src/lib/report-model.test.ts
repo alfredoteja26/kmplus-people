@@ -438,6 +438,41 @@ describe("Report model", () => {
     });
   });
 
+  describe("timesheet detail", () => {
+    const OCT = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
+    function detailState(): AppState {
+      return {
+        ...world(),
+        timeBlockTypes: [{ id: "type-x", tenantId: "kmplus", name: "Meeting", sortOrder: 0, allowsInvites: true }],
+        timeBlocks: [
+          { ...block("late", "person-rayhan", "2026-10-05", 2, "p1"), startAt: "2026-10-05T14:00", endAt: "2026-10-05T16:00" },
+          block("early", "person-rayhan", "2026-10-05", 1, "p2"),
+          block("before", "person-eka", "2026-10-02", 3, null),
+          block("outside", "person-eka", "2026-11-02", 3, "p1"),
+        ],
+        invites: [invite("i1", "late", "person-eka", "accepted"), invite("i2", "late", "person-alfredo", "pending")],
+      };
+    }
+    const rows = (report: ReturnType<typeof buildReport>) => report.timesheetDetail.map((row) => [row.day, row.start, row.person.id, row.project?.code ?? null, row.hours]);
+
+    it("lists every counted block by date then start, with accepted Meetings for the invitee and never pending ones", () => {
+      expect(rows(buildReport(detailState(), OCT, AT))).toEqual([
+        ["2026-10-02", "09:00", "person-eka", null, 3],
+        ["2026-10-05", "09:00", "person-rayhan", "BBB", 1],
+        ["2026-10-05", "14:00", "person-eka", "AAA", 2],
+        ["2026-10-05", "14:00", "person-rayhan", "AAA", 2],
+      ]);
+      const first = buildReport(detailState(), OCT, AT).timesheetDetail[0];
+      expect([first.end, first.type?.name, first.title, first.workItem]).toEqual(["12:00", "Meeting", "before", null]);
+    });
+
+    it("follows the Project, People, and no-project filters", () => {
+      expect(rows(buildReport(detailState(), { ...OCT, projectIds: ["p1"] }, AT)).map((row) => row[3])).toEqual(["AAA", "AAA"]);
+      expect(rows(buildReport(detailState(), { ...OCT, personIds: ["person-eka"] }, AT)).map((row) => row[2])).toEqual(["person-eka", "person-eka"]);
+      expect(rows(buildReport(detailState(), { ...OCT, includeNoProject: false }, AT)).some((row) => row[3] === null)).toBe(false);
+    });
+  });
+
   it("keeps the chosen sections in the fixed order", () => {
     const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave", "cover", "summary"] }, AT);
     expect(report.sections).toEqual(["cover", "summary", "leave"]);

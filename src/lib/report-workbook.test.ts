@@ -235,4 +235,22 @@ describe("Report workbook", () => {
       expect((rowOf(sheet, "Total").getCell(7).value as ExcelJS.CellFormulaValue).formula).toBe("SUM(G4:G5)");
     });
   });
+
+  it("writes Timesheet detail with one row per counted block, real dates, sorted by date and start, and a SUM of hours", async () => {
+    const report = buildReport(state(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["timesheetDetail"] }, { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load((await buildReportWorkbook(ExcelJS, report, null)).buffer as ArrayBuffer);
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Timesheet detail"]);
+    const sheet = workbook.getWorksheet("Timesheet detail")!;
+    expect(sheet.getRow(3).values).toEqual([undefined, "Date", "Start", "End", "Person", "Project", "Work item", "Type", "Title", "Hours"]);
+    expect([4, 5, 6].map((r) => [sheet.getRow(r).getCell(1).value, sheet.getRow(r).getCell(4).value, sheet.getRow(r).getCell(5).value, sheet.getRow(r).getCell(9).value])).toEqual([
+      [new Date("2026-10-05T00:00:00Z"), "Rayhan", "AAA", 6],
+      [new Date("2026-10-06T00:00:00Z"), "Eka", "BBB", 2],
+      [new Date("2026-10-07T00:00:00Z"), "Eka", "No project", 1],
+    ]);
+    expect([sheet.getCell("A4").numFmt, sheet.getCell("B4").value, sheet.getCell("C4").value]).toEqual(["d mmm yyyy", "09:00", "15:00"]);
+    expect((rowOf(sheet, "Total").getCell(9).value as ExcelJS.CellFormulaValue).formula).toBe("SUM(I4:I6)");
+    expect(sheet.views[0]).toMatchObject({ state: "frozen", ySplit: 3 });
+    expect(sheet.autoFilter).toBe("A3:I6");
+  });
 });

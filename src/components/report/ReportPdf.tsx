@@ -259,6 +259,18 @@ function Projects({ report }: { report: Report }) {
   );
 }
 
+/** Timesheet detail is spreadsheet only: the PDF names the sheet and never draws the rows. */
+function TimesheetDetailNote({ report }: { report: Report }) {
+  const count = report.timesheetDetail.length;
+  return (
+    <SectionPages report={report} title="Timesheet detail" context={`${reportRange(report)} · one row per counted time block`}>
+      <Text style={{ fontSize: 10 }}>
+        Timesheet detail: {count.toLocaleString("en-US")} time {count === 1 ? "block" : "blocks"}, in the spreadsheet&apos;s Timesheet detail sheet.
+      </Text>
+    </SectionPages>
+  );
+}
+
 const LEAVE_WORD = { cuti: "Cuti", sick: "Sick" } as const;
 const PART_MARK = { cuti: "C", sick: "S", remote: "R" } as const;
 
@@ -404,6 +416,7 @@ export function ReportPdf({ report, logo }: { report: Report; logo: string }) {
       {report.sections.includes("hoursByProject") ? <HoursByProject report={report} /> : null}
       {report.sections.includes("timesheetByPerson") ? <TimesheetByPerson report={report} /> : null}
       {report.sections.includes("dailyGrid") ? <DailyGrid report={report} /> : null}
+      {report.sections.includes("timesheetDetail") ? <TimesheetDetailNote report={report} /> : null}
       {report.sections.includes("staffing") ? <Staffing report={report} /> : null}
       {report.sections.includes("projects") ? <Projects report={report} /> : null}
       {report.sections.includes("leave") ? <ApprovedLeave report={report} /> : null}

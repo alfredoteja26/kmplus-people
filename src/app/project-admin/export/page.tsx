@@ -10,7 +10,7 @@ import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, orderSections, READY_SECTIONS, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { buildReport, orderSections, READY_SECTIONS, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, SPREADSHEET_ONLY, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
 import { addMonthsIso, parseReportSettings, reportChoiceError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
@@ -335,6 +335,7 @@ function ExportReportForm() {
                   onChange={() => setSections(orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]))}
                 >
                   {SECTION_LABEL[key]}
+                  {SPREADSHEET_ONLY.includes(key) ? <span className="text-muted"> · Spreadsheet only</span> : null}
                 </CheckRow>
               ))}
             </div>

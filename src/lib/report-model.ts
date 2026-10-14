@@ -23,7 +23,10 @@ export const SECTION_LABEL: Record<SectionKey, string> = {
 export const DEFAULT_SECTIONS: SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
 
 /** The sections both files can draw so far; the page offers only these until the rest are built. */
-export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "hoursByProject", "timesheetByPerson", "dailyGrid", "staffing", "projects", "leave"];
+export const READY_SECTIONS: readonly SectionKey[] = SECTION_KEYS;
+
+/** Too many rows to draw quickly in a PDF (about 20s per 1,900): the PDF names the sheet instead. */
+export const SPREADSHEET_ONLY: readonly SectionKey[] = ["timesheetDetail"];
 
 /** `keys` without repeats or unknown keys, in the fixed order. */
 export function orderSections(keys: readonly string[]): SectionKey[] {
@@ -144,6 +147,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   const workingDays = reportWorkingDays(state, from, to);
   const projectById = new Map(state.projects.map((row) => [row.id, row]));
   const workItemById = new Map(state.workItems.map((row) => [row.id, row]));
+  const typeById = new Map(state.timeBlockTypes.map((row) => [row.id, row]));
   const blocks = state.people
     .filter((person) => !personFilter || personFilter.has(person.id))
     .flatMap((person) =>
@@ -159,6 +163,10 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
           day: block.startAt.slice(0, 10),
           project: block.projectId ? (projectById.get(block.projectId) ?? null) : null,
           workItem: block.workItemId ? (workItemById.get(block.workItemId) ?? null) : null,
+          start: block.startAt.slice(11, 16),
+          end: block.endAt.slice(11, 16),
+          type: typeById.get(block.typeId) ?? null,
+          title: block.title,
           hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
         })),
     );
@@ -291,6 +299,10 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
     projects,
     leave,
     dailyGrid,
+    /** Every counted time block, by date then start time: a Person's own blocks and the Meetings they accepted. */
+    timesheetDetail: blocks
+      .map((row) => ({ ...row, person: personById.get(row.personId)! }))
+      .sort((a, b) => a.day.localeCompare(b.day) || a.start.localeCompare(b.start) || personName(a.person).localeCompare(personName(b.person))),
   };
 }
 

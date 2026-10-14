@@ -385,6 +385,26 @@ function projectsSheet(workbook: ExcelJSModule.Workbook, report: Report) {
   });
 }
 
+function timesheetDetailSheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  tableSheet(workbook, report, {
+    name: SECTION_LABEL.timesheetDetail,
+    context: `${reportRange(report)} · one row per counted time block`,
+    rows: report.timesheetDetail,
+    empty: reportEmptyLine(report, "time blocks"),
+    columns: [
+      { header: "Date", value: (row) => sheetDate(row.day), numFmt: DATE_FORMAT, align: "left" },
+      { header: "Start", value: (row) => row.start },
+      { header: "End", value: (row) => row.end },
+      { header: "Person", value: (row) => personName(row.person) },
+      { header: "Project", value: (row) => row.project?.code ?? "No project" },
+      { header: "Work item", value: (row) => row.workItem?.name ?? "" },
+      { header: "Type", value: (row) => row.type?.name ?? "" },
+      { header: "Title", value: (row) => row.title },
+      { header: "Hours", value: (row) => row.hours, numFmt: HOURS_FORMAT, sum: true },
+    ],
+  });
+}
+
 function leaveSheet(workbook: ExcelJSModule.Workbook, report: Report) {
   tableSheet(workbook, report, {
     name: SECTION_LABEL.leave,
@@ -410,6 +430,7 @@ const SECTION_SHEETS: { key: SectionKey; write: (workbook: ExcelJSModule.Workboo
   { key: "hoursByProject", write: hoursByProjectSheet },
   { key: "timesheetByPerson", write: timesheetByPersonSheet },
   { key: "dailyGrid", write: dailyGridSheet },
+  { key: "timesheetDetail", write: timesheetDetailSheet },
   { key: "staffing", write: staffingSheet },
   { key: "projects", write: projectsSheet },
   { key: "leave", write: leaveSheet },
