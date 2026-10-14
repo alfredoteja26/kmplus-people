@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/coss/button";
 import { ConfirmAction } from "@/components/product/ConfirmAction";
+import { ProjectAdminSubnav } from "@/components/work-delivery/ProjectAdminSubnav";
 import { EmptyBlock } from "@/components/work-delivery/project/parts";
 import type { DecideReimbursementInput } from "@/lib/commands";
 import { hasAdminGrant } from "@/lib/domain-query";
@@ -159,9 +160,10 @@ export function ReimbursementDecideView() {
             {decidable ? `${plural(decidable, "request")} to decide.` : "Nothing to decide right now."}
             {mineCount ? ` ${plural(mineCount, "request")} of yours ${mineCount === 1 ? "waits" : "wait"} for another Admin.` : ""}
           </p>
+          <ProjectAdminSubnav className="mt-4" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" render={<Link href="/reimbursement/report" />}>
+          <Button variant="outline" render={<Link href="/project-admin/reimbursements/report" />}>
             Monthly report
           </Button>
           <Button

@@ -8,15 +8,18 @@ const SECTIONS = [
   { href: "/project-admin", label: "Overview" },
   { href: "/project-admin/configure", label: "Lists" },
   { href: "/project-admin/holidays", label: "Public holidays" },
+  { href: "/project-admin/reimbursements", label: "Reimbursements" },
 ];
 
-/** The Project Admin area as one place: the overview and its two settings pages, the People subnav pattern. */
+/** The Admin area as one place: the overview, its settings pages, and the reimbursement queue (the People subnav pattern). */
 export function ProjectAdminSubnav({ className }: { className?: string } = {}) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Project Admin sections" className={cn("flex flex-wrap gap-2", className)}>
+    <nav aria-label="Admin sections" className={cn("flex flex-wrap gap-2", className)}>
       {SECTIONS.map((section) => {
-        const active = pathname === section.href;
+        // The overview matches only itself; a section also owns its subpages (the reimbursement report).
+        const active =
+          section.href === "/project-admin" ? pathname === section.href : pathname === section.href || pathname.startsWith(`${section.href}/`);
         return (
           <Link
             key={section.href}

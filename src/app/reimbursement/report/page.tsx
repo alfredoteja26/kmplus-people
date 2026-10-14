@@ -1,7 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ReimbursementReportView } from "@/components/reimbursement/ReimbursementReportView";
-
-export default function ReimbursementReportPage() {
-  return <ReimbursementReportView />;
+/** The reimbursement report moved into the Admin area; old links and bookmarks land there. */
+export default function MovedReimbursementReportPage() {
+  redirect("/project-admin/reimbursements/report");
 }

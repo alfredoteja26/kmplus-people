@@ -4,6 +4,7 @@ import { Button } from "@/components/coss/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/coss/table";
 import { Field } from "@/components/product/Field";
 import { Select } from "@/components/product/Select";
+import { ProjectAdminSubnav } from "@/components/work-delivery/ProjectAdminSubnav";
 import { EmptyBlock } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { personName } from "@/lib/project-view";
@@ -70,9 +71,10 @@ export function ReimbursementReportView() {
           <p className="mt-1 mb-0 text-muted">
             Months follow the expense date. Withdrawn requests count nothing; rejected ones count as asked only.
           </p>
+          <ProjectAdminSubnav className="mt-4" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" render={<Link href="/reimbursement/decide" />}>
+          <Button variant="outline" render={<Link href="/project-admin/reimbursements" />}>
             Requests to decide
           </Button>
           <Button type="button" disabled={report.rows.length === 0} onClick={() => download(state, filters)}>

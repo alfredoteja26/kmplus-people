@@ -1,7 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ReimbursementDecideView } from "@/components/reimbursement/ReimbursementDecideView";
-
-export default function ReimbursementDecidePage() {
-  return <ReimbursementDecideView />;
+/** Reimbursement requests moved into the Admin area; old links and bookmarks land there. */
+export default function MovedReimbursementDecidePage() {
+  redirect("/project-admin/reimbursements");
 }
