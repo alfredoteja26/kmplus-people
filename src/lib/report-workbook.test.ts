@@ -182,4 +182,57 @@ describe("Report workbook", () => {
     expect((total.getCell("C").value as ExcelJS.CellFormulaValue).formula).toBe("SUM(C6:C7)");
     expect(total.getCell("C").numFmt).toBe("0.0;-0.0;;@");
   });
+
+  describe("hours by project, staffing, and projects", () => {
+    async function portfolioBook() {
+      const base = state();
+      const portfolio: AppState = {
+        ...base,
+        projects: [{ ...project("p1", "AAA"), clientName: "PT Samudra Energi", endDate: "2026-12-31" }, project("p2", "BBB")],
+        workItems: [{ id: "w1", tenantId: "kmplus", projectId: "p1", name: "Design", description: "", picPersonId: "person-rayhan", startDate: "2026-01-01", endDate: "2026-12-31" }],
+        timeBlocks: base.timeBlocks.map((row) => (row.id === "a" ? { ...row, workItemId: "w1" } : row)),
+        staffings: [
+          { id: "s1", tenantId: "kmplus", personId: "person-rayhan", projectId: "p1", load: 80, startDate: "2026-09-01", endDate: null },
+          { id: "s2", tenantId: "kmplus", personId: "person-rayhan", projectId: "p2", load: 40, startDate: "2026-10-01", endDate: "2026-12-31" },
+        ],
+      };
+      const config = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["cover" as const, "hoursByProject" as const, "staffing" as const, "projects" as const] };
+      const report = buildReport(portfolio, config, { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load((await buildReportWorkbook(ExcelJS, report, null)).buffer as ArrayBuffer);
+      return workbook;
+    }
+
+    it("orders the sheets by section and links each from the Cover", async () => {
+      const workbook = await portfolioBook();
+      expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Cover", "Hours by project", "Staffing", "Projects"]);
+    });
+
+    it("writes Hours by project with washed Project rows, breakdowns, and a total over Project rows only", async () => {
+      const sheet = (await portfolioBook()).getWorksheet("Hours by project")!;
+      const values = (row: ExcelJS.Row) => [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value];
+      expect(values(sheet.getRow(4))).toEqual(["AAA · AAA work", "Project", "", 6]);
+      expect(values(sheet.getRow(5))).toEqual(["AAA · AAA work", "Person", "Rayhan", 6]);
+      expect(values(sheet.getRow(6))).toEqual(["AAA · AAA work", "Work item", "Design", 6]);
+      expect((sheet.getCell("A4").fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FFF4F4F4");
+      const total = rowOf(sheet, "Total").getCell(4).value as ExcelJS.CellFormulaValue;
+      expect(total.formula).toMatch(/^SUMIF\(B4:B\d+,"Project",D4:D\d+\)$/);
+      expect(total.result).toBe(9);
+    });
+
+    it("writes Staffing with the Load format, real dates, No end, and the peak in warning past 100%", async () => {
+      const sheet = (await portfolioBook()).getWorksheet("Staffing")!;
+      const aaa = sheet.getRow(4);
+      expect([aaa.getCell(2).value, aaa.getCell(3).value, aaa.getCell(3).numFmt]).toEqual(["AAA · AAA work", 80, '0"%"']);
+      expect([aaa.getCell(4).value, aaa.getCell(4).numFmt, aaa.getCell(5).value]).toEqual([new Date("2026-09-01T00:00:00Z"), "d mmm yyyy", "No end"]);
+      expect([aaa.getCell(6).value, aaa.getCell(6).font.color?.argb]).toEqual([120, "FF8A5E10"]);
+    });
+
+    it("writes Projects with client, dates, People, and a SUM of hours", async () => {
+      const sheet = (await portfolioBook()).getWorksheet("Projects")!;
+      expect([1, 2, 3, 5, 6, 7].map((column) => sheet.getRow(4).getCell(column).value)).toEqual(["AAA", "AAA work", "PT Samudra Energi", new Date("2026-12-31T00:00:00Z"), 1, 6]);
+      expect([3, 5].map((column) => sheet.getRow(5).getCell(column).value)).toEqual(["Internal", "No end"]);
+      expect((rowOf(sheet, "Total").getCell(7).value as ExcelJS.CellFormulaValue).formula).toBe("SUM(G4:G5)");
+    });
+  });
 });

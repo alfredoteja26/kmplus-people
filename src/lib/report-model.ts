@@ -23,7 +23,7 @@ export const SECTION_LABEL: Record<SectionKey, string> = {
 export const DEFAULT_SECTIONS: SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
 
 /** The sections both files can draw so far; the page offers only these until the rest are built. */
-export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
+export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "hoursByProject", "timesheetByPerson", "dailyGrid", "staffing", "projects", "leave"];
 
 /** `keys` without repeats or unknown keys, in the fixed order. */
 export function orderSections(keys: readonly string[]): SectionKey[] {
@@ -142,6 +142,8 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   const personFilter = config.personIds ? new Set(config.personIds) : null;
   const includeNoProject = projectFilter ? false : config.includeNoProject;
   const workingDays = reportWorkingDays(state, from, to);
+  const projectById = new Map(state.projects.map((row) => [row.id, row]));
+  const workItemById = new Map(state.workItems.map((row) => [row.id, row]));
   const blocks = state.people
     .filter((person) => !personFilter || personFilter.has(person.id))
     .flatMap((person) =>
@@ -155,7 +157,8 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
         .map((block) => ({
           personId: person.id,
           day: block.startAt.slice(0, 10),
-          project: block.projectId ? (state.projects.find((row) => row.id === block.projectId) ?? null) : null,
+          project: block.projectId ? (projectById.get(block.projectId) ?? null) : null,
+          workItem: block.workItemId ? (workItemById.get(block.workItemId) ?? null) : null,
           hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
         })),
     );
@@ -167,7 +170,10 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       .map(([project, mine]) => ({ project, hours: sum(mine) }))
       .sort((a, b) => Number(a.project === null) - Number(b.project === null) || b.hours - a.hours || (a.project?.code ?? "").localeCompare(b.project?.code ?? ""));
   }
-  const hoursByProject = splitByProject(blocks);
+  /** Hours per key, most first; `key` must give the same object for the same thing. */
+  function splitBy<K>(rows: typeof blocks, key: (row: (typeof blocks)[number]) => K) {
+    return [...groupBy(rows, key).entries()].map(([value, mine]) => ({ value, hours: sum(mine) })).sort((a, b) => b.hours - a.hours);
+  }
 
   // A Person is in the Report when they logged hours in it or their Staffing overlaps it; with filters, only
   // counted hours and Staffing on the chosen Projects, and only the chosen People.
@@ -179,6 +185,44 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   );
   const peopleIds = new Set([...blocks.map((row) => row.personId), ...staffings.map((row) => row.personId)]);
   const people = state.people.filter((row) => peopleIds.has(row.id)).sort((a, b) => personName(a).localeCompare(personName(b)));
+  const personById = new Map(people.map((row) => [row.id, row]));
+  // Peak Load counts all of a Person's Staffing, not only the filtered Projects.
+  const peakByPerson = new Map(people.map((row) => [row.id, peakLoad(state, row.id, from, to)]));
+
+  // Each Project's hours, with what the time went to: by Person (by name on ties) and by WorkItem.
+  const blocksByProject = groupBy(blocks, (row) => row.project);
+  const hoursByProject = splitByProject(blocks).map((row) => {
+    const mine = blocksByProject.get(row.project) ?? [];
+    return {
+      ...row,
+      people: splitBy(mine, (block) => personById.get(block.personId)!)
+        .map(({ value, hours }) => ({ person: value, hours }))
+        .sort((a, b) => b.hours - a.hours || personName(a.person).localeCompare(personName(b.person))),
+      workItems: splitBy(mine, (block) => block.workItem).map(({ value, hours }) => ({ workItem: value, hours })),
+    };
+  });
+
+  /** Staffing rows overlapping the range that pass the filters, by Person then Project code. */
+  const staffing = staffings
+    .map((row) => ({
+      person: personById.get(row.personId)!,
+      project: projectById.get(row.projectId) ?? null,
+      load: row.load,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      peakLoad: peakByPerson.get(row.personId) ?? 0,
+    }))
+    .sort((a, b) => personName(a.person).localeCompare(personName(b.person)) || (a.project?.code ?? "").localeCompare(b.project?.code ?? "") || a.startDate.localeCompare(b.startDate));
+
+  /** Projects overlapping the range that pass the Project filter, with hours in range and the People on them. */
+  const projects = state.projects
+    .filter((row) => overlaps(row.startDate, row.endDate, from, to) && (!projectFilter || projectFilter.has(row.id)))
+    .sort((a, b) => a.code.localeCompare(b.code))
+    .map((project) => {
+      const mine = blocksByProject.get(project) ?? [];
+      const on = new Set([...mine.map((row) => row.personId), ...staffings.filter((row) => row.projectId === project.id).map((row) => row.personId)]);
+      return { project, hours: sum(mine), people: on.size };
+    });
 
   const blocksByPerson = groupBy(blocks, (row) => row.personId);
 
@@ -228,8 +272,7 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       noProjectHours: sum(blocks.filter((row) => !row.project)),
       workingDays,
       people: people.length,
-      // Peak Load counts all of a Person's Staffing, not only the filtered Projects.
-      overloaded: people.filter((person) => peakLoad(state, person.id, from, to) > 100).length,
+      overloaded: people.filter((person) => (peakByPerson.get(person.id) ?? 0) > 100).length,
       /** Working days of leave by kind, split into paid and unpaid. */
       leaveByKind,
       /** Working days of cuti and sick; remote is listed but is not time away. */
@@ -244,6 +287,8 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       const mine = blocksByPerson.get(person.id) ?? [];
       return { person, hours: sum(mine), daysLogged: new Set(mine.map((row) => row.day)).size, byProject: splitByProject(mine) };
     }),
+    staffing,
+    projects,
     leave,
     dailyGrid,
   };

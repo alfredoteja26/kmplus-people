@@ -352,6 +352,92 @@ describe("Report model", () => {
     });
   });
 
+  describe("hours by project, staffing, and projects", () => {
+    const OCT = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
+    function portfolio(): AppState {
+      const item = (id: string, projectId: string, name: string) => ({ id, tenantId: "kmplus", projectId, name, description: "", picPersonId: "person-rayhan", startDate: "2026-01-01", endDate: "2026-12-31" });
+      return {
+        ...world(),
+        projects: [
+          { ...project("p1", "AAA"), clientName: "PT Samudra Energi" },
+          project("p2", "BBB"),
+          // Ended before October, and starts after it.
+          project("p3", "OLD", "2026-01-01", "2026-09-30"),
+          project("p4", "NEW", "2026-11-01"),
+        ],
+        workItems: [item("w1", "p1", "Design"), item("w2", "p1", "Build")],
+        staffings: [
+          staffing("s1", "person-rayhan", "p1", 80, "2026-09-01"),
+          // Rayhan reaches 120% from 15 Oct.
+          staffing("s2", "person-rayhan", "p2", 40, "2026-10-15"),
+          staffing("s3", "person-eka", "p1", 50, "2026-10-01", "2026-10-31"),
+          // Ended in September: not in October's Staffing.
+          staffing("s4", "person-eka", "p2", 50, "2026-08-01", "2026-09-30"),
+        ],
+        timeBlocks: [
+          { ...block("a", "person-rayhan", "2026-10-05", 3, "p1"), workItemId: "w1" },
+          { ...block("b", "person-rayhan", "2026-10-06", 2, "p1"), workItemId: "w2" },
+          { ...block("c", "person-eka", "2026-10-06", 4, "p1"), workItemId: "w2" },
+          block("d", "person-eka", "2026-10-07", 1, "p1"),
+          block("e", "person-rayhan", "2026-10-20", 2, "p2"),
+          block("f", "person-eka", "2026-10-21", 6, null),
+        ],
+      };
+    }
+
+    it("breaks each Project's hours down by Person and by WorkItem, most first, with no Project last", () => {
+      const report = buildReport(portfolio(), OCT, AT);
+      expect(report.hoursByProject.map((row) => [row.project?.code ?? null, row.hours])).toEqual([
+        ["AAA", 10],
+        ["BBB", 2],
+        // 6 hours, more than BBB, but time with no Project always comes last.
+        [null, 6],
+      ]);
+      const aaa = report.hoursByProject[0];
+      expect(aaa.people.map((row) => [row.person.id, row.hours])).toEqual([
+        ["person-eka", 5],
+        ["person-rayhan", 5],
+      ]);
+      expect(aaa.workItems.map((row) => [row.workItem?.name ?? null, row.hours])).toEqual([
+        ["Build", 6],
+        ["Design", 3],
+        [null, 1],
+      ]);
+      // With time that names no Project left out, its row disappears.
+      expect(buildReport(portfolio(), { ...OCT, includeNoProject: false }, AT).hoursByProject.some((row) => row.project === null)).toBe(false);
+    });
+
+    it("lists Staffing rows overlapping the range with each Person's peak Load across all their Staffing", () => {
+      const report = buildReport(portfolio(), OCT, AT);
+      expect(report.staffing.map((row) => [row.person.id, row.project?.code, row.load, row.peakLoad])).toEqual([
+        ["person-eka", "AAA", 50, 50],
+        ["person-rayhan", "AAA", 80, 120],
+        ["person-rayhan", "BBB", 40, 120],
+      ]);
+      // Filtered to AAA, Rayhan's BBB row leaves the list but still counts toward his peak.
+      const aaa = buildReport(portfolio(), { ...OCT, projectIds: ["p1"] }, AT);
+      expect(aaa.staffing.map((row) => [row.person.id, row.project?.code, row.peakLoad])).toEqual([
+        ["person-eka", "AAA", 50],
+        ["person-rayhan", "AAA", 120],
+      ]);
+    });
+
+    it("lists Projects overlapping the range that pass the filter, with hours in range and the People on them", () => {
+      const report = buildReport(portfolio(), OCT, AT);
+      expect(report.projects.map((row) => [row.project.code, row.hours, row.people])).toEqual([
+        ["AAA", 10, 2],
+        ["BBB", 2, 1],
+      ]);
+      expect(buildReport(portfolio(), { ...OCT, projectIds: ["p2"] }, AT).projects.map((row) => row.project.code)).toEqual(["BBB"]);
+    });
+
+    it("leaves all three empty for a range with no Projects running", () => {
+      const report = buildReport({ ...portfolio(), staffings: [] }, { ...REPORT_DEFAULTS, from: "2025-01-01", to: "2025-01-31" }, AT);
+      expect([report.hoursByProject, report.staffing, report.projects]).toEqual([[], [], []]);
+      expect(reportEmptyLine(report, "projects running")).toBe("No projects running between 1 Jan and 31 Jan 2025.");
+    });
+  });
+
   it("keeps the chosen sections in the fixed order", () => {
     const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave", "cover", "summary"] }, AT);
     expect(report.sections).toEqual(["cover", "summary", "leave"]);

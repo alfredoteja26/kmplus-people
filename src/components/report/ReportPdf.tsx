@@ -4,7 +4,7 @@
  */
 import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import React, { type ReactNode } from "react";
-import { personName } from "@/lib/project-view";
+import { clientLabel, personName } from "@/lib/project-view";
 import { REPORT_COLORS as C, reportDate, reportEmptyLine, reportFilterLine, reportHours, reportLeaveLabel, reportRange, type Report } from "@/lib/report-model";
 
 void React;
@@ -57,10 +57,19 @@ function SectionPages({ report, title, context, children }: { report: Report; ti
   );
 }
 
-type Column<T> = { title: string; width: number; align?: "right"; render: (row: T) => string; total?: (rows: T[]) => string; warn?: (row: T) => boolean };
+type Column<T> = {
+  title: string;
+  width: number;
+  align?: "right";
+  render: (row: T) => string;
+  total?: (rows: T[]) => string;
+  warn?: (row: T) => boolean;
+  /** Indents a breakdown row's label under its parent. */
+  indent?: (row: T) => boolean;
+};
 
 /** A table whose header band repeats after every page break, with a tint totals row and an empty line. */
-function Table<T>({ columns, rows, empty }: { columns: Column<T>[]; rows: T[]; empty: string }) {
+function Table<T>({ columns, rows, empty, emphasis }: { columns: Column<T>[]; rows: T[]; empty: string; emphasis?: (row: T) => boolean }) {
   const totals = rows.length > 0 && columns.some((column) => column.total);
   // Text that follows a right-aligned number gets a gutter, so "5 of 22" never runs into "SMD-ERP".
   const place = columns.map((column, index) => ({
@@ -79,11 +88,17 @@ function Table<T>({ columns, rows, empty }: { columns: Column<T>[]; rows: T[]; e
       </View>
       {rows.length === 0 ? <Text style={s.empty}>{empty}</Text> : null}
       {rows.map((row, index) => (
-        <View key={index} style={s.row} wrap={false}>
+        <View key={index} style={[s.row, emphasis?.(row) ? { backgroundColor: C.wash } : {}]} wrap={false}>
           {columns.map((column, index) => (
             <Text
               key={column.title}
-              style={[s.cell, place[index], column.warn?.(row) ? { color: C.warning, fontWeight: 600 } : {}]}
+              style={[
+                s.cell,
+                place[index],
+                emphasis?.(row) ? { fontWeight: 600 } : {},
+                column.indent?.(row) ? { paddingLeft: 20, color: C.muted } : {},
+                column.warn?.(row) ? { color: C.warning, fontWeight: 600 } : {},
+              ]}
             >
               {column.render(row)}
             </Text>
@@ -170,6 +185,74 @@ function TimesheetByPerson({ report }: { report: Report }) {
             total: (rows) => String(rows.reduce((total, row) => total + row.daysLogged, 0)),
           },
           { title: "By project", width: 448, render: (row) => row.byProject.map((split) => `${split.project?.code ?? "No project"} ${reportHours(split.hours)}`).join("  ·  ") || "No hours" },
+        ]}
+      />
+    </SectionPages>
+  );
+}
+
+/** "AAA  Samudra ERP", or "No project". */
+const projectLabel = (project: { code: string; name: string } | null) => (project ? `${project.code}  ${project.name}` : "No project");
+
+/** 80 → "80%". */
+const percent = (load: number) => `${load}%`;
+
+function HoursByProject({ report }: { report: Report }) {
+  // Each Project as a washed row, then its People and WorkItems indented under it.
+  const rows = report.hoursByProject.flatMap((row) => [
+    { label: projectLabel(row.project), kind: "", hours: row.hours, project: true },
+    ...row.people.map((split) => ({ label: personName(split.person), kind: "Person", hours: split.hours, project: false })),
+    ...row.workItems.map((split) => ({ label: split.workItem?.name ?? "No work item", kind: "Work item", hours: split.hours, project: false })),
+  ]);
+  return (
+    <SectionPages report={report} title="Hours by project" context={`${reportRange(report)} · by person and by work item`}>
+      <Table
+        rows={rows}
+        emphasis={(row) => row.project}
+        empty={reportEmptyLine(report, "hours")}
+        columns={[
+          { title: "Project", width: 470, render: (row) => row.label, indent: (row) => !row.project },
+          { title: "Breakdown", width: 110, render: (row) => row.kind },
+          { title: "Hours", width: 90, align: "right", render: (row) => reportHours(row.hours), total: () => reportHours(report.summary.totalHours) },
+        ]}
+      />
+    </SectionPages>
+  );
+}
+
+function Staffing({ report }: { report: Report }) {
+  return (
+    <SectionPages report={report} title="Staffing" context={`${reportRange(report)} · Load per row, and each Person's peak total Load across all their Staffing`}>
+      <Table
+        rows={report.staffing}
+        empty={reportEmptyLine(report, "staffing")}
+        columns={[
+          { title: "Person", width: 150, render: (row) => personName(row.person) },
+          { title: "Project", width: 270, render: (row) => projectLabel(row.project) },
+          { title: "Load", width: 70, align: "right", render: (row) => percent(row.load) },
+          { title: "From", width: 85, render: (row) => reportDate(row.startDate) },
+          { title: "To", width: 85, render: (row) => (row.endDate ? reportDate(row.endDate) : "No end") },
+          { title: "Peak load", width: 80, align: "right", render: (row) => percent(row.peakLoad), warn: (row) => row.peakLoad > 100 },
+        ]}
+      />
+    </SectionPages>
+  );
+}
+
+function Projects({ report }: { report: Report }) {
+  return (
+    <SectionPages report={report} title="Projects" context={`${reportRange(report)} · Projects running in the range, with hours inside it`}>
+      <Table
+        rows={report.projects}
+        empty={reportEmptyLine(report, "projects running")}
+        columns={[
+          { title: "Code", width: 80, render: (row) => row.project.code },
+          { title: "Project", width: 210, render: (row) => row.project.name },
+          { title: "Client", width: 160, render: (row) => clientLabel(row.project) },
+          { title: "From", width: 80, render: (row) => reportDate(row.project.startDate) },
+          { title: "To", width: 80, render: (row) => (row.project.endDate ? reportDate(row.project.endDate) : "No end") },
+          { title: "People", width: 60, align: "right", render: (row) => String(row.people) },
+          { title: "Hours", width: 80, align: "right", render: (row) => reportHours(row.hours), total: (rows) => reportHours(rows.reduce((total, row) => total + row.hours, 0)) },
         ]}
       />
     </SectionPages>
@@ -318,8 +401,11 @@ export function ReportPdf({ report, logo }: { report: Report; logo: string }) {
     <Document title={`${report.title} ${report.from} to ${report.to}`} author="KMPlus People" creator="KMPlus People" producer="KMPlus People">
       {report.sections.includes("cover") ? <Cover report={report} logo={logo} /> : null}
       {report.sections.includes("summary") ? <Summary report={report} /> : null}
+      {report.sections.includes("hoursByProject") ? <HoursByProject report={report} /> : null}
       {report.sections.includes("timesheetByPerson") ? <TimesheetByPerson report={report} /> : null}
       {report.sections.includes("dailyGrid") ? <DailyGrid report={report} /> : null}
+      {report.sections.includes("staffing") ? <Staffing report={report} /> : null}
+      {report.sections.includes("projects") ? <Projects report={report} /> : null}
       {report.sections.includes("leave") ? <ApprovedLeave report={report} /> : null}
     </Document>
   );

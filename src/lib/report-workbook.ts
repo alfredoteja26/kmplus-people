@@ -1,5 +1,5 @@
 import type ExcelJSModule from "exceljs";
-import { personName } from "@/lib/project-view";
+import { clientLabel, personName } from "@/lib/project-view";
 import { REPORT_COLORS, reportEmptyLine, reportFilterLine, reportLeaveLabel, reportRange, SECTION_LABEL, type Report, type SectionKey } from "@/lib/report-model";
 
 /**
@@ -147,7 +147,11 @@ type Column<T> = {
   align?: Align;
   /** A `SUM` of the column in the totals row. */
   sum?: boolean;
+  /** Another totals formula, for a column whose rows are not all the same kind; `letter` maps a column number. */
+  total?: (range: { first: number; last: number; letter: (column: number) => string }) => { formula: string; result: number };
   warn?: (row: T) => boolean;
+  /** Indents a breakdown row's label under its parent. */
+  indent?: (row: T) => boolean;
 };
 
 /** Fitted width: the longest header or value, in characters, within sensible bounds. */
@@ -162,7 +166,11 @@ function fitWidth<T>(column: Column<T>, rows: T[]): number {
  * totals row of `SUM` formulas. The header and first column are frozen, the header has an autofilter and
  * repeats on every printed page.
  */
-function tableSheet<T>(workbook: ExcelJSModule.Workbook, report: Report, options: { name: string; context: string; columns: Column<T>[]; rows: T[]; empty: string }) {
+function tableSheet<T>(
+  workbook: ExcelJSModule.Workbook,
+  report: Report,
+  options: { name: string; context: string; columns: Column<T>[]; rows: T[]; empty: string; emphasis?: (row: T) => boolean },
+) {
   const { name, context, columns, rows } = options;
   const sheet = workbook.addWorksheet(name);
   sheet.columns = columns.map((column) => ({ width: fitWidth(column, rows) }));
@@ -170,7 +178,15 @@ function tableSheet<T>(workbook: ExcelJSModule.Workbook, report: Report, options
   band(sheet, 3, columns.map((column) => [column.header, column.align ?? (column.numFmt ? "right" : "left")]));
 
   rows.forEach((row, index) => {
-    columns.forEach((column, c) => bodyCell(sheet.getCell(4 + index, c + 1), column.value(row), { numFmt: column.numFmt, align: column.align, warn: column.warn?.(row) }));
+    columns.forEach((column, c) => {
+      const cell = sheet.getCell(4 + index, c + 1);
+      bodyCell(cell, column.value(row), { numFmt: column.numFmt, align: column.align, warn: column.warn?.(row) });
+      if (column.indent?.(row)) cell.alignment = { ...cell.alignment, indent: 3 };
+      if (options.emphasis?.(row)) {
+        cell.fill = solid(COLOR.wash);
+        cell.font = { ...cell.font, bold: true };
+      }
+    });
     sheet.getRow(4 + index).height = 20;
   });
   const last = 3 + rows.length;
@@ -178,11 +194,12 @@ function tableSheet<T>(workbook: ExcelJSModule.Workbook, report: Report, options
     sheet.mergeCells(4, 1, 4, columns.length);
     bodyCell(sheet.getCell(4, 1), options.empty);
     sheet.getCell(4, 1).font = { name: FONT, size: 10, italic: true, color: { argb: COLOR.muted } };
-  } else if (columns.some((column) => column.sum)) {
+  } else if (columns.some((column) => column.sum || column.total)) {
+    const letter = (column: number) => sheet.getColumn(column).letter;
     columns.forEach((column, c) => {
-      const letter = sheet.getColumn(c + 1).letter;
-      const result = rows.reduce((total, row) => total + Number(column.value(row) ?? 0), 0);
-      totalCell(sheet.getCell(last + 1, c + 1), column.sum ? { formula: `SUM(${letter}4:${letter}${last})`, result } : c === 0 ? "Total" : "", column.sum ? column.numFmt : undefined);
+      const sum = { formula: `SUM(${letter(c + 1)}4:${letter(c + 1)}${last})`, result: rows.reduce((total, row) => total + Number(column.value(row) ?? 0), 0) };
+      const value = column.total ? column.total({ first: 4, last, letter }) : column.sum ? sum : c === 0 ? "Total" : "";
+      totalCell(sheet.getCell(last + 1, c + 1), value, column.sum || column.total ? column.numFmt : undefined);
     });
     sheet.getRow(last + 1).height = 20;
   }
@@ -301,6 +318,73 @@ function dailyGridSheet(workbook: ExcelJSModule.Workbook, report: Report) {
   printSetup(sheet, report, "3:5", "A:B");
 }
 
+const LOAD_FORMAT = '0"%"';
+/** "AAA · Samudra ERP", or "No project". */
+const projectLabel = (project: { code: string; name: string } | null) => (project ? `${project.code} · ${project.name}` : "No project");
+
+function hoursByProjectSheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  // The Project row carries the Project's hours; its breakdowns repeat the Project so a filter keeps them together.
+  const rows = report.hoursByProject.flatMap((row) => [
+    { project: projectLabel(row.project), breakdown: "Project", name: "", hours: row.hours },
+    ...row.people.map((split) => ({ project: projectLabel(row.project), breakdown: "Person", name: personName(split.person), hours: split.hours })),
+    ...row.workItems.map((split) => ({ project: projectLabel(row.project), breakdown: "Work item", name: split.workItem?.name ?? "No work item", hours: split.hours })),
+  ]);
+  tableSheet(workbook, report, {
+    name: SECTION_LABEL.hoursByProject,
+    context: `${reportRange(report)} · by person and by work item`,
+    rows,
+    emphasis: (row) => row.breakdown === "Project",
+    empty: reportEmptyLine(report, "hours"),
+    columns: [
+      { header: "Project", value: (row) => row.project },
+      { header: "Breakdown", value: (row) => row.breakdown },
+      { header: "Name", value: (row) => row.name, indent: (row) => row.breakdown !== "Project" },
+      {
+        header: "Hours",
+        value: (row) => row.hours,
+        numFmt: HOURS_FORMAT,
+        // Each hour appears once per Project row and again under Person and under Work item, so only Project rows add up.
+        total: ({ first, last, letter }) => ({ formula: `SUMIF(${letter(2)}${first}:${letter(2)}${last},"Project",${letter(4)}${first}:${letter(4)}${last})`, result: report.summary.totalHours }),
+      },
+    ],
+  });
+}
+
+function staffingSheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  tableSheet(workbook, report, {
+    name: SECTION_LABEL.staffing,
+    context: `${reportRange(report)} · Load per row, and each Person's peak total Load across all their Staffing`,
+    rows: report.staffing,
+    empty: reportEmptyLine(report, "staffing"),
+    columns: [
+      { header: "Person", value: (row) => personName(row.person) },
+      { header: "Project", value: (row) => projectLabel(row.project) },
+      { header: "Load", value: (row) => row.load, numFmt: LOAD_FORMAT },
+      { header: "From", value: (row) => sheetDate(row.startDate), numFmt: DATE_FORMAT, align: "left" },
+      { header: "To", value: (row) => (row.endDate ? sheetDate(row.endDate) : "No end"), numFmt: DATE_FORMAT, align: "left" },
+      { header: "Peak load", value: (row) => row.peakLoad, numFmt: LOAD_FORMAT, warn: (row) => row.peakLoad > 100 },
+    ],
+  });
+}
+
+function projectsSheet(workbook: ExcelJSModule.Workbook, report: Report) {
+  tableSheet(workbook, report, {
+    name: SECTION_LABEL.projects,
+    context: `${reportRange(report)} · Projects running in the range, with hours inside it`,
+    rows: report.projects,
+    empty: reportEmptyLine(report, "projects running"),
+    columns: [
+      { header: "Code", value: (row) => row.project.code },
+      { header: "Project", value: (row) => row.project.name },
+      { header: "Client", value: (row) => clientLabel(row.project) },
+      { header: "From", value: (row) => sheetDate(row.project.startDate), numFmt: DATE_FORMAT, align: "left" },
+      { header: "To", value: (row) => (row.project.endDate ? sheetDate(row.project.endDate) : "No end"), numFmt: DATE_FORMAT, align: "left" },
+      { header: "People", value: (row) => row.people, numFmt: "0" },
+      { header: "Hours", value: (row) => row.hours, numFmt: HOURS_FORMAT, sum: true },
+    ],
+  });
+}
+
 function leaveSheet(workbook: ExcelJSModule.Workbook, report: Report) {
   tableSheet(workbook, report, {
     name: SECTION_LABEL.leave,
@@ -323,8 +407,11 @@ function leaveSheet(workbook: ExcelJSModule.Workbook, report: Report) {
 /** The sheets after the Cover, in the fixed section order. */
 const SECTION_SHEETS: { key: SectionKey; write: (workbook: ExcelJSModule.Workbook, report: Report) => void }[] = [
   { key: "summary", write: summarySheet },
+  { key: "hoursByProject", write: hoursByProjectSheet },
   { key: "timesheetByPerson", write: timesheetByPersonSheet },
   { key: "dailyGrid", write: dailyGridSheet },
+  { key: "staffing", write: staffingSheet },
+  { key: "projects", write: projectsSheet },
   { key: "leave", write: leaveSheet },
 ];
 
