@@ -7,6 +7,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react";
 import type * as React from "react";
+import { shortMonth } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 const buttonClassNames =
@@ -123,8 +124,7 @@ export function Calendar({
     components: mergedComponents,
     "data-slot": "calendar",
     formatters: {
-      formatMonthDropdown: (date: Date) =>
-        date.toLocaleString("default", { month: "short" }),
+      formatMonthDropdown: (date: Date) => shortMonth(date.getMonth()),
     } as React.ComponentProps<typeof DayPicker>["formatters"],
     mode,
     showOutsideDays,

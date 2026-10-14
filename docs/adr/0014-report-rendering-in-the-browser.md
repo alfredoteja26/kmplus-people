@@ -1,0 +1,7 @@
+# A Report is rendered in the browser with ExcelJS and react-pdf
+
+A **Report** is built in the Admin's browser from the store the page already holds: the spreadsheet through ExcelJS, the PDF and its live preview through `@react-pdf/renderer`, both loaded by dynamic import on the export page only (about 249 KB and 314 KB gzipped). One Report model feeds both, so the two files cannot disagree. The hand-rolled `src/lib/xlsx.ts` writer and `workbookRows` retire with the old "Download workbook".
+
+We rejected extending `xlsx.ts` (hundreds of lines of hand-written OOXML for styles, merges, images, print titles, and a second writer for PDF anyway), browser print with a print stylesheet (no one-click download, weak page-break and footer control), and headless Chrome on the server (Chrome inside the production image on a server a human rebuilds by hand). The prototype (branch `prototype/export-report`, findings in `.scratch/export-report/prototype-findings.md`) showed the default Report building in 0.4–1.5 s in the browser up to 12 months, and a roughly 20 s build for 1,900 Timesheet detail rows, so Timesheet detail is spreadsheet only.
+
+**Update, 14 Oct 2026:** `workbookRows` and the old "Download workbook" are gone. `src/lib/xlsx.ts` stays for now, because the reimbursement report's Excel export (built on `main` in parallel) still writes through it. Moving that export onto ExcelJS retires the file.

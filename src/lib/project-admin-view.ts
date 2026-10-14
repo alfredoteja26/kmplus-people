@@ -29,7 +29,7 @@ function round1(hours: number): number {
 }
 
 /** Every counted hour in the span, one entry per Person per block: their own blocks plus Meetings they accepted. */
-function countedHours(state: AppState, from: string, to: string) {
+export function countedHours(state: AppState, from: string, to: string) {
   return state.people.flatMap((person) =>
     countedTimeBlocksForPerson(state, person.id)
       .filter((block) => {

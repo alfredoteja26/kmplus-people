@@ -1,5 +1,6 @@
 /**
- * Minimal .xlsx writer: one workbook, several sheets, string and number cells.
+ * Minimal .xlsx writer: one workbook, several sheets, string and number cells. Used only by the reimbursement
+ * report export; the Report (ADR-0014) writes through ExcelJS. Moving reimbursements onto ExcelJS retires this file.
  * No dependency. Files are stored uncompressed in the zip, which Excel, Numbers,
  * LibreOffice and Google Sheets all open.
  */

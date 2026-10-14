@@ -205,3 +205,11 @@ _Avoid_: a separate object for each label, LeaveType as a time-block label, Invi
 **Invite**:
 A Person with a User asked to attend one Meeting TimeBlock. On a meeting that names a Project, their Staffing must cover the block’s date. On a meeting with no Project, any such Person may be invited. The block shows on their calendar as pending until they accept or decline. Only the creator edits the block. Accept adds its hours to their summary. Decline removes it from their calendar and adds no hours. Accept is refused when the span overlaps their approved cuti or sick.
 _Avoid_: hours before accept, an invitee editing the block, an invite on a type other than Meeting
+
+**Report**:
+Admin’s read-only view of Projects, Staffing, counted TimeBlocks, and may-be-taken LeaveRequests over one date range of at most 12 months, optionally narrowed to chosen Projects and People. A TimeBlock is in it when its date falls in the range. Staffing, a Project, and a LeaveRequest are in it when they overlap the range, and leave is measured in working days inside it. A Person is in it when they logged hours in the range or their Staffing overlaps it, so a staffed Person with no hours still shows. With a Project filter, time that names no Project is left out. Any Admin may download it as a spreadsheet or a PDF, chooses one of three PDF layouts (ReportTemplate), and may give it its own title and the client it is prepared for, typed by hand. It is built on demand and never stored.
+_Avoid_: Export as a stored record, a Line Manager or Person report, saved report presets, pending invited hours in a Report
+
+**ReportTemplate**:
+One of three fixed layouts for a Report’s PDF: Standard, Letterhead, or Briefing. It changes how the Report looks, never which figures it holds. Admin picks one each time; there are no custom templates.
+_Avoid_: Template as a stored or editable design, a template that adds or drops figures, Theme

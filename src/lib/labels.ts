@@ -49,8 +49,23 @@ export function accessLabel(role: Role, adminGrant: boolean): string {
   return adminGrant ? `${roleLabel(role)} · Admin` : roleLabel(role);
 }
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** 0-based month index → "Jan".."Dec". ICU en-GB writes September as "Sept"; the product writes "Sep". */
+export function shortMonth(monthIndex: number): string {
+  return SHORT_MONTHS[monthIndex];
+}
+
+/** Formats a UTC date with `format`, swapping ICU's month name for the fixed three-letter one. */
+export function formatUtcWithShortMonth(format: Intl.DateTimeFormat, date: Date): string {
+  return format
+    .formatToParts(date)
+    .map((part) => (part.type === "month" ? shortMonth(date.getUTCMonth()) : part.value))
+    .join("");
+}
+
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const DAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 
 function parseIsoDate(iso: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
@@ -62,13 +77,13 @@ function parseIsoDate(iso: string): Date | null {
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = parseIsoDate(iso);
-  return date ? DATE.format(date) : iso;
+  return date ? formatUtcWithShortMonth(DATE, date) : iso;
 }
 
 /** "2026-10-05" → "Mon 5 Oct". */
 export function formatDay(iso: string): string {
   const date = parseIsoDate(iso);
-  return date ? DAY.format(date) : iso;
+  return date ? `${WEEKDAY.format(date)} ${date.getUTCDate()} ${shortMonth(date.getUTCMonth())}` : iso;
 }
 
 /** "2024-01-01", "2024-03-31" → "1 Jan 2024 – 31 Mar 2024"; open end → "From 1 Jan 2024". */

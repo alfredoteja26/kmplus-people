@@ -6,7 +6,7 @@ import { HealthBadge } from "@/components/product/StatusBadge";
 import { CodeChip, EmptyBlock, ProgressMeter } from "@/components/work-delivery/project/parts";
 import { currentAssignments, itemHealth } from "@/lib/domain";
 import { agendaForDay, homeShortcuts, nextLeave, weekByDay } from "@/lib/home-view";
-import { plural } from "@/lib/labels";
+import { plural, shortMonth } from "@/lib/labels";
 import { LEAVE_STATE_LABEL, leaveKindLabel, leaveState, leaveWhen } from "@/lib/leave-view";
 import { plainLeaveError } from "@/components/leave/LeaveRequestSheet";
 import { plainTimesheetError } from "@/components/work-delivery/timesheet/TimeEntrySheet";
@@ -58,7 +58,7 @@ function dayParts(iso: string) {
   return {
     weekday: new Intl.DateTimeFormat("en-GB", { timeZone: JAKARTA, weekday: "short" }).format(date),
     day: new Intl.DateTimeFormat("en-GB", { timeZone: JAKARTA, day: "numeric" }).format(date),
-    month: new Intl.DateTimeFormat("en-GB", { timeZone: JAKARTA, month: "short" }).format(date),
+    month: shortMonth(Number(iso.slice(5, 7)) - 1),
   };
 }
 

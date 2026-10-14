@@ -19,34 +19,14 @@ import {
   timesheetByPerson,
 } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { jakartaTodayIso, workbookRows } from "@/lib/work-delivery-query";
-import { buildXlsx, XLSX_MIME } from "@/lib/xlsx";
+import { reportMonthLink } from "@/lib/report-settings";
+import { jakartaTodayIso } from "@/lib/work-delivery-query";
 import { useStore } from "@/lib/store";
-import { DownloadIcon } from "lucide-react";
+import { FileOutputIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-const NUMERIC_COLUMNS = new Set(["hours", "load"]);
 const MONTH = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" });
-
-function downloadWorkbook(state: ReturnType<typeof useStore>["state"]) {
-  const sheets = workbookRows(state).map((sheet) => ({
-    ...sheet,
-    rows: sheet.rows.map((row) =>
-      row.map((cell, index) =>
-        NUMERIC_COLUMNS.has(sheet.columns[index] ?? "") && cell !== "" ? Number(cell) : cell,
-      ),
-    ),
-  }));
-  const bytes = buildXlsx(sheets);
-  const blob = new Blob([bytes as BlobPart], { type: XLSX_MIME });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `kmplus-project-report-${jakartaTodayIso()}.xlsx`;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /** "Rayhan, Eka and 2 more": names first, so the row says who before anyone opens it. */
 function names(list: string[], max = 2): string {
@@ -150,7 +130,6 @@ export default function ProjectAdminPage() {
   const monthName = MONTH.format(new Date(Date.UTC(monthOf(today).year, monthOf(today).month, 1)));
   const approvedThisMonth = approvedLeaveInSpan(state, thisMonth.from, thisMonth.to).length;
   const projectHoursThisMonth = byProject.filter((row) => row.project).reduce((sum, row) => sum + row.hours, 0);
-  const hasRows = workbookRows(state).some((sheet) => sheet.rows.length > 0);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
@@ -213,9 +192,9 @@ export default function ProjectAdminPage() {
         timesheet={timesheet}
         leave={leave}
         download={
-          <Button type="button" variant="outline" size="sm" disabled={!hasRows} onClick={() => downloadWorkbook(state)}>
-            <DownloadIcon aria-hidden="true" />
-            Download workbook
+          <Button variant="outline" size="sm" render={<Link href={reportMonthLink(cursor.year, cursor.month)} />}>
+            <FileOutputIcon aria-hidden="true" />
+            Export report
           </Button>
         }
         pager={
