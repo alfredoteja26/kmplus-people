@@ -15,10 +15,10 @@ import { buildReport, orderSections, READY_SECTIONS, REPORT_TEMPLATES, REPORT_TE
 import { addMonthsIso, parseReportSettings, reportChoiceError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
-import { ArrowLeftIcon, DownloadIcon, FileSpreadsheetIcon } from "lucide-react";
+import { ArrowLeftIcon, DownloadIcon, ExternalLinkIcon, FileSpreadsheetIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 const REPORT_FONTS_URL = "/fonts/report";
 const REPORT_LOGO_URL = "/brand/kmplus-logo-official.png";
@@ -112,6 +112,39 @@ function TemplateThumbnail({ template }: { template: ReportTemplate }) {
     </svg>
   );
 }
+
+/**
+ * On desktop the settings and the preview reach from where they sit (or stick, 16px under the top) to 16px above
+ * the bottom of the scroll area, so the Download footer never leaves the screen at any scroll position. Measured,
+ * because banners change the shell header; written straight to `--fit` so scrolling does not re-render the form.
+ */
+function useFitToScroller(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const layout = ref.current;
+    const scroller = layout?.closest("main");
+    if (!layout || !scroller) return;
+    let frame = 0;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const area = scroller.getBoundingClientRect();
+        const top = Math.max(layout.getBoundingClientRect().top, area.top + 16);
+        layout.style.setProperty("--fit", `${Math.max(320, Math.floor(area.bottom - 16 - top))}px`);
+      });
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(scroller);
+    scroller.addEventListener("scroll", fit, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      scroller.removeEventListener("scroll", fit);
+    };
+  }, [ref]);
+}
+
+const HOURS_WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 
 type Preview = { url: string; blob: Blob; pages: number };
 
@@ -237,6 +270,12 @@ function ExportReportForm() {
 
   const previewed = report ?? lastGood.current;
   const status = failed && !building ? "Preview failed" : building || !preview ? "Updating…" : `${preview.pages} ${preview.pages === 1 ? "page" : "pages"}`;
+  // The PDF can be saved or opened only when the preview matches the current settings.
+  const pdfBlocked = Boolean(settingsError) || !preview || building || failed;
+  // The phone summary: "5 sections · 6 pages · 312 hours".
+  const summaryLine = [`${sections.length} ${sections.length === 1 ? "section" : "sections"}`, status, `${HOURS_WHOLE.format(previewed?.summary.totalHours ?? 0)} hours`].join(" · ");
+  const layoutRef = useRef<HTMLDivElement>(null);
+  useFitToScroller(layoutRef);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
@@ -249,184 +288,202 @@ function ExportReportForm() {
         <p className="m-0 max-w-[70ch] text-muted">Name the report and choose the range, projects, and people it covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
       </header>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="flex flex-col overflow-clip rounded-2xl bg-paper shadow-(--shadow) lg:sticky lg:top-4" aria-label="Report settings">
-          <section className="flex flex-col gap-2 px-5 py-4" aria-labelledby="report-template">
-            <h2 id="report-template" className="m-0 text-base font-medium">
-              Template
-            </h2>
-            <RadioGroupPrimitive value={template} onValueChange={(value) => setTemplate(value as ReportTemplate)} aria-labelledby="report-template" className="flex flex-col gap-1.5">
-              {REPORT_TEMPLATES.map((row) => (
-                <RadioPrimitive.Root
-                  key={row.key}
-                  value={row.key}
-                  aria-labelledby={`report-template-${row.key}`}
-                  aria-describedby={`report-template-${row.key}-line`}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-paper p-2.5 text-left outline-none transition-colors hover:bg-tint focus-visible:ring-2 focus-visible:ring-ring data-checked:border-accent data-checked:bg-tint"
-                >
-                  <TemplateThumbnail template={row.key} />
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span id={`report-template-${row.key}`} className="text-sm font-medium">
-                      {row.name}
+      <div ref={layoutRef} className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="flex flex-col rounded-2xl bg-paper shadow-(--shadow) lg:sticky lg:top-4 lg:max-h-(--fit) lg:overflow-clip" aria-label="Report settings">
+          <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+            <section className="flex flex-col gap-2 px-5 py-4" aria-labelledby="report-template">
+              <h2 id="report-template" className="m-0 text-base font-medium">
+                Template
+              </h2>
+              <RadioGroupPrimitive value={template} onValueChange={(value) => setTemplate(value as ReportTemplate)} aria-labelledby="report-template" className="flex flex-col gap-1.5">
+                {REPORT_TEMPLATES.map((row) => (
+                  <RadioPrimitive.Root
+                    key={row.key}
+                    value={row.key}
+                    aria-labelledby={`report-template-${row.key}`}
+                    aria-describedby={`report-template-${row.key}-line`}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-paper p-2.5 text-left outline-none transition-colors hover:bg-tint focus-visible:ring-2 focus-visible:ring-ring data-checked:border-accent data-checked:bg-tint"
+                  >
+                    <TemplateThumbnail template={row.key} />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span id={`report-template-${row.key}`} className="text-sm font-medium">
+                        {row.name}
+                      </span>
+                      <span id={`report-template-${row.key}-line`} className="text-xs text-muted">
+                        {row.line}
+                      </span>
                     </span>
-                    <span id={`report-template-${row.key}-line`} className="text-xs text-muted">
-                      {row.line}
-                    </span>
-                  </span>
-                </RadioPrimitive.Root>
-              ))}
-            </RadioGroupPrimitive>
-            <p className="m-0 text-sm text-muted">{REPORT_TEMPLATES.find((row) => row.key === template)?.shapes} The spreadsheet is the same for every template.</p>
-          </section>
+                  </RadioPrimitive.Root>
+                ))}
+              </RadioGroupPrimitive>
+              <p className="m-0 text-sm text-muted">{REPORT_TEMPLATES.find((row) => row.key === template)?.shapes} The spreadsheet is the same for every template.</p>
+            </section>
 
-          <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-label="Title and client">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Title
-              <Input
-                value={title}
-                maxLength={REPORT_TEXT_MAX}
-                onChange={(event) => setTitle(event.target.value)}
-                onBlur={() => setTitle(reportTitle(title))}
-                placeholder={REPORT_TITLE}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              <span>
-                Prepared for <span className="font-normal text-muted">(optional)</span>
-              </span>
-              <Input
-                value={preparedFor}
-                maxLength={REPORT_TEXT_MAX}
-                onChange={(event) => {
-                  setPreparedFor(event.target.value);
-                  setPreparedForEdited(true);
-                }}
-                placeholder="Client name"
-              />
-            </label>
-          </section>
-
-          <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-labelledby="report-range">
-            <h2 id="report-range" className="m-0 text-base font-medium">
-              Date range
-            </h2>
-            <div className="flex flex-wrap gap-1.5">
-              {quickRanges(today).map((range) => (
-                <Toggle
-                  key={range.label}
-                  variant="outline"
-                  size="sm"
-                  pressed={from === range.from && to === range.to}
-                  onPressedChange={() => {
-                    setFrom(range.from);
-                    setTo(range.to);
+            <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-label="Title and client">
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Title
+                <Input
+                  value={title}
+                  maxLength={REPORT_TEXT_MAX}
+                  onChange={(event) => setTitle(event.target.value)}
+                  onBlur={() => setTitle(reportTitle(title))}
+                  placeholder={REPORT_TITLE}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                <span>
+                  Prepared for <span className="font-normal text-muted">(optional)</span>
+                </span>
+                <Input
+                  value={preparedFor}
+                  maxLength={REPORT_TEXT_MAX}
+                  onChange={(event) => {
+                    setPreparedFor(event.target.value);
+                    setPreparedForEdited(true);
                   }}
-                >
-                  {range.label}
-                </Toggle>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                From
-                <Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
+                  placeholder="Client name"
+                />
               </label>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                To
-                <Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
-              </label>
-            </div>
-            {rangeError ? (
-              <p id="report-range-note" role="alert" className="m-0 text-sm text-destructive-foreground">
-                {rangeError}
-              </p>
-            ) : (
-              <p id="report-range-note" className="m-0 text-sm text-muted tabular-nums">
-                {reportRange({ from, to })} · {reportWorkingDays(state, from, to)} working days
-              </p>
-            )}
-          </section>
+            </section>
 
-          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-projects">
-            <h2 id="report-projects" className="m-0 text-base font-medium">
-              Projects
-            </h2>
-            <CheckRow checked={projectIds === null} onChange={() => chooseProjects(projectIds === null ? [] : null)}>
-              All projects
-            </CheckRow>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 ps-1">
-              {projects.map((project) => (
-                <CheckRow
-                  key={project.id}
-                  checked={projectIds === null || projectIds.includes(project.id)}
-                  onChange={() => chooseProjects(toggleId(projectIds, projects.map((row) => row.id), project.id))}
-                >
-                  <CodeChip code={project.code} />
-                </CheckRow>
-              ))}
-            </div>
-            <Field disabled={projectIds !== null} className="mt-1 flex-row items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <FieldLabel className="font-normal">Include time with no project</FieldLabel>
-                {projectIds !== null ? <FieldDescription className="text-sm text-muted">Off while projects are chosen, so a client file carries no internal time.</FieldDescription> : null}
+            <section className="flex flex-col gap-3 border-t border-line px-5 py-4" aria-labelledby="report-range">
+              <h2 id="report-range" className="m-0 text-base font-medium">
+                Date range
+              </h2>
+              <div className="flex flex-wrap gap-1.5">
+                {quickRanges(today).map((range) => (
+                  <Toggle
+                    key={range.label}
+                    variant="outline"
+                    size="sm"
+                    pressed={from === range.from && to === range.to}
+                    onPressedChange={() => {
+                      setFrom(range.from);
+                      setTo(range.to);
+                    }}
+                  >
+                    {range.label}
+                  </Toggle>
+                ))}
               </div>
-              <Switch checked={projectIds === null && includeNoProject} onCheckedChange={setIncludeNoProject} />
-            </Field>
-          </section>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  From
+                  <Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  To
+                  <Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-invalid={Boolean(rangeError) || undefined} aria-describedby="report-range-note" />
+                </label>
+              </div>
+              {rangeError ? (
+                <p id="report-range-note" role="alert" className="m-0 text-sm text-destructive-foreground">
+                  {rangeError}
+                </p>
+              ) : (
+                <p id="report-range-note" className="m-0 text-sm text-muted tabular-nums">
+                  {reportRange({ from, to })} · {reportWorkingDays(state, from, to)} working days
+                </p>
+              )}
+            </section>
 
-          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-people">
-            <h2 id="report-people" className="m-0 flex items-baseline justify-between text-base font-medium">
-              People
-              <span className="text-sm font-normal text-muted tabular-nums">{personIds === null ? "Everyone" : `${personIds.length} chosen`}</span>
-            </h2>
-            <CheckRow checked={personIds === null} onChange={() => setPersonIds(personIds === null ? [] : null)}>
-              Everyone
-            </CheckRow>
-            <div className="grid max-h-40 grid-cols-2 gap-x-3 gap-y-1.5 overflow-y-auto ps-1">
-              {people.map((person) => (
-                <CheckRow
-                  key={person.id}
-                  checked={personIds === null || personIds.includes(person.id)}
-                  onChange={() => setPersonIds(toggleId(personIds, people.map((row) => row.id), person.id))}
-                >
-                  <span className="truncate">{personName(person)}</span>
-                </CheckRow>
-              ))}
+            <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-projects">
+              <h2 id="report-projects" className="m-0 text-base font-medium">
+                Projects
+              </h2>
+              <CheckRow checked={projectIds === null} onChange={() => chooseProjects(projectIds === null ? [] : null)}>
+                All projects
+              </CheckRow>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 ps-1">
+                {projects.map((project) => (
+                  <CheckRow
+                    key={project.id}
+                    checked={projectIds === null || projectIds.includes(project.id)}
+                    onChange={() => chooseProjects(toggleId(projectIds, projects.map((row) => row.id), project.id))}
+                  >
+                    <CodeChip code={project.code} />
+                  </CheckRow>
+                ))}
+              </div>
+              <Field disabled={projectIds !== null} className="mt-1 flex-row items-start justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <FieldLabel className="font-normal">Include time with no project</FieldLabel>
+                  {projectIds !== null ? <FieldDescription className="text-sm text-muted">Off while projects are chosen, so a client file carries no internal time.</FieldDescription> : null}
+                </div>
+                <Switch checked={projectIds === null && includeNoProject} onCheckedChange={setIncludeNoProject} />
+              </Field>
+            </section>
+
+            <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-people">
+              <h2 id="report-people" className="m-0 flex items-baseline justify-between text-base font-medium">
+                People
+                <span className="text-sm font-normal text-muted tabular-nums">{personIds === null ? "Everyone" : `${personIds.length} chosen`}</span>
+              </h2>
+              <CheckRow checked={personIds === null} onChange={() => setPersonIds(personIds === null ? [] : null)}>
+                Everyone
+              </CheckRow>
+              <div className="grid max-h-40 grid-cols-2 gap-x-3 gap-y-1.5 overflow-y-auto ps-1">
+                {people.map((person) => (
+                  <CheckRow
+                    key={person.id}
+                    checked={personIds === null || personIds.includes(person.id)}
+                    onChange={() => setPersonIds(toggleId(personIds, people.map((row) => row.id), person.id))}
+                  >
+                    <span className="truncate">{personName(person)}</span>
+                  </CheckRow>
+                ))}
+              </div>
+            </section>
+
+            <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-sections">
+              <h2 id="report-sections" className="m-0 text-base font-medium">
+                Sections
+              </h2>
+              <div className="flex flex-col gap-1.5">
+                {SECTION_KEYS.filter((key) => READY_SECTIONS.includes(key)).map((key) => (
+                  <CheckRow
+                    key={key}
+                    checked={sections.includes(key)}
+                    onChange={() => setSections(orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]))}
+                  >
+                    {SECTION_LABEL[key]}
+                    {SPREADSHEET_ONLY.includes(key) ? <span className="text-muted"> · Spreadsheet only</span> : null}
+                  </CheckRow>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* Always in reach: pinned under the scrolling settings on desktop, stuck to the screen's foot on a phone. */}
+          <div className="flex shrink-0 flex-col gap-2 rounded-b-2xl border-t border-line bg-wash px-5 py-4 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:gap-1.5 max-lg:px-4 max-lg:py-3 max-lg:shadow-[0_-8px_16px_-12px_rgb(0_0_0/0.25)]">
+            <div className="flex items-center justify-between gap-2 lg:hidden">
+              <p role="status" className="m-0 min-w-0 text-sm font-medium tabular-nums">
+                {summaryLine}
+              </p>
+              {/* Mobile Safari shows only a PDF's first page inside a frame, so phones open the PDF in its own tab. */}
+              <Button type="button" variant="ghost" size="sm" className="shrink-0" disabled={pdfBlocked} onClick={() => preview && window.open(preview.url, "_blank", "noopener")}>
+                <ExternalLinkIcon aria-hidden="true" />
+                Show preview
+              </Button>
             </div>
-          </section>
-
-          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-sections">
-            <h2 id="report-sections" className="m-0 text-base font-medium">
-              Sections
-            </h2>
-            <div className="flex flex-col gap-1.5">
-              {SECTION_KEYS.filter((key) => READY_SECTIONS.includes(key)).map((key) => (
-                <CheckRow
-                  key={key}
-                  checked={sections.includes(key)}
-                  onChange={() => setSections(orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]))}
-                >
-                  {SECTION_LABEL[key]}
-                  {SPREADSHEET_ONLY.includes(key) ? <span className="text-muted"> · Spreadsheet only</span> : null}
-                </CheckRow>
-              ))}
+            <div className="grid gap-2 max-lg:grid-cols-2">
+              <Button type="button" disabled={pdfBlocked} onClick={() => preview && report && save(preview.blob, reportFileName(report, "pdf"))}>
+                <DownloadIcon aria-hidden="true" />
+                Download PDF
+              </Button>
+              <Button type="button" variant="outline" disabled={Boolean(settingsError) || xlsxBusy} onClick={downloadXlsx}>
+                <FileSpreadsheetIcon aria-hidden="true" />
+                {xlsxBusy ? "Building…" : "Download xlsx"}
+              </Button>
             </div>
-          </section>
-
-          <div className="flex flex-col gap-2 border-t border-line bg-wash px-5 py-4">
-            <Button type="button" disabled={Boolean(settingsError) || !preview || building} onClick={() => preview && report && save(preview.blob, reportFileName(report, "pdf"))}>
-              <DownloadIcon aria-hidden="true" />
-              Download PDF
-            </Button>
-            <Button type="button" variant="outline" disabled={Boolean(settingsError) || xlsxBusy} onClick={downloadXlsx}>
-              <FileSpreadsheetIcon aria-hidden="true" />
-              {xlsxBusy ? "Building spreadsheet…" : "Download xlsx"}
-            </Button>
-            <p className="m-0 text-sm text-muted">{rangeError ? "Fix the date range to download." : (settingsError ?? "The spreadsheet holds the same figures as the PDF.")}</p>
+            {/* On a phone the footer covers the settings, so it keeps only a reason to act. */}
+            <p className={`m-0 text-sm text-muted ${settingsError ? "" : "max-lg:hidden"}`}>
+              {rangeError ? "Fix the date range to download." : (settingsError ?? "The spreadsheet holds the same figures as the PDF.")}
+            </p>
           </div>
         </aside>
 
-        <section aria-label="PDF preview" className="flex min-w-0 flex-col overflow-clip rounded-2xl bg-paper shadow-(--shadow)">
+        <section aria-label="PDF preview" className="flex min-w-0 flex-col overflow-clip rounded-2xl bg-paper shadow-(--shadow) max-lg:hidden lg:sticky lg:top-4 lg:h-(--fit)">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3 text-sm">
             <span className="font-medium">Preview</span>
             <span role="status" className="text-muted tabular-nums">
@@ -444,10 +501,10 @@ function ExportReportForm() {
             <iframe
               title={`Report preview, ${reportRange(previewed)}`}
               src={`${preview.url}#view=FitH`}
-              className={`h-[calc(100vh-9rem)] min-h-[640px] w-full border-0 bg-wash transition-opacity ${settingsError ? "opacity-50" : ""}`}
+              className={`min-h-0 w-full flex-1 border-0 bg-wash transition-opacity ${settingsError ? "opacity-50" : ""}`}
             />
           ) : (
-            <div className="grid h-[480px] place-items-center text-sm text-muted">Building the preview…</div>
+            <div className="grid flex-1 place-items-center text-sm text-muted">Building the preview…</div>
           )}
         </section>
       </div>

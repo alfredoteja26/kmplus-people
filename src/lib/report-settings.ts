@@ -96,8 +96,8 @@ function text(value: string | null, fallback: string): string {
 
 /** Why the choices cannot make a Report, in the words the page shows, or null when they can. */
 export function reportChoiceError(config: Pick<ReportConfig, "projectIds" | "personIds" | "sections">): string | null {
-  if (config.projectIds?.length === 0) return "Choose at least one project.";
-  if (config.personIds?.length === 0) return "Choose at least one person.";
-  if (config.sections.length === 0) return "Choose at least one section.";
+  if (config.projectIds?.length === 0) return "Choose at least one project to download.";
+  if (config.personIds?.length === 0) return "Choose at least one person to download.";
+  if (config.sections.length === 0) return "Choose at least one section to download.";
   return null;
 }

@@ -59,9 +59,9 @@ describe("Report settings in the page address", () => {
 
   it("refuses choices with no Project, no Person, or no section", () => {
     expect(reportChoiceError(REPORT_DEFAULTS)).toBeNull();
-    expect(reportChoiceError({ ...REPORT_DEFAULTS, projectIds: [] })).toBe("Choose at least one project.");
-    expect(reportChoiceError({ ...REPORT_DEFAULTS, personIds: [] })).toBe("Choose at least one person.");
-    expect(reportChoiceError({ ...REPORT_DEFAULTS, sections: [] })).toBe("Choose at least one section.");
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, projectIds: [] })).toBe("Choose at least one project to download.");
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, personIds: [] })).toBe("Choose at least one person to download.");
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, sections: [] })).toBe("Choose at least one section to download.");
   });
 
   it("keeps sections in the fixed order, drops unknown ones, and falls back to the defaults when none is known", () => {
