@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./fixtures";
-import { buildReport, REPORT_DEFAULTS, reportDate, reportFileName, reportHours, suggestedPreparedFor } from "./report-model";
-import type { AppState, Invite, Project, Staffing, TimeBlock } from "./types";
+import { buildReport, REPORT_DEFAULTS, reportDate, reportEmptyLine, reportFileName, reportHours, suggestedPreparedFor } from "./report-model";
+import type { AppState, Invite, LeaveRequest, Project, PublicHoliday, Staffing, TimeBlock } from "./types";
 
 const AT = { generatedBy: "Alvin Soleh", generatedAt: "13 Oct 2026, 10:42" };
 
@@ -20,6 +20,30 @@ function block(id: string, personId: string, day: string, hours: number, project
 
 function invite(id: string, timeBlockId: string, personId: string, status: Invite["status"]): Invite {
   return { id, tenantId: "kmplus", timeBlockId, personId, status };
+}
+
+function leave(id: string, personId: string, kind: LeaveRequest["kind"], startDate: string, endDate: string, decision: LeaveRequest["decision"], part?: [string, string]): LeaveRequest {
+  return {
+    id,
+    tenantId: "kmplus",
+    personId,
+    kind,
+    leaveTypeId: kind === "cuti" ? "lt-tahunan" : null,
+    coverPersonId: null,
+    doctorLetterPath: null,
+    note: id,
+    spanMode: part ? "hours" : "days",
+    startDate,
+    endDate,
+    startTime: part?.[0] ?? null,
+    endTime: part?.[1] ?? null,
+    decision,
+    decidedByPersonId: decision ? "person-alfredo" : null,
+  };
+}
+
+function holiday(id: string, date: string, suppressed = false): PublicHoliday {
+  return { id, tenantId: "kmplus", date, name: id, origin: "libur", suppressed, nameLocked: false };
 }
 
 function world(): AppState {
@@ -165,6 +189,93 @@ describe("Report model", () => {
       const narrowed = buildReport(filtered(), { ...OCT, projectIds: ["p2", "p1"], personIds: ["person-rayhan", "person-eka"] }, AT);
       expect(words(narrowed)).toEqual(["Projects: AAA, BBB", "People: Eka, Rayhan", "Time with no project: Left out"]);
     });
+  });
+
+  describe("timesheet by person", () => {
+    it("gives each Person their hours, distinct days with hours, and the split across Projects, no Project last", () => {
+      const state: AppState = {
+        ...world(),
+        timeBlocks: [
+          block("a1", "person-rayhan", "2026-10-05", 2, "p1"),
+          block("a2", "person-rayhan", "2026-10-05", 1, null),
+          block("b1", "person-rayhan", "2026-10-06", 4, "p2"),
+        ],
+      };
+      const report = buildReport(state, { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" }, AT);
+      const rayhan = report.people.find((row) => row.person.id === "person-rayhan")!;
+      expect(rayhan).toMatchObject({ hours: 7, daysLogged: 2 });
+      expect(rayhan.byProject.map((row) => [row.project?.code ?? null, row.hours])).toEqual([
+        ["BBB", 4],
+        ["AAA", 2],
+        [null, 1],
+      ]);
+      // Eka is staffed on BBB and logged nothing.
+      expect(report.people.find((row) => row.person.id === "person-eka")).toMatchObject({ hours: 0, daysLogged: 0, byProject: [] });
+    });
+  });
+
+  describe("approved leave", () => {
+    const OCT = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31" };
+    function withLeave(leaveRequests: LeaveRequest[], publicHolidays: PublicHoliday[] = []): AppState {
+      return { ...world(), leaveTypes: [{ id: "lt-tahunan", tenantId: "kmplus", name: "Tahunan", sortOrder: 0 }], leaveRequests, publicHolidays };
+    }
+
+    it("counts working days inside the range only, skipping the weekend and an active public holiday", () => {
+      // Thu 8 Oct to Wed 14 Oct is 5 weekdays; Fri 9 Oct is a holiday, and the suppressed Tue 13 Oct still counts.
+      const state = withLeave([leave("l1", "person-rayhan", "cuti", "2026-10-08", "2026-10-14", "paid")], [holiday("h1", "2026-10-09"), holiday("h2", "2026-10-13", true)]);
+      expect(buildReport(state, OCT, AT).leave.map((row) => [row.leaveType, row.workingDays])).toEqual([["Tahunan", 4]]);
+      // Mon 28 Sep to Fri 2 Oct crosses the range start: only 1 and 2 Oct count, and the row keeps its own dates.
+      const across = withLeave([leave("l2", "person-rayhan", "sick", "2026-09-28", "2026-10-02", "unpaid")]);
+      expect(buildReport(across, OCT, AT).leave[0]).toMatchObject({ startDate: "2026-09-28", endDate: "2026-10-02", workingDays: 2 });
+    });
+
+    it("lists only may-be-taken leave of People in the Report, split into paid and unpaid by kind", () => {
+      const state = withLeave([
+        leave("paid-cuti", "person-rayhan", "cuti", "2026-10-05", "2026-10-06", "paid"),
+        leave("unpaid-cuti", "person-eka", "cuti", "2026-10-07", "2026-10-07", "unpaid"),
+        leave("sick", "person-eka", "sick", "2026-10-12", "2026-10-14", "paid"),
+        leave("pending", "person-rayhan", "cuti", "2026-10-20", "2026-10-20", null),
+        leave("refused", "person-rayhan", "cuti", "2026-10-21", "2026-10-21", "refused"),
+        // Denny has no Staffing and no hours, so he is not in the Report.
+        leave("outsider", "person-denny", "cuti", "2026-10-05", "2026-10-05", "paid"),
+      ]);
+      const report = buildReport(state, OCT, AT);
+      expect(report.leave.map((row) => row.person.id)).toEqual(["person-rayhan", "person-eka", "person-eka"]);
+      expect(report.summary.leaveByKind).toEqual([
+        { kind: "cuti", label: "Cuti", paid: 2, unpaid: 1 },
+        { kind: "sick", label: "Sick", paid: 3, unpaid: 0 },
+        { kind: "remote", label: "Remote", paid: 0, unpaid: 0 },
+      ]);
+      expect(report.summary.daysAway).toBe(6);
+    });
+
+    it("lists remote leave without counting it as days away", () => {
+      const state = withLeave([leave("remote", "person-rayhan", "remote", "2026-10-05", "2026-10-09", "paid"), leave("cuti", "person-rayhan", "cuti", "2026-10-12", "2026-10-12", "paid")]);
+      const report = buildReport(state, OCT, AT);
+      expect(report.leave.map((row) => [row.kind, row.workingDays])).toEqual([
+        ["remote", 5],
+        ["cuti", 1],
+      ]);
+      expect(report.summary.daysAway).toBe(1);
+    });
+
+    it("gives part-day leave its hours and no working day", () => {
+      const state = withLeave([leave("half", "person-rayhan", "cuti", "2026-10-05", "2026-10-05", "unpaid", ["09:00", "12:30"])]);
+      const report = buildReport(state, OCT, AT);
+      expect(report.leave[0]).toMatchObject({ partOfDay: { start: "09:00", end: "12:30" }, hours: 3.5, workingDays: 0 });
+      expect(report.summary.daysAway).toBe(0);
+    });
+
+    it("prints one line for an empty section, naming the range", () => {
+      expect(buildReport(withLeave([]), OCT, AT).leave).toEqual([]);
+      expect(reportEmptyLine({ from: "2026-09-21", to: "2026-10-20" }, "approved leave")).toBe("No approved leave between 21 Sep and 20 Oct 2026.");
+      expect(reportEmptyLine({ from: "2026-12-21", to: "2027-01-20" }, "approved leave")).toBe("No approved leave between 21 Dec 2026 and 20 Jan 2027.");
+    });
+  });
+
+  it("keeps the chosen sections in the fixed order", () => {
+    const report = buildReport(world(), { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave", "cover", "summary"] }, AT);
+    expect(report.sections).toEqual(["cover", "summary", "leave"]);
   });
 
   it("writes dates with fixed month names and hours with one decimal and thousands separators", () => {

@@ -25,8 +25,8 @@ async function pages(from: string, to: string) {
 
 describe("Report PDF", () => {
   it("builds for one month, twelve months, and an empty range", async () => {
-    // The cover and the Summary.
-    expect(await pages("2026-10-01", "2026-10-31")).toBeGreaterThanOrEqual(2);
+    // Cover, Summary, Timesheet by person, and Approved leave, each on its own page.
+    expect(await pages("2026-10-01", "2026-10-31")).toBeGreaterThanOrEqual(4);
     expect(await pages("2025-11-01", "2026-10-31")).toBeGreaterThan(0);
     expect(await pages("2027-03-01", "2027-03-31")).toBeGreaterThan(0);
   }, 30_000);

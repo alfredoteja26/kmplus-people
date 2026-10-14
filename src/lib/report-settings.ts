@@ -1,5 +1,5 @@
 import { monthSpan } from "@/lib/project-admin-view";
-import { REPORT_DEFAULTS, REPORT_TEXT_MAX, type ReportConfig } from "@/lib/report-model";
+import { orderSections, REPORT_DEFAULTS, REPORT_TEXT_MAX, type ReportConfig } from "@/lib/report-model";
 import { addDaysIso } from "@/lib/work-delivery-query";
 
 function isIsoDate(value: string): boolean {
@@ -39,6 +39,7 @@ export function serializeReportSettings(config: ReportConfig): string {
   if (!config.projectIds && !config.includeNoProject) params.set("noProject", "0");
   if (config.title !== REPORT_DEFAULTS.title) params.set("title", config.title);
   if (config.preparedFor) params.set("preparedFor", config.preparedFor);
+  params.set("sections", orderSections(config.sections).join(","));
   return params.toString();
 }
 
@@ -76,7 +77,14 @@ export function parseReportSettings(params: URLSearchParams, today: string, know
     includeNoProject: !projectIds && params.get("noProject") !== "0",
     title: text(params.get("title"), REPORT_DEFAULTS.title),
     preparedFor: text(params.get("preparedFor"), REPORT_DEFAULTS.preparedFor),
+    sections: sectionList(params.get("sections")),
   };
+}
+
+/** Known section keys from the address in the fixed order; the defaults when none is known. */
+function sectionList(value: string | null): ReportConfig["sections"] {
+  const sections = orderSections((value ?? "").split(","));
+  return sections.length > 0 ? sections : REPORT_DEFAULTS.sections;
 }
 
 /** Free text from the address, or the default when it is missing or longer than a Report holds. */
@@ -84,9 +92,10 @@ function text(value: string | null, fallback: string): string {
   return value !== null && value.length <= REPORT_TEXT_MAX ? value : fallback;
 }
 
-/** Why the filters cannot make a Report, in the words the page shows, or null when they can. */
-export function reportFilterError(config: Pick<ReportConfig, "projectIds" | "personIds">): string | null {
+/** Why the choices cannot make a Report, in the words the page shows, or null when they can. */
+export function reportChoiceError(config: Pick<ReportConfig, "projectIds" | "personIds" | "sections">): string | null {
   if (config.projectIds?.length === 0) return "Choose at least one project.";
   if (config.personIds?.length === 0) return "Choose at least one person.";
+  if (config.sections.length === 0) return "Choose at least one section.";
   return null;
 }

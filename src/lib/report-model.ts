@@ -1,7 +1,34 @@
-import type { AppState, Project } from "@/lib/types";
-import { activeHolidays, isWeekendIso } from "@/lib/leave-view";
+import type { AppState, LeaveKind, Project } from "@/lib/types";
+import { activeHolidays, isWeekendIso, KIND_LABEL, leaveDates } from "@/lib/leave-view";
 import { personName } from "@/lib/project-view";
-import { addDaysIso, countedTimeBlocksForPerson, hoursBetween, personLoadSum } from "@/lib/work-delivery-query";
+import { addDaysIso, countedTimeBlocksForPerson, hoursBetween, leaveIsApproved, personLoadSum } from "@/lib/work-delivery-query";
+
+/** Every section a Report can hold, in the fixed order both files follow. */
+export const SECTION_KEYS = ["cover", "summary", "hoursByProject", "timesheetByPerson", "dailyGrid", "timesheetDetail", "staffing", "projects", "leave"] as const;
+export type SectionKey = (typeof SECTION_KEYS)[number];
+
+export const SECTION_LABEL: Record<SectionKey, string> = {
+  cover: "Cover",
+  summary: "Summary",
+  hoursByProject: "Hours by project",
+  timesheetByPerson: "Timesheet by person",
+  dailyGrid: "Daily grid",
+  timesheetDetail: "Timesheet detail",
+  staffing: "Staffing",
+  projects: "Projects",
+  leave: "Approved leave",
+};
+
+/** On by default: serves management, billing, and payroll at once. */
+export const DEFAULT_SECTIONS: SectionKey[] = ["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"];
+
+/** The sections both files can draw so far; the page offers only these until the rest are built. */
+export const READY_SECTIONS: readonly SectionKey[] = ["cover", "summary", "timesheetByPerson", "leave"];
+
+/** `keys` without repeats or unknown keys, in the fixed order. */
+export function orderSections(keys: readonly string[]): SectionKey[] {
+  return SECTION_KEYS.filter((key) => keys.includes(key));
+}
 
 /**
  * What an Admin chose for one Report. Dates are ISO, `to` on or after `from`. A null id list means every
@@ -18,6 +45,7 @@ export type ReportConfig = {
   title: string;
   /** Optional client name, typed by hand. */
   preparedFor: string;
+  sections: SectionKey[];
 };
 
 export const REPORT_TITLE = "Project report";
@@ -31,6 +59,7 @@ export const REPORT_DEFAULTS = {
   includeNoProject: true,
   title: REPORT_TITLE,
   preparedFor: "",
+  sections: DEFAULT_SECTIONS,
 } satisfies Omit<ReportConfig, "from" | "to">;
 
 function cleanText(value: string): string {
@@ -69,13 +98,21 @@ function peakLoad(state: AppState, personId: string, from: string, to: string) {
   return Math.max(...[from, ...starts].map((day) => personLoadSum(state, personId, day)));
 }
 
+/** Whether a date is Monday to Friday and not an active public holiday. */
+function workingDayTest(state: AppState) {
+  const holidays = new Set(activeHolidays(state).map((row) => row.date));
+  return (day: string) => !isWeekendIso(day) && !holidays.has(day);
+}
+
 /** Monday to Friday from `from` to `to`, excluding active public holidays. */
 export function reportWorkingDays(state: AppState, from: string, to: string): number {
-  const holidays = new Set(activeHolidays(state).map((row) => row.date));
+  const isWorkingDay = workingDayTest(state);
   let count = 0;
-  for (let day = from; day <= to; day = addDaysIso(day, 1)) if (!isWeekendIso(day) && !holidays.has(day)) count += 1;
+  for (let day = from; day <= to; day = addDaysIso(day, 1)) if (isWorkingDay(day)) count += 1;
   return count;
 }
+
+const LEAVE_KINDS: LeaveKind[] = ["cuti", "sick", "remote"];
 
 /**
  * The Report as figures, with no formatting or layout, so the spreadsheet and the PDF cannot disagree.
@@ -100,17 +137,22 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
         })
         .map((block) => ({
           personId: person.id,
+          day: block.startAt.slice(0, 10),
           project: block.projectId ? (state.projects.find((row) => row.id === block.projectId) ?? null) : null,
           hours: Math.max(0, hoursBetween(block.startAt, block.endAt)),
         })),
     );
   const sum = (rows: typeof blocks) => rows.reduce((total, row) => total + row.hours, 0);
 
-  const byProject = new Map<Project | null, typeof blocks>();
-  for (const row of blocks) byProject.set(row.project, [...(byProject.get(row.project) ?? []), row]);
-  const hoursByProject = [...byProject.entries()]
-    .map(([project, rows]) => ({ project, hours: sum(rows) }))
-    .sort((a, b) => Number(a.project === null) - Number(b.project === null) || b.hours - a.hours || (a.project?.code ?? "").localeCompare(b.project?.code ?? ""));
+  /** Hours per Project, most first, with time that names no Project last. */
+  function splitByProject(rows: typeof blocks) {
+    const byProject = new Map<Project | null, typeof blocks>();
+    for (const row of rows) byProject.set(row.project, [...(byProject.get(row.project) ?? []), row]);
+    return [...byProject.entries()]
+      .map(([project, mine]) => ({ project, hours: sum(mine) }))
+      .sort((a, b) => Number(a.project === null) - Number(b.project === null) || b.hours - a.hours || (a.project?.code ?? "").localeCompare(b.project?.code ?? ""));
+  }
+  const hoursByProject = splitByProject(blocks);
 
   // A Person is in the Report when they logged hours in it or their Staffing overlaps it; with filters, only
   // counted hours and Staffing on the chosen Projects, and only the chosen People.
@@ -123,11 +165,38 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
   const peopleIds = new Set([...blocks.map((row) => row.personId), ...staffings.map((row) => row.personId)]);
   const people = state.people.filter((row) => peopleIds.has(row.id)).sort((a, b) => personName(a).localeCompare(personName(b)));
 
+  const blocksByPerson = new Map<string, typeof blocks>();
+  for (const row of blocks) blocksByPerson.set(row.personId, [...(blocksByPerson.get(row.personId) ?? []), row]);
+
+  // May-be-taken leave of the People in the Report that overlaps the range. Full days count as working days
+  // inside the range; part of a day carries its hours and counts as no day.
+  const isWorkingDay = workingDayTest(state);
+  const leave = state.leaveRequests
+    .filter((row) => leaveIsApproved(row) && peopleIds.has(row.personId) && overlaps(row.startDate, row.endDate || row.startDate, from, to))
+    .map((row) => {
+      const partOfDay = row.spanMode === "hours" && row.startTime && row.endTime ? { start: row.startTime, end: row.endTime } : null;
+      return {
+        person: state.people.find((item) => item.id === row.personId)!,
+        kind: row.kind,
+        leaveType: row.leaveTypeId ? (state.leaveTypes.find((item) => item.id === row.leaveTypeId)?.name ?? null) : null,
+        startDate: row.startDate,
+        endDate: row.endDate || row.startDate,
+        partOfDay,
+        hours: partOfDay ? Math.max(0, hoursBetween(`${row.startDate}T${partOfDay.start}`, `${row.startDate}T${partOfDay.end}`)) : 0,
+        workingDays: partOfDay ? 0 : leaveDates(row).filter((day) => day >= from && day <= to && isWorkingDay(day)).length,
+        paid: row.decision === "paid",
+      };
+    })
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || personName(a.person).localeCompare(personName(b.person)));
+  const leaveDays = (kind: LeaveKind, paid: boolean) => leave.filter((row) => row.kind === kind && row.paid === paid).reduce((total, row) => total + row.workingDays, 0);
+  const leaveByKind = LEAVE_KINDS.map((kind) => ({ kind, label: KIND_LABEL[kind], paid: leaveDays(kind, true), unpaid: leaveDays(kind, false) }));
+
   const chosenProjects = projectFilter ? state.projects.filter((row) => projectFilter.has(row.id)).sort((a, b) => a.code.localeCompare(b.code)) : [];
   const chosenPeople = personFilter ? state.people.filter((row) => personFilter.has(row.id)).map(personName).sort((a, b) => a.localeCompare(b)) : [];
 
   return {
     ...config,
+    sections: orderSections(config.sections),
     includeNoProject,
     title: reportTitle(config.title),
     preparedFor: cleanText(config.preparedFor),
@@ -146,10 +215,21 @@ export function buildReport(state: AppState, config: ReportConfig, stamp: Report
       people: people.length,
       // Peak Load counts all of a Person's Staffing, not only the filtered Projects.
       overloaded: people.filter((person) => peakLoad(state, person.id, from, to) > 100).length,
+      /** Working days of leave by kind, split into paid and unpaid. */
+      leaveByKind,
+      /** Working days of cuti and sick; remote is listed but is not time away. */
+      daysAway: leaveByKind.filter((row) => row.kind !== "remote").reduce((total, row) => total + row.paid + row.unpaid, 0),
     },
     hoursByProject,
-    /** Everyone in the Report with their counted hours, by name; a staffed Person with no hours shows 0. */
-    people: people.map((person) => ({ person, hours: sum(blocks.filter((row) => row.personId === person.id)) })),
+    /**
+     * Everyone in the Report by name, with counted hours, distinct days with hours, and the split across
+     * Projects. A staffed Person with no hours shows 0.
+     */
+    people: people.map((person) => {
+      const mine = blocksByPerson.get(person.id) ?? [];
+      return { person, hours: sum(mine), daysLogged: new Set(mine.map((row) => row.day)).size, byProject: splitByProject(mine) };
+    }),
+    leave,
   };
 }
 
@@ -167,6 +247,22 @@ const HOURS = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximum
 /** 2170 → "2,170.0". */
 export function reportHours(hours: number): string {
   return HOURS.format(hours);
+}
+
+/** "21 Sep and 20 Oct 2026", or "21 Dec 2026 and 20 Jan 2027" across a year. */
+function reportBetween(report: Pick<Report, "from" | "to">): string {
+  const from = reportDate(report.from);
+  return `${report.from.slice(0, 4) === report.to.slice(0, 4) ? from.slice(0, -5) : from} and ${reportDate(report.to)}`;
+}
+
+/** The one line an empty section prints: "No approved leave between 21 Sep and 20 Oct 2026." */
+export function reportEmptyLine(report: Pick<Report, "from" | "to">, what: string): string {
+  return `No ${what} between ${reportBetween(report)}.`;
+}
+
+/** "Cuti · Tahunan", "Sick", "Remote". */
+export function reportLeaveLabel(row: Pick<Report["leave"][number], "kind" | "leaveType">): string {
+  return row.leaveType ? `${KIND_LABEL[row.kind]} · ${row.leaveType}` : KIND_LABEL[row.kind];
 }
 
 /** "21 Sep 2026 – 20 Oct 2026". */

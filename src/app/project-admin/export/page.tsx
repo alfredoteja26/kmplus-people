@@ -10,8 +10,8 @@ import { CodeChip } from "@/components/work-delivery/project/parts";
 import { hasAdminGrant } from "@/lib/domain-query";
 import { monthSpan } from "@/lib/project-admin-view";
 import { personName } from "@/lib/project-view";
-import { buildReport, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
-import { addMonthsIso, parseReportSettings, reportFilterError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
+import { buildReport, orderSections, READY_SECTIONS, REPORT_TEXT_MAX, REPORT_TITLE, reportDate, reportTitle, reportWorkingDays, SECTION_KEYS, SECTION_LABEL, suggestedPreparedFor, reportFileName, reportRange, type Report } from "@/lib/report-model";
+import { addMonthsIso, parseReportSettings, reportChoiceError, reportRangeError, serializeReportSettings } from "@/lib/report-settings";
 import { useStore } from "@/lib/store";
 import { addDaysIso, jakartaTodayIso } from "@/lib/work-delivery-query";
 import { ArrowLeftIcon, DownloadIcon, FileSpreadsheetIcon } from "lucide-react";
@@ -142,18 +142,20 @@ function ExportReportForm() {
   const [personIds, setPersonIds] = useState(initial.personIds);
   const [includeNoProject, setIncludeNoProject] = useState(initial.includeNoProject);
   const [title, setTitle] = useState(initial.title);
+  // Only sections both files can draw yet; the rest join as they are built.
+  const [sections, setSections] = useState(() => initial.sections.filter((key) => READY_SECTIONS.includes(key)));
   // Prepared for follows the one chosen Project's client until the Admin types in it, or the link set it.
   const [preparedForEdited, setPreparedForEdited] = useState(() => params.has("preparedFor"));
   const [preparedFor, setPreparedFor] = useState(() => (params.has("preparedFor") ? initial.preparedFor : suggestedPreparedFor(state, initial.projectIds)));
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const rangeError = reportRangeError(from, to);
-  const settingsError = rangeError ?? reportFilterError({ projectIds, personIds });
+  const settingsError = rangeError ?? reportChoiceError({ projectIds, personIds, sections });
   const generatedBy = personName(state.people.find((row) => row.id === state.currentPersonId));
   const report = useMemo(
     () =>
-      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor }, { generatedBy, generatedAt: jakartaStamp() }),
-    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, settingsError, generatedBy],
+      settingsError ? null : buildReport(state, { from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections }, { generatedBy, generatedAt: jakartaStamp() }),
+    [state, from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, settingsError, generatedBy],
   );
 
   function chooseProjects(next: string[] | null) {
@@ -167,9 +169,9 @@ function ExportReportForm() {
 
   useEffect(() => {
     if (settingsError) return;
-    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim() };
+    const settings = { from, to, projectIds, personIds, includeNoProject, title: reportTitle(title), preparedFor: preparedFor.trim(), sections };
     router.replace(`${pathname}?${serializeReportSettings(settings)}`, { scroll: false });
-  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, settingsError, pathname, router]);
+  }, [from, to, projectIds, personIds, includeNoProject, title, preparedFor, sections, settingsError, pathname, router]);
 
   async function downloadXlsx() {
     if (!report) return;
@@ -316,6 +318,23 @@ function ExportReportForm() {
                   onChange={() => setPersonIds(toggleId(personIds, people.map((row) => row.id), person.id))}
                 >
                   <span className="truncate">{personName(person)}</span>
+                </CheckRow>
+              ))}
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-2 border-t border-line px-5 py-4" aria-labelledby="report-sections">
+            <h2 id="report-sections" className="m-0 text-base font-medium">
+              Sections
+            </h2>
+            <div className="flex flex-col gap-1.5">
+              {SECTION_KEYS.filter((key) => READY_SECTIONS.includes(key)).map((key) => (
+                <CheckRow
+                  key={key}
+                  checked={sections.includes(key)}
+                  onChange={() => setSections(orderSections(sections.includes(key) ? sections.filter((row) => row !== key) : [...sections, key]))}
+                >
+                  {SECTION_LABEL[key]}
                 </CheckRow>
               ))}
             </div>

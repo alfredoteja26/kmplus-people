@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REPORT_DEFAULTS } from "./report-model";
-import { parseReportSettings, reportFilterError, reportMonthLink, reportRangeError, serializeReportSettings } from "./report-settings";
+import { parseReportSettings, reportChoiceError, reportMonthLink, reportRangeError, serializeReportSettings } from "./report-settings";
 
 const TODAY = "2026-10-13";
 const KNOWN = { projectIds: ["p1", "p2"], personIds: ["person-eka", "person-rayhan"] };
@@ -42,7 +42,7 @@ describe("Report settings in the page address", () => {
   it("keeps the title and Prepared for, and falls back when either is longer than 80 characters", () => {
     const named = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", title: "Samudra Energi, October hours", preparedFor: "PT Samudra Energi" };
     expect(parse(serializeReportSettings(named))).toEqual(named);
-    expect(serializeReportSettings({ ...named, title: "Project report", preparedFor: "" })).toBe("from=2026-10-01&to=2026-10-31");
+    expect(serializeReportSettings({ ...named, title: "Project report", preparedFor: "" })).toBe("from=2026-10-01&to=2026-10-31&sections=cover%2Csummary%2CtimesheetByPerson%2CdailyGrid%2Cleave");
     const long = "x".repeat(81);
     expect(parse(`from=2026-10-01&to=2026-10-31&title=${long}&preparedFor=${long}`)).toMatchObject({ title: "Project report", preparedFor: "" });
   });
@@ -57,9 +57,18 @@ describe("Report settings in the page address", () => {
     expect(parse("from=2026-10-01&to=2026-10-31").includeNoProject).toBe(true);
   });
 
-  it("refuses a filter that chooses no Project or no Person", () => {
-    expect(reportFilterError(REPORT_DEFAULTS)).toBeNull();
-    expect(reportFilterError({ projectIds: [], personIds: null })).toBe("Choose at least one project.");
-    expect(reportFilterError({ projectIds: null, personIds: [] })).toBe("Choose at least one person.");
+  it("refuses choices with no Project, no Person, or no section", () => {
+    expect(reportChoiceError(REPORT_DEFAULTS)).toBeNull();
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, projectIds: [] })).toBe("Choose at least one project.");
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, personIds: [] })).toBe("Choose at least one person.");
+    expect(reportChoiceError({ ...REPORT_DEFAULTS, sections: [] })).toBe("Choose at least one section.");
+  });
+
+  it("keeps sections in the fixed order, drops unknown ones, and falls back to the defaults when none is known", () => {
+    const chosen = { ...REPORT_DEFAULTS, from: "2026-10-01", to: "2026-10-31", sections: ["leave" as const, "cover" as const] };
+    expect(parse(serializeReportSettings(chosen)).sections).toEqual(["cover", "leave"]);
+    expect(parse("from=2026-10-01&to=2026-10-31&sections=leave,bogus,summary,leave").sections).toEqual(["summary", "leave"]);
+    expect(parse("from=2026-10-01&to=2026-10-31&sections=bogus").sections).toEqual(["cover", "summary", "timesheetByPerson", "dailyGrid", "leave"]);
+    expect(parse("from=2026-10-01&to=2026-10-31").sections).toEqual(REPORT_DEFAULTS.sections);
   });
 });

@@ -4,7 +4,8 @@
  */
 import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import React, { type ReactNode } from "react";
-import { REPORT_COLORS as C, reportFilterLine, reportHours, reportRange, type Report } from "@/lib/report-model";
+import { personName } from "@/lib/project-view";
+import { REPORT_COLORS as C, reportDate, reportEmptyLine, reportFilterLine, reportHours, reportLeaveLabel, reportRange, type Report } from "@/lib/report-model";
 
 void React;
 
@@ -61,11 +62,17 @@ type Column<T> = { title: string; width: number; align?: "right"; render: (row: 
 /** A table whose header band repeats after every page break, with a tint totals row and an empty line. */
 function Table<T>({ columns, rows, empty }: { columns: Column<T>[]; rows: T[]; empty: string }) {
   const totals = rows.length > 0 && columns.some((column) => column.total);
+  // Text that follows a right-aligned number gets a gutter, so "5 of 22" never runs into "SMD-ERP".
+  const place = columns.map((column, index) => ({
+    width: column.width,
+    textAlign: column.align ?? ("left" as const),
+    paddingLeft: !column.align && columns[index - 1]?.align === "right" ? 16 : 5,
+  }));
   return (
     <View>
       <View style={[s.row, s.band]} fixed>
-        {columns.map((column) => (
-          <Text key={column.title} style={[s.cell, s.bandText, { width: column.width, textAlign: column.align ?? "left" }]}>
+        {columns.map((column, index) => (
+          <Text key={column.title} style={[s.cell, s.bandText, place[index]]}>
             {column.title}
           </Text>
         ))}
@@ -73,10 +80,10 @@ function Table<T>({ columns, rows, empty }: { columns: Column<T>[]; rows: T[]; e
       {rows.length === 0 ? <Text style={s.empty}>{empty}</Text> : null}
       {rows.map((row, index) => (
         <View key={index} style={s.row} wrap={false}>
-          {columns.map((column) => (
+          {columns.map((column, index) => (
             <Text
               key={column.title}
-              style={[s.cell, { width: column.width, textAlign: column.align ?? "left" }, column.warn?.(row) ? { color: C.warning, fontWeight: 600 } : {}]}
+              style={[s.cell, place[index], column.warn?.(row) ? { color: C.warning, fontWeight: 600 } : {}]}
             >
               {column.render(row)}
             </Text>
@@ -86,7 +93,7 @@ function Table<T>({ columns, rows, empty }: { columns: Column<T>[]; rows: T[]; e
       {totals ? (
         <View style={[s.row, s.totals]} wrap={false}>
           {columns.map((column, index) => (
-            <Text key={column.title} style={[s.cell, { width: column.width, fontWeight: 700, textAlign: column.align ?? "left" }]}>
+            <Text key={column.title} style={[s.cell, place[index], { fontWeight: 700 }]}>
               {column.total ? column.total(rows) : index === 0 ? "Total" : ""}
             </Text>
           ))}
@@ -119,19 +126,73 @@ function Summary({ report }: { report: Report }) {
           { label: "On projects", value: reportHours(summary.projectHours) },
           { label: "People", value: String(summary.people) },
           { label: "Past 100% load", value: String(summary.overloaded), warn: summary.overloaded > 0 },
+          { label: "Days away", value: String(summary.daysAway) },
         ]}
       />
-      <View style={{ width: 470 }}>
+      <View style={{ flexDirection: "row", gap: 18 }}>
         <Table
           rows={report.hoursByProject}
-          empty={`No hours between ${reportRange(report)}.`}
+          empty={reportEmptyLine(report, "hours")}
           columns={[
             { title: "Project", width: 290, render: (row) => (row.project ? `${row.project.code}  ${row.project.name}` : "No project") },
             { title: "Hours", width: 90, align: "right", render: (row) => reportHours(row.hours), total: () => reportHours(summary.totalHours) },
             { title: "Share", width: 90, align: "right", render: (row) => `${summary.totalHours ? Math.round((row.hours / summary.totalHours) * 100) : 0}%` },
           ]}
         />
+        <Table
+          rows={summary.leaveByKind}
+          empty=""
+          columns={[
+            { title: "Leave, working days", width: 130, render: (row) => row.label },
+            { title: "Paid", width: 70, align: "right", render: (row) => String(row.paid) },
+            { title: "Unpaid", width: 70, align: "right", render: (row) => String(row.unpaid) },
+          ]}
+        />
       </View>
+    </SectionPages>
+  );
+}
+
+function TimesheetByPerson({ report }: { report: Report }) {
+  return (
+    <SectionPages report={report} title="Timesheet by person" context={`${reportRange(report)} · ${report.summary.workingDays} working days`}>
+      <Table
+        rows={report.people}
+        empty={reportEmptyLine(report, "one logged hours or was staffed")}
+        columns={[
+          { title: "Person", width: 170, render: (row) => personName(row.person) },
+          { title: "Hours", width: 70, align: "right", render: (row) => reportHours(row.hours), total: () => reportHours(report.summary.totalHours), warn: (row) => row.hours === 0 },
+          {
+            title: "Days logged",
+            width: 90,
+            align: "right",
+            render: (row) => `${row.daysLogged} of ${report.summary.workingDays}`,
+            total: (rows) => String(rows.reduce((total, row) => total + row.daysLogged, 0)),
+          },
+          { title: "By project", width: 448, render: (row) => row.byProject.map((split) => `${split.project?.code ?? "No project"} ${reportHours(split.hours)}`).join("  ·  ") || "No hours" },
+        ]}
+      />
+    </SectionPages>
+  );
+}
+
+function ApprovedLeave({ report }: { report: Report }) {
+  return (
+    <SectionPages report={report} title="Approved leave" context={`${reportRange(report)} · working days inside the range`}>
+      <Table
+        rows={report.leave}
+        empty={reportEmptyLine(report, "approved leave")}
+        columns={[
+          { title: "Person", width: 140, render: (row) => personName(row.person) },
+          { title: "Leave", width: 175, render: reportLeaveLabel },
+          { title: "From", width: 75, render: (row) => reportDate(row.startDate) },
+          { title: "To", width: 75, render: (row) => reportDate(row.endDate) },
+          { title: "Part of day", width: 80, render: (row) => (row.partOfDay ? `${row.partOfDay.start}–${row.partOfDay.end}` : "") },
+          { title: "Hours", width: 60, align: "right", render: (row) => (row.partOfDay ? reportHours(row.hours) : ""), total: (rows) => reportHours(rows.reduce((total, row) => total + row.hours, 0)) },
+          { title: "Working days", width: 85, align: "right", render: (row) => String(row.workingDays), total: (rows) => String(rows.reduce((total, row) => total + row.workingDays, 0)) },
+          { title: "Pay", width: 60, render: (row) => (row.paid ? "Paid" : "Unpaid") },
+        ]}
+      />
     </SectionPages>
   );
 }
@@ -165,8 +226,10 @@ function Cover({ report, logo }: { report: Report; logo: string }) {
 export function ReportPdf({ report, logo }: { report: Report; logo: string }) {
   return (
     <Document title={`${report.title} ${report.from} to ${report.to}`} author="KMPlus People" creator="KMPlus People" producer="KMPlus People">
-      <Cover report={report} logo={logo} />
-      <Summary report={report} />
+      {report.sections.includes("cover") ? <Cover report={report} logo={logo} /> : null}
+      {report.sections.includes("summary") ? <Summary report={report} /> : null}
+      {report.sections.includes("timesheetByPerson") ? <TimesheetByPerson report={report} /> : null}
+      {report.sections.includes("leave") ? <ApprovedLeave report={report} /> : null}
     </Document>
   );
 }
