@@ -31,7 +31,6 @@ import {
   personWeekHours,
   projectProgressPercent,
   weekTargetHours,
-  workbookRows,
 } from "./work-delivery-query";
 
 function asAlfredo(state: AppState): AppState {
@@ -458,7 +457,7 @@ describe("LeaveRequest and TimeBlock", () => {
   });
 });
 
-describe("Home menu, workbook, reminders", () => {
+describe("Home menu and reminders", () => {
   it("shows Projects to every signed-in User and Project Admin only to Admin", () => {
     expect(menuVisibility(asAlfredo(createInitialState())).projects).toBe(true);
     expect(menuVisibility(asAlfredo(createInitialState())).projectAdmin).toBe(true);
@@ -474,14 +473,6 @@ describe("Home menu, workbook, reminders", () => {
     expect(alfredo).toContain("Project Admin");
     expect(denny).toContain("Projects");
     expect(denny).not.toContain("Project Admin");
-  });
-
-  it("returns workbook sheets with the named columns", () => {
-    const sheets = workbookRows(createInitialState());
-    expect(sheets.map((row) => row.name)).toEqual(["Projects", "Staffing", "Timesheet"]);
-    expect(sheets[0]?.columns).toEqual(["code", "name", "client", "start", "end"]);
-    expect(sheets[1]?.columns).toEqual(["person", "project code", "start", "end", "load"]);
-    expect(sheets[2]?.columns).toEqual(["person", "date", "hours", "project code", "type"]);
   });
 
   it("omits planning reminders when the end date is empty", () => {

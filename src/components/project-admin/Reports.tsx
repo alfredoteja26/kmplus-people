@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/coss/tabs";
 import { Badge } from "@/components/product/Badge";
 import { CodeChip, EmptyBlock, PersonAvatar } from "@/components/work-delivery/project/parts";
-import { formatDate, formatDateRange, plural } from "@/lib/labels";
+import { formatDate, formatDateRange } from "@/lib/labels";
 import { CHIP_TONE } from "@/components/leave/LeaveMonth";
 import type { LeaveInSpan, PersonMonth } from "@/lib/project-admin-view";
 import { clientLabel, personName, projectHours, timingPhrase } from "@/lib/project-view";
@@ -337,7 +337,7 @@ export function Reports({
         </TabsPanel>
       </Tabs>
       <p className="m-0 border-t border-line px-5 py-3 text-sm text-muted">
-        {plural(counts.projects, "project")}, {plural(counts.staffing, "staffing row")} and every logged hour go into the workbook.
+        Export report builds a PDF or a spreadsheet for any range, with the projects, people, and sections you choose.
       </p>
     </section>
   );

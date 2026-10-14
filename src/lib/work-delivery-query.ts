@@ -337,66 +337,6 @@ export function menuVisibility(state: AppState) {
   };
 }
 
-export type WorkbookSheet = {
-  name: string;
-  columns: string[];
-  rows: string[][];
-};
-
-export function workbookRows(state: AppState): WorkbookSheet[] {
-  return [
-    {
-      name: "Projects",
-      columns: ["code", "name", "client", "start", "end"],
-      rows: state.projects.map((row) => [
-        row.code,
-        row.name,
-        row.clientName ?? "",
-        row.startDate,
-        row.endDate ?? "",
-      ]),
-    },
-    {
-      name: "Staffing",
-      columns: ["person", "project code", "start", "end", "load"],
-      rows: state.staffings.map((row) => {
-        const person = state.people.find((item) => item.id === row.personId);
-        const project = state.projects.find((item) => item.id === row.projectId);
-        return [
-          person?.preferredName || person?.legalName || row.personId,
-          project?.code ?? "",
-          row.startDate,
-          row.endDate ?? "",
-          String(row.load),
-        ];
-      }),
-    },
-    {
-      name: "Timesheet",
-      columns: ["person", "date", "hours", "project code", "type"],
-      // One row per Person per counted block: their own blocks plus Meetings they accepted.
-      rows: state.people
-        .flatMap((person) =>
-          countedTimeBlocksForPerson(state, person.id).map((block) => ({ person, block })),
-        )
-        .sort((a, b) => a.block.startAt.localeCompare(b.block.startAt))
-        .map(({ person, block: row }) => {
-        const project = row.projectId
-          ? state.projects.find((item) => item.id === row.projectId)
-          : undefined;
-        const type = state.timeBlockTypes.find((item) => item.id === row.typeId);
-        return [
-          person.preferredName || person.legalName || person.id,
-          row.startAt.slice(0, 10),
-          String(hoursBetween(row.startAt, row.endAt)),
-          project?.code ?? "",
-          type?.name ?? "",
-        ];
-      }),
-    },
-  ];
-}
-
 export type KpiReminder = {
   kind: "planning" | "check-in" | "meeting";
   personId: string;
