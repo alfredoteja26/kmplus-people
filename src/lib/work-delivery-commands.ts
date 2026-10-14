@@ -43,7 +43,7 @@ import {
 
 export type CommandResult<T = object> = { state: AppState } & T;
 
-function audit(state: AppState, action: string, entity: string, entityId: string, detail: string): AppState {
+export function audit(state: AppState, action: string, entity: string, entityId: string, detail: string): AppState {
   return {
     ...state,
     audit: [
@@ -67,7 +67,7 @@ function adminDenied(state: AppState): string | null {
   return null;
 }
 
-function ensureWorkDeliveryCollections(state: AppState): AppState {
+export function ensureWorkDeliveryCollections(state: AppState): AppState {
   return {
     ...state,
     projects: state.projects ?? [],
@@ -78,6 +78,9 @@ function ensureWorkDeliveryCollections(state: AppState): AppState {
     deliverableCategories: state.deliverableCategories ?? [],
     leaveRequests: state.leaveRequests ?? [],
     leaveTypes: state.leaveTypes ?? [],
+    reimbursementRequests: state.reimbursementRequests ?? [],
+    reimbursementEvidence: state.reimbursementEvidence ?? [],
+    reimbursementTypes: state.reimbursementTypes ?? [],
     publicHolidays: state.publicHolidays ?? [],
     timeBlockTypes: state.timeBlockTypes ?? [],
     timeBlocks: state.timeBlocks ?? [],
@@ -560,7 +563,7 @@ export function deleteDeliverable(state: AppState, deliverableId: string): Comma
   return { state: audit(next, "delete", "Deliverable", deliverableId, "Removed Deliverable"), error: null };
 }
 
-function reorderLabels<T extends { id: string; sortOrder: number }>(rows: T[], orderedIds: string[]): T[] | null {
+export function reorderLabels<T extends { id: string; sortOrder: number }>(rows: T[], orderedIds: string[]): T[] | null {
   if (orderedIds.length !== rows.length) return null;
   if (new Set(orderedIds).size !== rows.length) return null;
   if (!orderedIds.every((id) => rows.some((row) => row.id === id))) return null;

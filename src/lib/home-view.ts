@@ -68,7 +68,7 @@ export function homeShortcuts(state: AppState): Shortcut[] {
     { href: "/kpi", label: "My KPI" },
     { href: "/kpi/team", label: "Team KPIs" },
     { href: "/leave/decide", label: "Leave requests" },
-    { href: "/project-admin", label: "Project Admin" },
+    { href: "/project-admin", label: "Admin" },
   ];
   return wanted.filter((row) => visible.has(row.href));
 }

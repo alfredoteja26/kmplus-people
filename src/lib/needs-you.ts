@@ -10,6 +10,7 @@ import {
 } from "./domain-query";
 import { lateCheckInCount, needsCheckInThisWindow } from "./phase-desk";
 import type { AppState } from "./types";
+import { reimbursementsToDecide } from "./reimbursement-view";
 
 /** "act": the viewer must do something. "wait": the viewer's own work is with someone else. */
 export type NeedsYouTone = "act" | "wait";
@@ -187,6 +188,18 @@ export function needsYou(state: AppState, today: string): NeedsYouItem[] {
         count: leave,
         title: `${leave} leave ${plural(leave, "request")} to decide`,
         href: "/leave/decide",
+        action: "Decide",
+      });
+    }
+    const reimbursements = reimbursementsToDecide({ ...state, reimbursementRequests: state.reimbursementRequests ?? [] }).length;
+    if (reimbursements > 0) {
+      items.push({
+        id: "admin-reimbursements",
+        hat: "admin",
+        tone: "act",
+        count: reimbursements,
+        title: `${reimbursements} reimbursement ${plural(reimbursements, "request")} to decide`,
+        href: "/project-admin/reimbursements",
         action: "Decide",
       });
     }

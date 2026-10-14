@@ -65,6 +65,23 @@ type Store = {
   fileLeaveRequest: (input: commands.FileLeaveInput) => { leaveRequestId: string | null; error: string | null };
   decideLeaveRequest: (leaveRequestId: string, decision: import("./types").LeaveDecision) => { error: string | null };
   withdrawLeaveRequest: (leaveRequestId: string) => { error: string | null };
+  fileReimbursementRequest: (
+    input: commands.FileReimbursementInput,
+  ) => { reimbursementRequestId: string | null; error: string | null };
+  editReimbursementRequest: (
+    reimbursementRequestId: string,
+    input: commands.EditReimbursementInput,
+  ) => { error: string | null };
+  withdrawReimbursementRequest: (reimbursementRequestId: string) => { error: string | null };
+  decideReimbursementRequest: (
+    reimbursementRequestId: string,
+    input: commands.DecideReimbursementInput,
+  ) => { error: string | null };
+  markReimbursementPaid: (reimbursementRequestId: string, paidOn: string) => { error: string | null };
+  clearReimbursementPaid: (reimbursementRequestId: string) => { error: string | null };
+  addReimbursementType: (name: string) => { reimbursementTypeId: string | null; error: string | null };
+  renameReimbursementType: (reimbursementTypeId: string, name: string) => { error: string | null };
+  removeReimbursementType: (reimbursementTypeId: string) => { error: string | null };
   upsertTimeBlock: (input: commands.UpsertTimeBlockInput) => { timeBlockId: string | null; error: string | null };
   deleteTimeBlock: (timeBlockId: string) => { error: string | null };
   respondToInvite: (inviteId: string, status: "accepted" | "declined") => { error: string | null };
@@ -331,6 +348,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       withdrawLeaveRequest(leaveRequestId) {
         return commit("withdrawLeaveRequest", [leaveRequestId]);
+      },
+      fileReimbursementRequest(input) {
+        return commit("fileReimbursementRequest", [input]);
+      },
+      editReimbursementRequest(reimbursementRequestId, input) {
+        return commit("editReimbursementRequest", [reimbursementRequestId, input]);
+      },
+      withdrawReimbursementRequest(reimbursementRequestId) {
+        return commit("withdrawReimbursementRequest", [reimbursementRequestId]);
+      },
+      decideReimbursementRequest(reimbursementRequestId, input) {
+        return commit("decideReimbursementRequest", [reimbursementRequestId, input]);
+      },
+      markReimbursementPaid(reimbursementRequestId, paidOn) {
+        return commit("markReimbursementPaid", [reimbursementRequestId, paidOn]);
+      },
+      clearReimbursementPaid(reimbursementRequestId) {
+        return commit("clearReimbursementPaid", [reimbursementRequestId]);
+      },
+      addReimbursementType(name) {
+        return commit("addReimbursementType", [name]);
+      },
+      renameReimbursementType(reimbursementTypeId, name) {
+        return commit("renameReimbursementType", [reimbursementTypeId, name]);
+      },
+      removeReimbursementType(reimbursementTypeId) {
+        return commit("removeReimbursementType", [reimbursementTypeId]);
       },
       upsertTimeBlock(input) {
         return commit("upsertTimeBlock", [input]);

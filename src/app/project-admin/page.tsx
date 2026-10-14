@@ -56,9 +56,9 @@ export default function ProjectAdminPage() {
   if (!admin) {
     return (
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3">
-        <h1 className="m-0 font-heading text-h1 font-medium">Project Admin</h1>
+        <h1 className="m-0 font-heading text-h1 font-medium">Admin</h1>
         <p className="m-0 text-sm">
-          Only an Admin can open Project Admin.{" "}
+          Only an Admin can open the Admin area.{" "}
           <Link href="/projects" className="font-medium text-accent underline-offset-2 hover:underline">
             See your projects
           </Link>
@@ -135,7 +135,7 @@ export default function ProjectAdminPage() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
       <header className="flex flex-col gap-4">
         <div>
-          <h1 className="m-0 font-heading text-h1 font-medium">Project Admin</h1>
+          <h1 className="m-0 font-heading text-h1 font-medium">Admin</h1>
           <p className="mt-1 mb-0 text-muted">Where project hours, people, and leave stand in {monthName}. Everything here is read-only.</p>
         </div>
         <ProjectAdminSubnav />

@@ -337,6 +337,49 @@ export type LeaveType = {
   sortOrder: number;
 };
 
+export type ReimbursementDecision = "approved" | "rejected";
+
+/** One expense a Person asks to be paid back for (CONTEXT: ReimbursementRequest). Amounts are whole rupiah. */
+export type ReimbursementRequest = {
+  id: string;
+  tenantId: string;
+  personId: string;
+  filedByPersonId: string;
+  filedOn: string;
+  expenseDate: string;
+  amount: number;
+  reimbursementTypeId: string;
+  description: string;
+  projectId: string | null;
+  withdrawnOn: string | null;
+  decision: ReimbursementDecision | null;
+  approvedAmount: number | null;
+  decisionNote: string | null;
+  decidedByPersonId: string | null;
+  decidedOn: string | null;
+  paidOn: string | null;
+  paidByPersonId: string | null;
+};
+
+/** One receipt file on a ReimbursementRequest; the bytes live in Supabase Storage (ADR-0012). */
+export type ReimbursementEvidence = {
+  id: string;
+  tenantId: string;
+  reimbursementRequestId: string;
+  storagePath: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  sortOrder: number;
+};
+
+export type ReimbursementType = {
+  id: string;
+  tenantId: string;
+  name: string;
+  sortOrder: number;
+};
+
 export type PublicHolidayOrigin = "libur" | "bersama" | "internal";
 
 export type PublicHoliday = {
@@ -407,6 +450,9 @@ export type AppState = {
   deliverableCategories: DeliverableCategory[];
   leaveRequests: LeaveRequest[];
   leaveTypes: LeaveType[];
+  reimbursementRequests: ReimbursementRequest[];
+  reimbursementEvidence: ReimbursementEvidence[];
+  reimbursementTypes: ReimbursementType[];
   publicHolidays: PublicHoliday[];
   timeBlockTypes: TimeBlockType[];
   timeBlocks: TimeBlock[];

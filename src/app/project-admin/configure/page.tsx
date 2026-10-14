@@ -33,6 +33,9 @@ export default function ProjectAdminConfigurePage() {
     addLeaveType,
     renameLeaveType,
     removeLeaveType,
+    addReimbursementType,
+    renameReimbursementType,
+    removeReimbursementType,
     addTimeBlockType,
     renameTimeBlockType,
     removeTimeBlockType,
@@ -51,6 +54,7 @@ export default function ProjectAdminConfigurePage() {
   const categoryUses = countBy(state.deliverables, (row) => row.categoryId);
   const leaveUses = countBy(state.leaveRequests, (row) => row.leaveTypeId);
   const blockUses = countBy(state.timeBlocks, (row) => row.typeId);
+  const reimbursementUses = countBy(state.reimbursementRequests, (row) => row.reimbursementTypeId);
 
   const statuses = bySortOrder(state.deliverableStatuses).map((row) => ({
     id: row.id,
@@ -69,6 +73,11 @@ export default function ProjectAdminConfigurePage() {
     id: row.id,
     name: row.name,
     uses: leaveUses.get(row.id) ?? 0,
+  }));
+  const reimbursementTypes = bySortOrder(state.reimbursementTypes).map((row) => ({
+    id: row.id,
+    name: row.name,
+    uses: reimbursementUses.get(row.id) ?? 0,
   }));
   const blockTypes = bySortOrder(state.timeBlockTypes).map((row) => ({
     id: row.id,
@@ -121,6 +130,17 @@ export default function ProjectAdminConfigurePage() {
           onAdd={(name) => addLeaveType(name).error}
           onRename={(id, name) => renameLeaveType(id, name).error}
           onRemove={(id) => removeLeaveType(id).error}
+        />
+
+        <LabelListSection
+          title="Reimbursement type"
+          noun="reimbursement type"
+          context="People pick a type when they file a reimbursement."
+          usedBy={["reimbursement", "reimbursements"]}
+          labels={reimbursementTypes}
+          onAdd={(name) => addReimbursementType(name).error}
+          onRename={(id, name) => renameReimbursementType(id, name).error}
+          onRemove={(id) => removeReimbursementType(id).error}
         />
 
         <LabelListSection

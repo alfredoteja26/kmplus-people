@@ -81,6 +81,12 @@ const paths: Record<NavIconId, ReactNode> = {
       <path d="m9.25 14.75 1.9 1.9 3.6-3.9" />
     </>
   ),
+  reimbursement: (
+    <>
+      <path d="M6.5 3.5h11v17l-2.75-1.75L12 20.5l-2.75-1.75L6.5 20.5z" />
+      <path d="M9.5 8.5h5M9.5 12h5M9.5 15.5h3" />
+    </>
+  ),
   "project-admin": (
     <>
       <rect x="4.5" y="6" width="15" height="13" rx="2" />

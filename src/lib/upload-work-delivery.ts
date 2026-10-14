@@ -1,13 +1,15 @@
+import type { UploadPurpose } from "./upload-rules";
+
 export async function uploadWorkDeliveryFile(
   file: File,
-  purpose: "deliverable" | "doctor-letter",
+  purpose: UploadPurpose,
 ): Promise<{ storagePath: string; fileName: string; error?: string }> {
   const failed = (error: string) => ({ storagePath: "", fileName: "", error });
 
   const response = await fetch("/api/storage/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ purpose, fileName: file.name, size: file.size }),
+    body: JSON.stringify({ purpose, fileName: file.name, size: file.size, contentType: file.type }),
   });
   const payload = (await response.json().catch(() => ({}))) as {
     storagePath?: string;

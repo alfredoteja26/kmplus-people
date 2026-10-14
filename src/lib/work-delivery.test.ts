@@ -458,7 +458,7 @@ describe("LeaveRequest and TimeBlock", () => {
 });
 
 describe("Home menu and reminders", () => {
-  it("shows Projects to every signed-in User and Project Admin only to Admin", () => {
+  it("shows Projects to every signed-in User and the Admin area only to Admin", () => {
     expect(menuVisibility(asAlfredo(createInitialState())).projects).toBe(true);
     expect(menuVisibility(asAlfredo(createInitialState())).projectAdmin).toBe(true);
     expect(menuVisibility(asDenny(createInitialState())).projectAdmin).toBe(false);
@@ -470,9 +470,13 @@ describe("Home menu and reminders", () => {
       .flatMap((group) => group.items)
       .map((item) => item.label);
     expect(alfredo).toContain("Projects");
-    expect(alfredo).toContain("Project Admin");
+    expect(alfredo).toContain("Admin");
+    expect(alfredo).not.toContain("Project Admin");
+    // Reimbursement requests live inside the Admin area, not in the sidebar.
+    expect(alfredo).not.toContain("Reimbursement requests");
+    expect(alfredo).toContain("Reimbursement");
     expect(denny).toContain("Projects");
-    expect(denny).not.toContain("Project Admin");
+    expect(denny).not.toContain("Admin");
   });
 
   it("omits planning reminders when the end date is empty", () => {
