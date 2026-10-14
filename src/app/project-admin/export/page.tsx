@@ -277,7 +277,7 @@ function ExportReportForm() {
       <header className="flex flex-col gap-2">
         <Link href="/project-admin" className="inline-flex w-fit items-center gap-1.5 text-sm text-muted no-underline hover:text-accent">
           <ArrowLeftIcon aria-hidden="true" className="size-4" />
-          Back to Project Admin
+          Back to Admin
         </Link>
         <h1 className="m-0 font-heading text-h1 font-medium">Export report</h1>
         <p className="m-0 max-w-[70ch] text-muted">Name the report and choose the range, projects, and people it covers. The preview is the PDF you download; the spreadsheet holds the same figures.</p>
